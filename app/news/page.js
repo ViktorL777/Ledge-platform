@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
 
 const DIMENSION_INFO = {
   'Meaning-Maker': { emoji: '🧭', color: '#b87333' },
@@ -16,13 +18,14 @@ const DIMENSION_INFO = {
   'Transformator': { emoji: '🔄', color: '#9a4a4a' },
 };
 
-export const revalidate = 300;
+export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 async function getArticles() {
+  const supabase = getSupabase();
   const { data, error } = await supabase
     .from('curated_articles')
     .select('*')
-    .eq('status', 'draft')
     .order('created_at', { ascending: false });
 
   if (error) {
