@@ -29,7 +29,7 @@ export default function NewsPage() {
       const { data, error } = await supabase
         .from('curated_articles')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('published_at', { ascending: false });
 
       if (error) {
         setError(error.message);
