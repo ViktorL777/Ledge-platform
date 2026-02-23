@@ -9,9 +9,9 @@ export async function GET() {
   }
 
   const supabase = createClient(url, key);
-  const { data, error, count } = await supabase
+  const { data, error } = await supabase
     .from('curated_articles')
-    .select('id, title', { count: 'exact' });
+    .select('id, title');
 
   return Response.json({
     success: !error,
@@ -20,8 +20,3 @@ export async function GET() {
     titles: (data || []).slice(0, 3).map(a => a.title)
   });
 }
-```
-
-**Commit changes**, várj 1 percet, aztán nyisd meg:
-```
-https://www.ledge.news/api/test-db
