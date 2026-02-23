@@ -1,11 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+'use client';
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
+import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
+
+const supabase = createClient(
+  'https://awthriaplrrryyiuvzck.supabase.co',
+  'sb_publishable_oCL0sPSvr_EN9zBShyag8A_tYj_dz5H'
+);
 
 const DIMENSION_INFO = {
   'Meaning-Maker': { emoji: '🧭', color: '#b87333' },
@@ -18,25 +19,27 @@ const DIMENSION_INFO = {
   'Transformator': { emoji: '🔄', color: '#9a4a4a' },
 };
 
-export const revalidate = 60;
-export const dynamic = 'force-dynamic';
+export default function NewsPage() {
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-async function getArticles() {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('curated_articles')
-    .select('*')
-    .order('created_at', { ascending: false });
+  useEffect(() => {
+    async function fetchArticles() {
+      const { data, error } = await supabase
+        .from('curated_articles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Failed to fetch articles:', error.message);
-    return [];
-  }
-  return data || [];
-}
-
-export default async function NewsPage() {
-  const articles = await getArticles();
+      if (error) {
+        setError(error.message);
+      } else {
+        setArticles(data || []);
+      }
+      setLoading(false);
+    }
+    fetchArticles();
+  }, []);
 
   return (
     <main style={{
@@ -84,7 +87,11 @@ export default async function NewsPage() {
           Curated insights with the Leadership Angle. Updated daily.
         </p>
 
-        {articles.length === 0 ? (
+        {loading ? (
+          <p style={{ color: '#6b7b8d' }}>Loading articles...</p>
+        ) : error ? (
+          <p style={{ color: '#9a4a4a' }}>Error: {error}</p>
+        ) : articles.length === 0 ? (
           <p style={{ color: '#6b7b8d' }}>No articles yet. Check back soon.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
