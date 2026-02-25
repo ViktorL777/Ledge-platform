@@ -13,3 +13,4 @@ Ledge is an AI-powered leadership intelligence platform.
 Beta — Currently in development.
 
 © 2026 Ledge. All rights reserved.
+
