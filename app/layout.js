@@ -1,8 +1,22 @@
 import './globals.css'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata = {
   title: 'Ledge — See further. Lead smarter. Balance uncertainty.',
-  description: 'Sharpens leadership judgement in the age of intelligent technologies.',
+  description: 'Sharpens leadership judgement in the age of intelligent technologies. AI-curated news, interactive case studies, and an intelligent coaching engine.',
+  keywords: 'leadership, AI, leadership intelligence, leadership chess, executive development, leadership news',
+  openGraph: {
+    title: 'Ledge — See further. Lead smarter. Balance uncertainty.',
+    description: 'Sharpens leadership judgement in the age of intelligent technologies.',
+    url: 'https://ledge.news',
+    siteName: 'Ledge',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Ledge — See further. Lead smarter. Balance uncertainty.',
+    description: 'Sharpens leadership judgement in the age of intelligent technologies.',
+  },
 }
 
 export default function RootLayout({ children }) {
@@ -16,8 +30,10 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   )
 }
-
