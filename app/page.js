@@ -175,8 +175,8 @@ export default function Home() {
           <span className="nav-beta">Beta</span>
         </a>
         <div className="nav-links">
-          <a href="#news">News</a>
-          <a href="#chess">Leadership Chess</a>
+          <a href="/news">News</a>
+          <a href="/chess">Leadership Chess</a>
           <a href="#learn">Learn</a>
           <a href="#coach">AI Coach</a>
           <a href="#subscribe">Subscribe</a>
