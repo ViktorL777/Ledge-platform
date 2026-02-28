@@ -1,384 +1,311 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Steps: situation → decision → analysis → reveal → share
-const STEPS = ['situation', 'decision', 'analysis', 'reveal', 'share'];
-
-function generateSessionId() {
-  return 'sess_' + Math.random().toString(36).substr(2, 12) + '_' + Date.now();
-}
-
 export default function ChessGamePage() {
   const params = useParams();
-  const slug = params.slug;
-
+  const router = useRouter();
   const [caseData, setCaseData] = useState(null);
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [step, setStep] = useState(1);
   const [selectedOption, setSelectedOption] = useState(null);
   const [stats, setStats] = useState(null);
   const [startTime] = useState(Date.now());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
 
-  // Load case data
   useEffect(() => {
-    async function loadCase() {
-      try {
-        const { data: cData, error: cErr } = await supabase
-          .from('chess_cases')
-          .select('*')
-          .eq('slug', slug)
-          .eq('is_active', true)
-          .single();
+    async function fetchCase() {
+      const { data: cData } = await supabase
+        .from('chess_cases')
+        .select('*')
+        .eq('slug', params.slug)
+        .eq('is_active', true)
+        .single();
 
-        if (cErr || !cData) {
-          setError('Scenario not found.');
-          setLoading(false);
-          return;
-        }
-
-        const { data: oData } = await supabase
-          .from('chess_options')
-          .select('*')
-          .eq('case_id', cData.id)
-          .order('display_order', { ascending: true });
-
-        setCaseData(cData);
-        setOptions(oData || []);
+      if (!cData) {
         setLoading(false);
-      } catch (err) {
-        setError('Failed to load scenario.');
-        setLoading(false);
+        return;
       }
+      setCaseData(cData);
+
+      const { data: oData } = await supabase
+        .from('chess_options')
+        .select('*')
+        .eq('case_id', cData.id)
+        .order('display_order', { ascending: true });
+
+      if (oData) setOptions(oData);
+      setLoading(false);
     }
-    loadCase();
-  }, [slug]);
+    fetchCase();
+  }, [params.slug]);
 
-  // Save response
-  const saveResponse = useCallback(async (option) => {
-    if (!caseData || saving) return;
-    setSaving(true);
+  async function submitResponse() {
+    if (!selectedOption || !caseData) return;
+
+    const timeSpent = Math.round((Date.now() - startTime) / 1000);
+    const sessionId = 'sess_' + Math.random().toString(36).substr(2, 9);
+
     try {
-      const timeSpent = Math.round((Date.now() - startTime) / 1000);
-      const sessionId = generateSessionId();
-
       await supabase.from('chess_responses').insert({
         case_id: caseData.id,
-        selected_option_id: option.id,
+        selected_option_id: selectedOption.id,
+        is_custom: false,
         mode: 'quick',
         session_id: sessionId,
         time_spent_seconds: timeSpent,
+        shared: false
       });
 
-      // Fetch stats
-      const { data: allResponses } = await supabase
+      const { data: totalData } = await supabase
         .from('chess_responses')
-        .select('selected_option_id')
+        .select('id', { count: 'exact' })
         .eq('case_id', caseData.id);
 
-      if (allResponses && allResponses.length > 0) {
-        const total = allResponses.length;
-        const optionCounts = {};
-        allResponses.forEach(r => {
-          optionCounts[r.selected_option_id] = (optionCounts[r.selected_option_id] || 0) + 1;
-        });
-        
-        const statsMap = {};
-        options.forEach(o => {
-          statsMap[o.id] = Math.round(((optionCounts[o.id] || 0) / total) * 100);
-        });
-        setStats({ total, percentages: statsMap });
+      const { data: sameData } = await supabase
+        .from('chess_responses')
+        .select('id', { count: 'exact' })
+        .eq('case_id', caseData.id)
+        .eq('selected_option_id', selectedOption.id);
+
+      const total = totalData?.length || 1;
+      const same = sameData?.length || 0;
+      const actualOpt = options.find(o => o.is_actual_decision);
+      
+      let actualCount = 0;
+      if (actualOpt) {
+        const { data: actualData } = await supabase
+          .from('chess_responses')
+          .select('id', { count: 'exact' })
+          .eq('case_id', caseData.id)
+          .eq('selected_option_id', actualOpt.id);
+        actualCount = actualData?.length || 0;
       }
-    } catch (err) {
-      console.error('Failed to save response:', err);
+
+      setStats({
+        totalPlayers: total,
+        sameChoicePercent: Math.round((same / total) * 100),
+        actualChoicePercent: Math.round((actualCount / total) * 100)
+      });
+    } catch (e) {
+      console.error('Error saving response:', e);
+      setStats({ totalPlayers: 1, sameChoicePercent: 100, actualChoicePercent: 0 });
     }
-    setSaving(false);
-  }, [caseData, options, saving, startTime]);
 
-  // Handle option selection
-  const handleSelect = async (option) => {
-    setSelectedOption(option);
-    await saveResponse(option);
-    setCurrentStep(2); // Go to analysis
-  };
+    setStep(3);
+  }
 
-  // Navigation
-  const goNext = () => {
-    if (currentStep < STEPS.length - 1) {
-      setCurrentStep(prev => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+  const progress = step * 20;
 
-  const goBack = () => {
-    if (currentStep > 0) {
-      // Don't go back past decision if already submitted
-      if (currentStep > 2 || currentStep <= 1) {
-        setCurrentStep(prev => prev - 1);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }
-  };
-
-  // Share functionality
-  const shareResult = () => {
-    const actualOption = options.find(o => o.is_actual_decision);
-    const matchedLeader = selectedOption?.id === actualOption?.id;
-    const shareText = matchedLeader
-      ? `I chose the same path as ${caseData.leader_name} in the "${caseData.anonymous_title}" leadership challenge on Ledge. What would you decide?`
-      : `I chose differently from ${caseData.leader_name} in the "${caseData.anonymous_title}" leadership challenge on Ledge. What would you decide?`;
-    
-    const shareUrl = `https://ledge.news/chess/${slug}`;
-    
-    if (navigator.share) {
-      navigator.share({ title: 'Leadership Chess — Ledge', text: shareText, url: shareUrl });
-    } else {
-      const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
-      window.open(linkedInUrl, '_blank');
-    }
-  };
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(`https://ledge.news/chess/${slug}`);
-  };
-
-  // Loading state
   if (loading) {
     return (
-      <div className="chess-game-page">
-        <div className="chess-game-loading">
-          <div className="chess-loading-icon">♟</div>
-          <p>Loading scenario...</p>
+      <div className="chess-game-wrap">
+        <div className="chess-game-box">
+          <div className="chess-loading">Loading dossier...</div>
         </div>
       </div>
     );
   }
 
-  // Error state
-  if (error) {
+  if (!caseData) {
     return (
-      <div className="chess-game-page">
-        <div className="chess-game-error">
-          <h2>{error}</h2>
-          <Link href="/chess" className="chess-btn-primary">← Back to scenarios</Link>
+      <div className="chess-game-wrap">
+        <div className="chess-game-box">
+          <div className="chess-loading">
+            Case not found.{' '}
+            <button onClick={() => router.push('/chess')} className="game-link">Back to cases</button>
+          </div>
         </div>
       </div>
     );
   }
 
   const actualOption = options.find(o => o.is_actual_decision);
-  const matchedLeader = selectedOption?.id === actualOption?.id;
-  const stepName = STEPS[currentStep];
 
   return (
-    <div className="chess-game-page">
-      {/* Top bar */}
-      <nav className="chess-game-nav">
-        <Link href="/chess" className="chess-game-back">← All Scenarios</Link>
-        <div className="chess-game-progress">
-          {STEPS.map((s, i) => (
-            <div key={s} className={`chess-progress-dot ${i <= currentStep ? 'active' : ''} ${i === currentStep ? 'current' : ''}`} />
-          ))}
-        </div>
-        <div className="chess-game-badge">{caseData.category}</div>
-      </nav>
+    <div className="chess-game-wrap">
+      <button className="chess-game-close" onClick={() => router.push('/chess')}>&#10005;</button>
 
-      {/* ============ STEP 1: SITUATION ============ */}
-      {stepName === 'situation' && (
-        <section className="chess-step chess-step-situation">
-          <div className="chess-step-label">The Situation</div>
-          <h1 className="chess-game-title">{caseData.anonymous_title}</h1>
-          <div className="chess-situation-text">
-            {caseData.situation_quick.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-          <div className="chess-step-actions">
-            <button className="chess-btn-primary" onClick={goNext}>
-              See the decision point →
+      <div className="chess-game-box">
+        <div className="game-progress">
+          <div className="game-progress-fill" style={{ width: `${progress}%` }}></div>
+        </div>
+
+        <div className="game-header">
+          <span className="game-header-case">Case No. {String(caseData.case_number).padStart(3, '0')}</span>
+          <span className="game-header-step">Step {step} of 5</span>
+        </div>
+
+        {/* STEP 1: SITUATION */}
+        {step === 1 && (
+          <div className="game-screen">
+            <span className="situation-era">{caseData.leader_period}</span>
+            <h2 className="situation-title">{caseData.anonymous_title}</h2>
+            <div className="situation-text">
+              {caseData.situation_quick.split('\n').map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+            <div className="situation-question">{caseData.decision_point}</div>
+            <button className="game-btn game-btn-primary" onClick={() => setStep(2)}>
+              See Your Options &rarr;
             </button>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* ============ STEP 2: DECISION ============ */}
-      {stepName === 'decision' && (
-        <section className="chess-step chess-step-decision">
-          <div className="chess-step-label">Your Decision</div>
-          <h2 className="chess-decision-question">{caseData.decision_point}</h2>
-          <div className="chess-options-grid">
+        {/* STEP 2: DECIDE */}
+        {step === 2 && (
+          <div className="game-screen">
+            <span className="situation-era">Your Decision</span>
+            <h2 className="situation-title">Choose your move.</h2>
+
             {options.map((opt) => (
-              <button
+              <div
                 key={opt.id}
-                className={`chess-option-card ${selectedOption?.id === opt.id ? 'selected' : ''}`}
-                onClick={() => handleSelect(opt)}
-                disabled={saving}
+                className={`option-card ${selectedOption?.id === opt.id ? 'selected' : ''}`}
+                onClick={() => setSelectedOption(opt)}
               >
-                <span className="chess-option-label">{opt.option_label}</span>
-                <span className="chess-option-text">{opt.option_text}</span>
-              </button>
+                <span className="option-letter">{opt.option_label}</span>
+                <span className="option-text">{opt.option_text}</span>
+              </div>
             ))}
-          </div>
-          <div className="chess-step-nav">
-            <button className="chess-btn-secondary" onClick={goBack}>← Re-read situation</button>
-          </div>
-        </section>
-      )}
 
-      {/* ============ STEP 3: ANALYSIS ============ */}
-      {stepName === 'analysis' && selectedOption && (
-        <section className="chess-step chess-step-analysis">
-          <div className="chess-step-label">What Your Choice Reveals</div>
-          <div className="chess-your-choice">
-            <span className="chess-choice-badge">You chose {selectedOption.option_label}</span>
-            <p className="chess-choice-text">{selectedOption.option_text}</p>
+            <button
+              className="game-btn game-btn-primary"
+              disabled={!selectedOption}
+              onClick={submitResponse}
+            >
+              Lock In Your Decision &rarr;
+            </button>
           </div>
-          <div className="chess-analysis-text">
-            {selectedOption.quick_analysis.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-          {stats && (
-            <div className="chess-stats-preview">
-              <p className="chess-stats-note">
-                {stats.percentages[selectedOption.id]}% of players made the same choice
-                <span className="chess-stats-total"> · {stats.total} players total</span>
+        )}
+
+        {/* STEP 3: ANALYSIS */}
+        {step === 3 && selectedOption && (
+          <div className="game-screen">
+            <span className="situation-era">Analysis</span>
+            <h2 className="analysis-verdict">
+              {selectedOption.is_actual_decision
+                ? 'Your instinct matches the real decision.'
+                : 'Your choice reveals how you lead under pressure.'}
+            </h2>
+            <p className="analysis-text">{selectedOption.quick_analysis}</p>
+            <div className="analysis-insight">
+              <div className="analysis-insight-label">Leadership Insight</div>
+              <p className="analysis-insight-text">
+                {selectedOption.is_actual_decision
+                  ? "You saw the same path as the real leader. But matching the decision is only half the picture — what matters is understanding why it worked and what it cost."
+                  : "A different path isn't a wrong path. The question isn't what the historical leader chose — it's what your choice reveals about your leadership instincts and blind spots."}
               </p>
             </div>
-          )}
-          <div className="chess-step-actions">
-            <button className="chess-btn-primary chess-btn-reveal" onClick={goNext}>
-              Reveal the leader →
+            <button className="game-btn game-btn-primary" onClick={() => setStep(4)}>
+              Reveal the Real Decision &rarr;
             </button>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* ============ STEP 4: REVEAL ============ */}
-      {stepName === 'reveal' && (
-        <section className="chess-step chess-step-reveal">
-          <div className="chess-reveal-dramatic">
-            {matchedLeader ? (
-              <div className="chess-reveal-match">
-                <div className="chess-reveal-icon">✦</div>
-                <p className="chess-reveal-tag">You chose the same path as</p>
-              </div>
-            ) : (
-              <div className="chess-reveal-differ">
-                <div className="chess-reveal-icon">◈</div>
-                <p className="chess-reveal-tag">You chose differently from</p>
+        {/* STEP 4: REVEAL */}
+        {step === 4 && (
+          <div className="game-screen">
+            <div className="reveal-leader">
+              <div className="reveal-icon">&#127963;</div>
+              <h2 className="reveal-name">{caseData.leader_name}</h2>
+              <p className="reveal-context">{caseData.leader_period}</p>
+            </div>
+
+            <div className="reveal-decision">
+              <div className="reveal-decision-label">What Actually Happened</div>
+              <p className="reveal-decision-text">{caseData.reveal_text}</p>
+            </div>
+
+            {caseData.stoic_analysis && (
+              <p className="reveal-outcome">{caseData.stoic_analysis}</p>
+            )}
+
+            {stats && (
+              <div className="stats-bar">
+                <div className="stat-item">
+                  <div className="stat-number">{stats.totalPlayers}</div>
+                  <div className="stat-label">Players</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-number">{stats.sameChoicePercent}%</div>
+                  <div className="stat-label">Chose Like You</div>
+                </div>
+                {actualOption && (
+                  <div className="stat-item">
+                    <div className="stat-number">{stats.actualChoicePercent}%</div>
+                    <div className="stat-label">Matched the Leader</div>
+                  </div>
+                )}
               </div>
             )}
-            <h1 className="chess-reveal-name">{caseData.leader_name}</h1>
-            <p className="chess-reveal-period">{caseData.leader_period}</p>
-          </div>
 
-          <div className="chess-reveal-story">
-            <h3>What actually happened</h3>
-            {caseData.reveal_text.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-
-          <div className="chess-reveal-analysis">
-            <h3>Leadership analysis</h3>
-            {caseData.stoic_analysis.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-
-          {/* Stats breakdown */}
-          {stats && (
-            <div className="chess-reveal-stats">
-              <h3>How others decided</h3>
-              <div className="chess-stats-bars">
-                {options.map(opt => (
-                  <div key={opt.id} className={`chess-stat-bar ${opt.is_actual_decision ? 'actual' : ''} ${opt.id === selectedOption?.id ? 'yours' : ''}`}>
-                    <div className="chess-stat-bar-header">
-                      <span className="chess-stat-bar-label">
-                        {opt.option_label}
-                        {opt.is_actual_decision && <span className="chess-stat-actual-badge">Actual decision</span>}
-                        {opt.id === selectedOption?.id && <span className="chess-stat-yours-badge">Your choice</span>}
-                      </span>
-                      <span className="chess-stat-bar-pct">{stats.percentages[opt.id] || 0}%</span>
-                    </div>
-                    <div className="chess-stat-bar-track">
-                      <div className="chess-stat-bar-fill" style={{ width: `${stats.percentages[opt.id] || 0}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="chess-stats-total-note">{stats.total} leaders have played this scenario</p>
-            </div>
-          )}
-
-          <div className="chess-step-actions">
-            <button className="chess-btn-primary" onClick={goNext}>
-              See your result card →
+            <button className="game-btn game-btn-primary" onClick={() => setStep(5)}>
+              See Your Result Card &rarr;
             </button>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* ============ STEP 5: SHARE ============ */}
-      {stepName === 'share' && (
-        <section className="chess-step chess-step-share">
-          {/* Result card */}
-          <div className="chess-result-card">
-            <div className="chess-result-header">
-              <span className="chess-result-logo">Ledge</span>
-              <span className="chess-result-type">Leadership Chess</span>
-            </div>
-            <div className="chess-result-body">
-              <p className="chess-result-scenario">"{caseData.anonymous_title}"</p>
-              <p className="chess-result-match">
-                {matchedLeader 
-                  ? `You chose the same path as ${caseData.leader_name}.`
-                  : `You chose differently from ${caseData.leader_name}.`
-                }
-              </p>
+        {/* STEP 5: SHARE */}
+        {step === 5 && (
+          <div className="game-screen">
+            <span className="situation-era">Your Result</span>
+
+            <div className="share-card-preview">
+              <div className="share-card-logo">&#9823; Ledge &middot; Leadership Chess</div>
+              <div className="share-card-text">
+                I played Leadership Chess.
+                <br />
+                <span style={{ color: '#d4935a' }}>
+                  {selectedOption?.is_actual_decision
+                    ? `My approach aligned with ${caseData.leader_name}'s actual decision.`
+                    : `I chose a different path than ${caseData.leader_name}.`}
+                </span>
+              </div>
               {stats && (
-                <p className="chess-result-stat">
-                  {stats.percentages[selectedOption?.id] || 0}% of leaders agreed with you.
-                </p>
+                <div className="share-stat">
+                  <strong>{stats.sameChoicePercent}%</strong> of players made the same call.
+                </div>
               )}
             </div>
-            <div className="chess-result-footer">
-              <span>ledge.news/chess</span>
-              <span>What's your next move?</span>
+
+            <div className="share-buttons">
+              <button
+                className="share-btn share-btn-linkedin"
+                onClick={() => {
+                  const shareUrl = encodeURIComponent('https://ledge.news/chess/' + caseData.slug);
+                  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`, '_blank');
+                }}
+              >
+                Share on LinkedIn
+              </button>
+              <button
+                className="share-btn share-btn-copy"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://ledge.news/chess/${caseData.slug}`);
+                  alert('Link copied!');
+                }}
+              >
+                Copy Link
+              </button>
+            </div>
+
+            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+              <button className="game-btn game-btn-primary" onClick={() => router.push('/chess')} style={{ maxWidth: '300px', margin: '0 auto' }}>
+                Play Another Case &rarr;
+              </button>
             </div>
           </div>
-
-          {/* Share actions */}
-          <div className="chess-share-actions">
-            <button className="chess-btn-primary chess-btn-share" onClick={shareResult}>
-              Share on LinkedIn
-            </button>
-            <button className="chess-btn-secondary" onClick={copyLink}>
-              Copy link
-            </button>
-          </div>
-
-          {/* Play more */}
-          <div className="chess-play-more">
-            <h3>Ready for another challenge?</h3>
-            <Link href="/chess" className="chess-btn-primary">
-              ← More scenarios
-            </Link>
-          </div>
-        </section>
-      )}
+        )}
+      </div>
     </div>
   );
 }
