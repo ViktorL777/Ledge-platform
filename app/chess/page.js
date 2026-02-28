@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 const supabase = createClient(
@@ -9,155 +9,106 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-const CATEGORY_ICONS = {
-  'Military / Geopolitical': '⚔️',
-  'Business Turning Point': '📈',
-  'Innovation / Tech Bet': '🚀',
-  'Crisis Management': '🔥',
-  'Organizational / Cultural': '🏛️',
-  'Personal Dilemma': '⚖️',
-  'Ethical Dilemma': '🧭',
-};
-
 export default function ChessPage() {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    async function loadCases() {
+    async function fetchCases() {
       const { data, error } = await supabase
         .from('chess_cases')
-        .select('id, case_number, slug, category, anonymous_title, card_image_concept, decision_quality, mode, display_order')
+        .select('id, case_number, slug, anonymous_title, category, situation_quick, decision_point, primary_stoic_dimensions, is_active, mode, display_order')
         .eq('is_active', true)
         .order('display_order', { ascending: true });
       
       if (data) setCases(data);
       setLoading(false);
     }
-    loadCases();
+    fetchCases();
   }, []);
 
-  const categories = ['all', ...new Set(cases.map(c => c.category))];
-  const filtered = filter === 'all' ? cases : cases.filter(c => c.category === filter);
+  const dimShort = {
+    'Meaning-Maker': 'Meaning',
+    'Strategy': 'Strategy',
+    'Tech-Savvy': 'Tech',
+    'Operator': 'Operations',
+    'Relationships': 'Relationships',
+    'Culture-Architect': 'Culture',
+    'Self-Awareness': 'Self-Mastery',
+    'Transformator': 'Transformation'
+  };
+
+  function getTeaser(text) {
+    if (!text) return '';
+    const sentences = text.split('. ');
+    return sentences.slice(0, 3).join('. ') + (sentences.length > 3 ? '...' : '.');
+  }
 
   return (
-    <div className="chess-page">
-      {/* Navigation */}
-      <nav className="chess-nav">
-        <Link href="/" className="chess-nav-logo">Ledge<span className="chess-nav-beta">Beta</span></Link>
-        <div className="chess-nav-links">
-          <Link href="/">Home</Link>
-          <Link href="/chess" className="active">Leadership Chess</Link>
-        </div>
-      </nav>
-
-      {/* Hero */}
+    <>
       <section className="chess-hero">
-        <div className="chess-hero-badge">Interactive Decision Challenge</div>
-        <h1 className="chess-hero-title">Leadership Chess</h1>
-        <p className="chess-hero-subtitle">What's Your Next Move?</p>
-        <p className="chess-hero-desc">
-          Step into history's most consequential leadership moments. 
-          Read the scenario, make your call, then discover what the real leader decided — 
-          and what happened next.
+        <h1>Leadership <span>Chess</span></h1>
+        <p className="chess-subtitle">
+          What&apos;s your next move? Test your judgement against history&apos;s most consequential decisions.
         </p>
-        <div className="chess-hero-stats">
-          <div className="chess-hero-stat">
-            <span className="chess-hero-stat-num">{cases.length}</span>
-            <span className="chess-hero-stat-label">Scenarios</span>
-          </div>
-          <div className="chess-hero-stat">
-            <span className="chess-hero-stat-num">~3</span>
-            <span className="chess-hero-stat-label">Minutes each</span>
-          </div>
-          <div className="chess-hero-stat">
-            <span className="chess-hero-stat-num">0</span>
-            <span className="chess-hero-stat-label">Right answers</span>
-          </div>
-        </div>
       </section>
 
-      {/* How it works */}
-      <section className="chess-how">
-        <div className="chess-how-steps">
-          <div className="chess-how-step">
-            <div className="chess-how-num">01</div>
-            <h3>Read the situation</h3>
-            <p>An anonymous leadership scenario. No names, no hints. Just the stakes.</p>
-          </div>
-          <div className="chess-how-step">
-            <div className="chess-how-num">02</div>
-            <h3>Make your call</h3>
-            <p>Four options. No perfect answer. What would you do?</p>
-          </div>
-          <div className="chess-how-step">
-            <div className="chess-how-num">03</div>
-            <h3>See the reveal</h3>
-            <p>Discover who the leader was — and whether you chose the same path.</p>
-          </div>
-          <div className="chess-how-step">
-            <div className="chess-how-num">04</div>
-            <h3>Share your result</h3>
-            <p>Compare your instincts with other leaders and share your result card.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Category Filter */}
-      <section className="chess-cases-section">
-        <h2 className="chess-section-title">Choose Your Scenario</h2>
-        <div className="chess-filters">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              className={`chess-filter-btn ${filter === cat ? 'active' : ''}`}
-              onClick={() => setFilter(cat)}
-            >
-              {cat === 'all' ? 'All Scenarios' : cat}
-            </button>
-          ))}
-        </div>
-
-        {/* Cases Grid */}
+      <div className="chess-cases-grid">
         {loading ? (
-          <div className="chess-loading">
-            <div className="chess-loading-icon">♟</div>
-            <p>Loading scenarios...</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="chess-empty">
-            <p>No scenarios available yet. Check back soon.</p>
-          </div>
+          <div className="chess-loading">Loading dossiers...</div>
+        ) : cases.length === 0 ? (
+          <div className="chess-loading">No active cases yet. Check back soon.</div>
         ) : (
-          <div className="chess-cases-grid">
-            {filtered.map((c, i) => (
-              <Link href={`/chess/${c.slug}`} key={c.id} className="chess-case-card" style={{ animationDelay: `${i * 0.1}s` }}>
-                <div className="chess-case-category">
-                  <span className="chess-case-cat-icon">{CATEGORY_ICONS[c.category] || '♟'}</span>
-                  <span>{c.category}</span>
-                </div>
-                <h3 className="chess-case-title">{c.anonymous_title}</h3>
-                <div className="chess-case-meta">
-                  <span className={`chess-case-quality chess-quality-${c.decision_quality}`}>
-                    {c.decision_quality === 'good' ? 'Clear outcome' : c.decision_quality === 'bad' ? 'Cautionary tale' : 'Contested'}
-                  </span>
-                  <span className="chess-case-mode">Quick · ~3 min</span>
-                </div>
-                <div className="chess-case-cta">
-                  Play scenario →
-                </div>
-              </Link>
-            ))}
-          </div>
+          cases.map((c) => (
+            <Link href={`/chess/${c.slug}`} key={c.id} className="dossier-card">
+              <div className="dossier-stripe"></div>
+              <div className="dossier-stamp">Classified</div>
+              <div className="dossier-head">
+                <span className="dossier-num">Case No. {String(c.case_number).padStart(3, '0')}</span>
+                <span className="dossier-cat">{c.category}</span>
+              </div>
+              <div className="dossier-content">
+                <h3 className="dossier-title">{c.anonymous_title}</h3>
+                <p className="dossier-teaser">{getTeaser(c.situation_quick)}</p>
+                {c.primary_stoic_dimensions && (
+                  <div className="dossier-dims">
+                    {c.primary_stoic_dimensions.map((dim, i) => (
+                      <span key={i} className="dim-tag">{dimShort[dim] || dim}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="dossier-foot">
+                <span className="dossier-time">~3 min &middot; Quick Mode</span>
+                <span className="dossier-cta">Open Dossier &rarr;</span>
+              </div>
+            </Link>
+          ))
         )}
-      </section>
 
-      {/* Footer */}
-      <footer className="chess-footer">
-        <p>Leadership Chess is part of <Link href="/">Ledge</Link> — leadership intelligence for the age of AI.</p>
-        <p className="chess-footer-sub">The leader's identity is hidden until the reveal. No spoilers. No bias. Just your instincts.</p>
-      </footer>
-    </div>
+        {!loading && [
+          { num: '003', cat: 'Innovation / Technology', title: '90 Days to Bankruptcy', teaser: 'Your company has 90 days of cash left. The board wants to sell. Your competitor just offered a lifeline — but at a price.' },
+          { num: '007', cat: 'Crisis Management', title: 'The Nation Is Watching', teaser: 'A crisis strikes your country. The world expects you to react. Your advisors are split. The media is counting the minutes.' },
+          { num: '010', cat: 'Business Turnaround', title: "The Factory That Won't Die", teaser: "You've been hired to save a legendary company. Every executive says: 'Go back to what made us great.' But the market moved on." }
+        ].map((placeholder, i) => (
+          <div key={i} className="dossier-card dossier-locked">
+            <div className="dossier-stripe" style={{background: 'var(--mountain-grey)'}}></div>
+            <div className="dossier-stamp dossier-stamp-soon">Coming Soon</div>
+            <div className="dossier-head">
+              <span className="dossier-num">Case No. {placeholder.num}</span>
+              <span className="dossier-cat">{placeholder.cat}</span>
+            </div>
+            <div className="dossier-content">
+              <h3 className="dossier-title">{placeholder.title}</h3>
+              <p className="dossier-teaser">{placeholder.teaser}</p>
+            </div>
+            <div className="dossier-foot">
+              <span className="dossier-time">Coming in Phase 1</span>
+              <span className="dossier-cta">Locked</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
