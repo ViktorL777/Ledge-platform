@@ -85,29 +85,6 @@ export default function ChessPage() {
             </Link>
           ))
         )}
-
-        {!loading && [
-          { num: '003', cat: 'Innovation / Technology', title: '90 Days to Bankruptcy', teaser: 'Your company has 90 days of cash left. The board wants to sell. Your competitor just offered a lifeline — but at a price.' },
-          { num: '007', cat: 'Crisis Management', title: 'The Nation Is Watching', teaser: 'A crisis strikes your country. The world expects you to react. Your advisors are split. The media is counting the minutes.' },
-          { num: '010', cat: 'Business Turnaround', title: "The Factory That Won't Die", teaser: "You've been hired to save a legendary company. Every executive says: 'Go back to what made us great.' But the market moved on." }
-        ].map((placeholder, i) => (
-          <div key={i} className="dossier-card dossier-locked">
-            <div className="dossier-stripe" style={{background: 'var(--mountain-grey)'}}></div>
-            <div className="dossier-stamp dossier-stamp-soon">Coming Soon</div>
-            <div className="dossier-head">
-              <span className="dossier-num">Case No. {placeholder.num}</span>
-              <span className="dossier-cat">{placeholder.cat}</span>
-            </div>
-            <div className="dossier-content">
-              <h3 className="dossier-title">{placeholder.title}</h3>
-              <p className="dossier-teaser">{placeholder.teaser}</p>
-            </div>
-            <div className="dossier-foot">
-              <span className="dossier-time">Coming in Phase 1</span>
-              <span className="dossier-cta">Locked</span>
-            </div>
-          </div>
-        ))}
       </div>
     </>
   );
