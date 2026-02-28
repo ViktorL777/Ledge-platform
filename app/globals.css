@@ -1,5 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* ===== CSS VARIABLES ===== */
 :root {
   --deep-blue: #1a2b4a;
   --deep-blue-90: #243558;
@@ -19,7 +22,7 @@
   --font-body: 'DM Sans', system-ui, sans-serif;
 }
 
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+/* ===== BASE ===== */
 html { scroll-behavior: smooth; }
 
 body {
@@ -41,7 +44,7 @@ body {
 }
 .topo-bg svg { width: 100%; height: 100%; }
 
-/* ===== NAV ===== */
+/* ===== NAVIGATION ===== */
 nav {
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -97,11 +100,10 @@ nav {
   color: var(--copper);
   border: 1.5px solid var(--copper);
   border-radius: 3px;
-  padding: 2px 7px;
-  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  margin-left: 8px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-left: 0.5rem;
-  vertical-align: middle;
 }
 
 /* ===== HERO ===== */
@@ -111,22 +113,20 @@ nav {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 8rem 2rem 4rem;
+  padding: 2rem;
 }
 
 .hero-wordmark {
   font-family: var(--font-display);
-  font-size: clamp(4rem, 10vw, 8.5rem);
-  font-weight: 600;
+  font-size: clamp(4rem, 10vw, 8rem);
+  font-weight: 300;
   color: var(--deep-blue);
   letter-spacing: -0.03em;
   line-height: 1;
-  margin-bottom: 2rem;
-  opacity: 0;
-  animation: fadeUp 1s ease 0.2s forwards;
+  animation: fadeUp 1s ease-out;
 }
 .hero-wordmark .l-mark {
   display: inline-block;
@@ -136,135 +136,110 @@ nav {
 
 .hero-tagline {
   font-family: var(--font-body);
-  font-size: clamp(1.125rem, 2vw, 1.5rem);
-  font-weight: 400;
+  font-size: clamp(1rem, 2vw, 1.25rem);
   color: var(--text-secondary);
+  margin-top: 2rem;
   letter-spacing: 0.04em;
-  line-height: 1.8;
-  margin-bottom: 2.5rem;
-  opacity: 0;
-  animation: fadeUp 1s ease 0.5s forwards;
+  font-weight: 400;
+  animation: fadeUp 1s ease-out 0.2s both;
 }
 
 .hero-divider {
-  width: 80px;
-  height: 1.5px;
+  width: 60px;
+  height: 2px;
   background: var(--copper);
-  margin: 0 auto 2.5rem;
-  opacity: 0;
-  animation: scaleIn 0.8s ease 0.7s forwards;
+  margin: 2rem auto;
+  animation: scaleIn 0.8s ease-out 0.4s both;
+  transform-origin: center;
 }
 
 .hero-descriptor {
   font-family: var(--font-display);
-  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+  color: var(--deep-blue);
   font-weight: 400;
-  font-style: italic;
-  color: var(--mountain-grey);
-  max-width: 540px;
-  line-height: 1.7;
-  opacity: 0;
-  animation: fadeUp 1s ease 0.9s forwards;
+  line-height: 1.5;
+  max-width: 500px;
+  animation: fadeUp 1s ease-out 0.6s both;
 }
 
-.hero-scroll-hint {
+.scroll-indicator {
   position: absolute;
-  bottom: 2.5rem;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  opacity: 0;
-  animation: fadeUp 1s ease 1.4s forwards;
+  animation: scrollPulse 2s ease-in-out infinite;
 }
-.hero-scroll-hint span {
+.scroll-indicator span {
   font-size: 0.7rem;
-  font-weight: 500;
+  color: var(--text-muted);
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--text-muted);
-}
-.scroll-line {
-  width: 1px;
-  height: 32px;
-  background: linear-gradient(to bottom, var(--copper), transparent);
-  animation: scrollPulse 2s ease infinite;
 }
 
-/* ===== SECTIONS ===== */
-section {
+/* ===== THREE PILLARS ===== */
+.pillars-section {
   position: relative;
   z-index: 1;
-  padding: 6rem 2rem;
-}
-
-.section-inner {
-  max-width: 1100px;
+  padding: 6rem 2.5rem;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
 .section-label {
-  font-family: var(--font-body);
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
   color: var(--copper);
-  margin-bottom: 1.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
 }
 
 .section-title {
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 500;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 400;
   color: var(--deep-blue);
   letter-spacing: -0.02em;
-  line-height: 1.2;
-  margin-bottom: 1.5rem;
-}
-
-.section-text {
-  font-size: 1.05rem;
-  color: var(--text-secondary);
-  max-width: 640px;
-  line-height: 1.75;
   margin-bottom: 3rem;
+  line-height: 1.3;
 }
-
-/* ===== PILLARS (THREE-PART) ===== */
-.pillars-section { background: var(--off-white); }
 
 .pillars-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
+  gap: 2.5rem;
 }
 
-.pillar {
+.pillar-card {
+  padding: 2.5rem;
+  border-radius: 16px;
   background: var(--warm-white);
-  padding: 3rem 2.5rem;
-  position: relative;
+  border: 1px solid rgba(26,43,74,0.06);
   transition: all 0.4s ease;
 }
-.pillar:hover { background: var(--pale-blue); }
+.pillar-card:hover {
+  border-color: var(--copper);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(26,43,74,0.08);
+}
 
 .pillar-number {
   font-family: var(--font-display);
-  font-size: 3.5rem;
+  font-size: 2.5rem;
   font-weight: 300;
-  color: var(--light-stone);
+  color: var(--copper);
+  opacity: 0.4;
   line-height: 1;
   margin-bottom: 1.5rem;
-  transition: color 0.4s;
 }
-.pillar:hover .pillar-number { color: var(--copper); }
 
 .pillar-title {
   font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 500;
   color: var(--deep-blue);
   margin-bottom: 1rem;
   letter-spacing: -0.01em;
@@ -276,431 +251,326 @@ section {
   line-height: 1.7;
 }
 
-/* ===== FEATURES ===== */
+/* ===== FEATURES GRID ===== */
+.features-section {
+  position: relative;
+  z-index: 1;
+  padding: 4rem 2.5rem 6rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .feature-card {
-  border: 1px solid rgba(26,43,74,0.08);
-  border-radius: 2px;
   padding: 2.5rem;
-  transition: all 0.4s ease;
-  background: var(--warm-white);
-  position: relative;
-  overflow: hidden;
+  border-radius: 16px;
+  background: var(--off-white);
+  border: 1px solid rgba(26,43,74,0.04);
+  transition: all 0.3s ease;
 }
-.feature-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 3px;
-  height: 0;
-  background: var(--copper);
-  transition: height 0.4s ease;
-}
-.feature-card:hover::before { height: 100%; }
 .feature-card:hover {
-  border-color: rgba(26,43,74,0.15);
-  box-shadow: 0 8px 32px rgba(26,43,74,0.06);
+  border-color: rgba(184,115,51,0.2);
+  box-shadow: 0 8px 30px rgba(26,43,74,0.06);
 }
 
 .feature-icon {
-  width: 40px;
-  height: 40px;
-  margin-bottom: 1.5rem;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--copper);
+  margin-bottom: 1.5rem;
 }
 
 .feature-title {
   font-family: var(--font-display);
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--deep-blue);
   margin-bottom: 0.75rem;
-  letter-spacing: -0.01em;
 }
 
 .feature-text {
-  font-size: 0.925rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.7;
+  margin-bottom: 1rem;
 }
 
 .feature-tag {
-  display: inline-block;
-  margin-top: 1.25rem;
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  color: var(--copper);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--copper);
-  border: 1px solid var(--copper);
-  border-radius: 2px;
-  padding: 3px 10px;
 }
 
-/* ===== DIMENSIONS NEWS SECTION (NEW) ===== */
-.dimensions-section {
-  background: var(--off-white);
+/* ===== COVERAGE / DIMENSIONS SECTION ===== */
+.coverage-section {
+  position: relative;
+  z-index: 1;
+  padding: 6rem 2.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.article-count {
-  color: var(--copper);
+.sections-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.section-tile {
+  padding: 2rem 1.5rem;
+  border-radius: 12px;
+  background: var(--warm-white);
+  border: 1px solid rgba(26,43,74,0.06);
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+.section-tile:hover {
+  border-color: var(--copper);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(26,43,74,0.06);
+}
+
+.section-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--copper);
+  margin: 0 auto 1rem;
+  opacity: 0.6;
+}
+
+.section-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
   font-weight: 500;
+  color: var(--deep-blue);
+  margin-bottom: 0.5rem;
 }
 
-/* Dimension pills / filter bar */
+.section-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ===== DYNAMIC ARTICLES & DIMENSION PILLS ===== */
 .dimension-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
+  padding: 0;
+  list-style: none;
 }
 
-.dim-pill {
+.dimension-pill {
   font-family: var(--font-body);
   font-size: 0.8rem;
   font-weight: 500;
   padding: 0.5rem 1rem;
+  border-radius: 20px;
   border: 1.5px solid rgba(26,43,74,0.12);
-  border-radius: 2px;
-  background: var(--warm-white);
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  white-space: nowrap;
 }
-.dim-pill:hover {
+.dimension-pill:hover {
   border-color: var(--copper);
   color: var(--copper);
 }
-.dim-pill.active {
+.dimension-pill.active {
   background: var(--deep-blue);
-  color: var(--off-white);
   border-color: var(--deep-blue);
-}
-.pill-count {
-  font-size: 0.65rem;
-  font-weight: 700;
-  background: var(--copper);
-  color: white;
-  border-radius: 50%;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-.dim-pill.active .pill-count {
-  background: var(--copper);
+  color: var(--off-white);
 }
 
-/* Dimension blocks grid */
-.dimensions-grid {
+.articles-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-}
-
-.dimension-block {
-  background: var(--warm-white);
-  border: 1px solid rgba(26,43,74,0.06);
-  border-radius: 2px;
-  padding: 2rem;
-  transition: all 0.3s ease;
-}
-.dimension-block:hover {
-  box-shadow: 0 4px 24px rgba(26,43,74,0.06);
-}
-
-/* Dimension header */
-.dim-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(26,43,74,0.06);
-}
-
-.dim-icon {
-  font-size: 1.5rem;
-  color: var(--copper);
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(184,115,51,0.08);
-  border-radius: 2px;
-}
-
-.dim-name {
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--deep-blue);
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.dim-desc {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-/* Articles within dimension */
-.dim-articles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
 }
 
 .article-card {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  padding: 1.25rem;
+  background: var(--warm-white);
   border: 1px solid rgba(26,43,74,0.06);
-  border-radius: 2px;
-  background: var(--off-white);
+  border-radius: 12px;
+  padding: 1.5rem;
   transition: all 0.3s ease;
-  position: relative;
-}
-.article-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 2px;
-  height: 0;
-  background: var(--copper);
-  transition: height 0.3s ease;
-}
-.article-card:hover::before { height: 100%; }
-.article-card:hover {
-  border-color: rgba(26,43,74,0.12);
-  box-shadow: 0 2px 12px rgba(26,43,74,0.05);
-  transform: translateY(-1px);
-}
-
-.article-meta {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+}
+.article-card:hover {
+  border-color: rgba(184,115,51,0.3);
+  box-shadow: 0 8px 24px rgba(26,43,74,0.06);
+  transform: translateY(-2px);
 }
 
-.article-source {
+.article-dimension-tag {
+  display: inline-block;
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--copper);
-}
-
-.article-date {
-  font-size: 0.7rem;
-  color: var(--text-muted);
+  padding: 3px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.75rem;
 }
 
 .article-title {
   font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 500;
   color: var(--deep-blue);
   line-height: 1.35;
-  margin: 0 0 0.75rem 0;
-  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
 }
 
-/* Leadership Angle */
+.article-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
 .leadership-angle {
-  padding: 0.75rem;
-  background: rgba(184,115,51,0.04);
-  border-left: 2px solid var(--copper);
-  margin-bottom: 0.75rem;
+  background: var(--off-white);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-left: 3px solid var(--copper);
+  flex-grow: 1;
 }
 
-.angle-label {
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--copper);
-  margin-bottom: 0.35rem;
-}
-
-.angle-text {
-  font-size: 0.85rem;
-  font-style: italic;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin: 0;
-}
-
-/* Tags */
-.article-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.article-tag {
+.leadership-angle-label {
   font-size: 0.65rem;
-  font-weight: 500;
-  color: var(--mountain-grey);
-  background: rgba(26,43,74,0.04);
-  padding: 2px 8px;
-  border-radius: 2px;
+  font-weight: 700;
+  color: var(--copper);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.4rem;
 }
 
-/* View all link */
-.dim-view-all {
-  display: inline-block;
-  margin-top: 1rem;
+.leadership-angle-text {
   font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.65;
+}
+
+.article-link {
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--copper);
   text-decoration: none;
-  letter-spacing: 0.02em;
-  transition: all 0.3s;
+  transition: color 0.3s;
 }
-.dim-view-all:hover {
+.article-link:hover {
   color: var(--copper-dark);
 }
 
-/* Empty dimension */
-.dim-empty {
-  padding: 1.5rem;
+.loading-text {
   text-align: center;
   color: var(--text-muted);
   font-size: 0.9rem;
-  font-style: italic;
-  background: rgba(26,43,74,0.02);
-  border-radius: 2px;
+  padding: 3rem 0;
 }
 
-/* Loading state */
-.loading-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--text-muted);
-}
-.loading-pulse {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--copper);
-  margin: 0 auto 1.5rem;
-  animation: pulse 1.5s ease infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1); }
-}
-
-/* Empty state */
-.empty-state {
-  text-align: center;
-  padding: 5rem 2rem;
-  max-width: 480px;
-  margin: 0 auto;
-}
-.empty-icon {
-  font-size: 3rem;
-  color: var(--copper);
-  margin-bottom: 1.5rem;
-}
-.empty-state h3 {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 500;
-  color: var(--deep-blue);
-  margin-bottom: 1rem;
-}
-.empty-state p {
-  color: var(--text-secondary);
-  line-height: 1.7;
-}
-
-/* ===== CTA / NEWSLETTER ===== */
+/* ===== CTA / NEWSLETTER SECTION ===== */
 .cta-section {
+  position: relative;
+  z-index: 1;
+  padding: 6rem 2.5rem;
   background: var(--deep-blue);
   text-align: center;
-  padding: 6rem 2rem;
+  margin-top: 4rem;
 }
 
 .cta-title {
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
-  font-weight: 500;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 400;
   color: var(--off-white);
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   letter-spacing: -0.02em;
 }
 
-.cta-text {
-  font-size: 1.05rem;
+.cta-subtitle {
+  font-size: 1rem;
   color: var(--mountain-grey-light);
+  margin-bottom: 2.5rem;
   max-width: 500px;
-  margin: 0 auto 2.5rem;
-  line-height: 1.7;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
 }
 
 .cta-form {
   display: flex;
-  gap: 0;
-  max-width: 460px;
+  max-width: 480px;
   margin: 0 auto;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.05);
 }
 
 .cta-input {
   flex: 1;
   padding: 1rem 1.25rem;
   font-family: var(--font-body);
-  font-size: 0.95rem;
-  border: 1.5px solid rgba(255,255,255,0.15);
-  border-right: none;
-  background: rgba(255,255,255,0.05);
+  font-size: 0.9rem;
+  background: transparent;
+  border: none;
   color: var(--off-white);
   outline: none;
-  transition: border-color 0.3s;
+  border-right: 1.5px solid rgba(255,255,255,0.15);
 }
-.cta-input::placeholder { color: var(--mountain-grey); }
-.cta-input:focus { border-color: var(--copper); }
-.cta-input:disabled { opacity: 0.6; }
+.cta-input::placeholder {
+  color: var(--mountain-grey);
+}
 
 .cta-button {
   padding: 1rem 2rem;
   font-family: var(--font-body);
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--deep-blue);
   background: var(--copper);
-  color: var(--warm-white);
-  border: 1.5px solid var(--copper);
+  border: none;
   cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   transition: all 0.3s;
   white-space: nowrap;
 }
 .cta-button:hover {
   background: var(--copper-light);
-  border-color: var(--copper-light);
 }
 .cta-button:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
+}
+
+.cta-success {
+  color: var(--copper-light);
+  font-size: 0.9rem;
+  margin-top: 1rem;
+}
+
+.cta-error {
+  color: #e07a5f;
+  font-size: 0.9rem;
+  margin-top: 1rem;
 }
 
 .cta-note {
@@ -708,43 +578,6 @@ section {
   font-size: 0.75rem;
   color: var(--mountain-grey);
   letter-spacing: 0.05em;
-}
-
-.cta-error {
-  margin-top: 0.75rem;
-  font-size: 0.85rem;
-  color: #e57373;
-}
-
-/* Subscribe success state */
-.subscribe-success {
-  max-width: 460px;
-  margin: 0 auto;
-  padding: 2rem;
-  animation: fadeUp 0.5s ease forwards;
-}
-.success-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--copper);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
-  margin: 0 auto 1rem;
-}
-.subscribe-success p {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-weight: 500;
-  color: var(--off-white);
-  margin-bottom: 0.5rem;
-}
-.subscribe-success span {
-  font-size: 0.9rem;
-  color: var(--mountain-grey-light);
 }
 
 /* ===== FOOTER ===== */
@@ -800,407 +633,603 @@ footer {
   50% { opacity: 1; }
 }
 
-/* ===== RESPONSIVE ===== */
+/* ===== RESPONSIVE — BASE ===== */
 @media (max-width: 900px) {
   .pillars-grid { grid-template-columns: 1fr; }
   .feature-grid { grid-template-columns: 1fr; }
-  .dim-articles { grid-template-columns: 1fr; }
+  .sections-grid { grid-template-columns: repeat(2, 1fr); }
+  .articles-grid { grid-template-columns: 1fr; }
   nav { padding: 1rem 1.5rem; }
   .nav-links { gap: 1rem; }
   .nav-links a { font-size: 0.75rem; }
-  .dimension-pills { gap: 0.4rem; }
-  .dim-pill { font-size: 0.7rem; padding: 0.4rem 0.75rem; }
 }
 
 @media (max-width: 600px) {
-  .dim-articles { grid-template-columns: 1fr; }
+  .sections-grid { grid-template-columns: 1fr; }
   .cta-form { flex-direction: column; }
-  .cta-input { border-right: 1.5px solid rgba(255,255,255,0.15); border-bottom: none; }
+  .cta-input { border-right: none; border-bottom: 1.5px solid rgba(255,255,255,0.15); }
   footer { flex-direction: column; gap: 1rem; text-align: center; }
   .nav-links { display: none; }
   .dimension-pills { justify-content: center; }
 }
-'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+/* ============================================================
+   LEADERSHIP CHESS STYLES
+   ============================================================ */
 
-// Steps: situation → decision → analysis → reveal → share
-const STEPS = ['situation', 'decision', 'analysis', 'reveal', 'share'];
-
-function generateSessionId() {
-  return 'sess_' + Math.random().toString(36).substr(2, 12) + '_' + Date.now();
+/* --- Chess Landing Page --- */
+.chess-landing {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  padding-top: 5rem;
 }
 
-export default function ChessGamePage() {
-  const params = useParams();
-  const slug = params.slug;
+.chess-hero {
+  text-align: center;
+  padding: 4rem 2.5rem 3rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
 
-  const [caseData, setCaseData] = useState(null);
-  const [options, setOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [startTime] = useState(Date.now());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+.chess-hero-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--copper);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
 
-  // Load case data
-  useEffect(() => {
-    async function loadCase() {
-      try {
-        const { data: cData, error: cErr } = await supabase
-          .from('chess_cases')
-          .select('*')
-          .eq('slug', slug)
-          .eq('is_active', true)
-          .single();
+.chess-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 400;
+  color: var(--deep-blue);
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
 
-        if (cErr || !cData) {
-          setError('Scenario not found.');
-          setLoading(false);
-          return;
-        }
+.chess-hero-subtitle {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 600px;
+  margin: 0 auto;
+}
 
-        const { data: oData } = await supabase
-          .from('chess_options')
-          .select('*')
-          .eq('case_id', cData.id)
-          .order('display_order', { ascending: true });
+/* Category filters */
+.chess-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 2.5rem;
+  margin-bottom: 3rem;
+}
 
-        setCaseData(cData);
-        setOptions(oData || []);
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to load scenario.');
-        setLoading(false);
-      }
-    }
-    loadCase();
-  }, [slug]);
+.chess-filter-pill {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  border-radius: 20px;
+  border: 1.5px solid rgba(26,43,74,0.12);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.chess-filter-pill:hover {
+  border-color: var(--copper);
+  color: var(--copper);
+}
+.chess-filter-pill.active {
+  background: var(--deep-blue);
+  border-color: var(--deep-blue);
+  color: var(--off-white);
+}
 
-  // Save response
-  const saveResponse = useCallback(async (option) => {
-    if (!caseData || saving) return;
-    setSaving(true);
-    try {
-      const timeSpent = Math.round((Date.now() - startTime) / 1000);
-      const sessionId = generateSessionId();
+/* Case cards grid */
+.chess-cases-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2.5rem 4rem;
+}
 
-      await supabase.from('chess_responses').insert({
-        case_id: caseData.id,
-        selected_option_id: option.id,
-        mode: 'quick',
-        session_id: sessionId,
-        time_spent_seconds: timeSpent,
-      });
+.chess-case-card {
+  background: var(--warm-white);
+  border: 1px solid rgba(26,43,74,0.06);
+  border-radius: 16px;
+  padding: 2rem;
+  transition: all 0.4s ease;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+}
+.chess-case-card:hover {
+  border-color: var(--copper);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(26,43,74,0.08);
+}
 
-      // Fetch stats
-      const { data: allResponses } = await supabase
-        .from('chess_responses')
-        .select('selected_option_id')
-        .eq('case_id', caseData.id);
+.chess-case-category {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--copper);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
 
-      if (allResponses && allResponses.length > 0) {
-        const total = allResponses.length;
-        const optionCounts = {};
-        allResponses.forEach(r => {
-          optionCounts[r.selected_option_id] = (optionCounts[r.selected_option_id] || 0) + 1;
-        });
-        
-        const statsMap = {};
-        options.forEach(o => {
-          statsMap[o.id] = Math.round(((optionCounts[o.id] || 0) / total) * 100);
-        });
-        setStats({ total, percentages: statsMap });
-      }
-    } catch (err) {
-      console.error('Failed to save response:', err);
-    }
-    setSaving(false);
-  }, [caseData, options, saving, startTime]);
+.chess-case-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--deep-blue);
+  line-height: 1.3;
+  margin-bottom: 0.75rem;
+}
 
-  // Handle option selection
-  const handleSelect = async (option) => {
-    setSelectedOption(option);
-    await saveResponse(option);
-    setCurrentStep(2); // Go to analysis
-  };
+.chess-case-teaser {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+}
 
-  // Navigation
-  const goNext = () => {
-    if (currentStep < STEPS.length - 1) {
-      setCurrentStep(prev => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+.chess-case-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(26,43,74,0.06);
+}
 
-  const goBack = () => {
-    if (currentStep > 0) {
-      // Don't go back past decision if already submitted
-      if (currentStep > 2 || currentStep <= 1) {
-        setCurrentStep(prev => prev - 1);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }
-  };
+.chess-case-difficulty {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
 
-  // Share functionality
-  const shareResult = () => {
-    const actualOption = options.find(o => o.is_actual_decision);
-    const matchedLeader = selectedOption?.id === actualOption?.id;
-    const shareText = matchedLeader
-      ? `I chose the same path as ${caseData.leader_name} in the "${caseData.anonymous_title}" leadership challenge on Ledge. What would you decide?`
-      : `I chose differently from ${caseData.leader_name} in the "${caseData.anonymous_title}" leadership challenge on Ledge. What would you decide?`;
-    
-    const shareUrl = `https://ledge.news/chess/${slug}`;
-    
-    if (navigator.share) {
-      navigator.share({ title: 'Leadership Chess — Ledge', text: shareText, url: shareUrl });
-    } else {
-      const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
-      window.open(linkedInUrl, '_blank');
-    }
-  };
+.chess-case-cta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--copper);
+  letter-spacing: 0.02em;
+}
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(`https://ledge.news/chess/${slug}`);
-  };
+/* How it works section */
+.chess-how-it-works {
+  background: var(--off-white);
+  padding: 4rem 2.5rem;
+  text-align: center;
+}
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="chess-game-page">
-        <div className="chess-game-loading">
-          <div className="chess-loading-icon">♟</div>
-          <p>Loading scenario...</p>
-        </div>
-      </div>
-    );
+.chess-how-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--deep-blue);
+  margin-bottom: 2.5rem;
+}
+
+.chess-steps {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  max-width: 900px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.chess-step {
+  flex: 1;
+  min-width: 180px;
+  max-width: 220px;
+}
+
+.chess-step-number {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 300;
+  color: var(--copper);
+  opacity: 0.5;
+  margin-bottom: 0.75rem;
+}
+
+.chess-step-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--deep-blue);
+  margin-bottom: 0.5rem;
+}
+
+.chess-step-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* --- Chess Game Page --- */
+.chess-game {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  padding-top: 5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chess-game-container {
+  max-width: 720px;
+  width: 100%;
+  padding: 2rem 2.5rem 4rem;
+}
+
+/* Progress bar */
+.chess-progress {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.chess-progress-step {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(26,43,74,0.1);
+  transition: background 0.4s ease;
+}
+.chess-progress-step.completed {
+  background: var(--copper);
+}
+.chess-progress-step.current {
+  background: var(--deep-blue);
+}
+
+/* Situation card */
+.chess-situation {
+  background: var(--warm-white);
+  border: 1px solid rgba(26,43,74,0.06);
+  border-radius: 16px;
+  padding: 2.5rem;
+  margin-bottom: 2rem;
+}
+
+.chess-situation-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--copper);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.chess-situation-title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--deep-blue);
+  line-height: 1.3;
+  margin-bottom: 1rem;
+}
+
+.chess-situation-context {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Decision options */
+.chess-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.chess-option {
+  background: var(--warm-white);
+  border: 1.5px solid rgba(26,43,74,0.1);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.chess-option:hover {
+  border-color: var(--copper);
+  background: var(--off-white);
+}
+.chess-option.selected {
+  border-color: var(--copper);
+  background: rgba(184,115,51,0.06);
+  box-shadow: 0 0 0 1px var(--copper);
+}
+
+.chess-option-label {
+  font-weight: 600;
+  color: var(--deep-blue);
+  margin-bottom: 0.25rem;
+}
+
+.chess-option-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* Submit button */
+.chess-submit {
+  width: 100%;
+  padding: 1rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--deep-blue);
+  color: var(--off-white);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.chess-submit:hover {
+  background: var(--deep-blue-90);
+}
+.chess-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Analysis section */
+.chess-analysis {
+  background: var(--off-white);
+  border-radius: 16px;
+  padding: 2.5rem;
+  margin-bottom: 2rem;
+  border-left: 4px solid var(--copper);
+}
+
+.chess-analysis-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--copper);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.chess-analysis-text {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
+/* Stats bar */
+.chess-stats {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.chess-stat-bar {
+  flex: 1;
+  min-width: 100px;
+  background: rgba(26,43,74,0.04);
+  border-radius: 8px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.chess-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.chess-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--deep-blue);
+}
+
+.chess-stat-bar.user-choice {
+  background: rgba(184,115,51,0.1);
+  border: 1px solid rgba(184,115,51,0.2);
+}
+
+/* Reveal section */
+.chess-reveal {
+  background: var(--deep-blue);
+  border-radius: 16px;
+  padding: 2.5rem;
+  margin-bottom: 2rem;
+  color: var(--off-white);
+}
+
+.chess-reveal-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--copper);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.chess-reveal-leader {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--off-white);
+  margin-bottom: 0.75rem;
+}
+
+.chess-reveal-text {
+  font-size: 0.95rem;
+  color: var(--mountain-grey-light);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.chess-reveal-stoic {
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 1.25rem;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.chess-reveal-stoic-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--copper-light);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.chess-reveal-stoic-dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chess-stoic-tag {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(184,115,51,0.15);
+  color: var(--copper-light);
+  font-weight: 500;
+}
+
+/* Share card */
+.chess-share-card {
+  background: linear-gradient(135deg, var(--deep-blue) 0%, #2a3f65 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  color: var(--off-white);
+  margin-bottom: 1.5rem;
+}
+
+.chess-share-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--copper-light);
+  margin-bottom: 0.5rem;
+}
+
+.chess-share-question {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--off-white);
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.chess-share-result {
+  font-size: 0.85rem;
+  color: var(--mountain-grey-light);
+  margin-bottom: 1.5rem;
+}
+
+.chess-share-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.chess-share-btn {
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  border: none;
+  letter-spacing: 0.02em;
+}
+
+.chess-share-btn.linkedin {
+  background: var(--copper);
+  color: var(--deep-blue);
+}
+.chess-share-btn.linkedin:hover {
+  background: var(--copper-light);
+}
+
+.chess-share-btn.copy {
+  background: rgba(255,255,255,0.1);
+  color: var(--off-white);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.chess-share-btn.copy:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+/* Play again / back links */
+.chess-nav-links {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.chess-nav-link {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--copper);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.chess-nav-link:hover {
+  color: var(--copper-dark);
+}
+
+/* --- Chess Responsive --- */
+@media (max-width: 900px) {
+  .chess-cases-grid {
+    grid-template-columns: 1fr;
+    padding: 0 1.5rem 3rem;
   }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="chess-game-page">
-        <div className="chess-game-error">
-          <h2>{error}</h2>
-          <Link href="/chess" className="chess-btn-primary">← Back to scenarios</Link>
-        </div>
-      </div>
-    );
+  .chess-steps {
+    flex-direction: column;
+    align-items: center;
   }
+  .chess-hero { padding: 3rem 1.5rem 2rem; }
+  .chess-game-container { padding: 1.5rem 1.5rem 3rem; }
+}
 
-  const actualOption = options.find(o => o.is_actual_decision);
-  const matchedLeader = selectedOption?.id === actualOption?.id;
-  const stepName = STEPS[currentStep];
-
-  return (
-    <div className="chess-game-page">
-      {/* Top bar */}
-      <nav className="chess-game-nav">
-        <Link href="/chess" className="chess-game-back">← All Scenarios</Link>
-        <div className="chess-game-progress">
-          {STEPS.map((s, i) => (
-            <div key={s} className={`chess-progress-dot ${i <= currentStep ? 'active' : ''} ${i === currentStep ? 'current' : ''}`} />
-          ))}
-        </div>
-        <div className="chess-game-badge">{caseData.category}</div>
-      </nav>
-
-      {/* ============ STEP 1: SITUATION ============ */}
-      {stepName === 'situation' && (
-        <section className="chess-step chess-step-situation">
-          <div className="chess-step-label">The Situation</div>
-          <h1 className="chess-game-title">{caseData.anonymous_title}</h1>
-          <div className="chess-situation-text">
-            {caseData.situation_quick.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-          <div className="chess-step-actions">
-            <button className="chess-btn-primary" onClick={goNext}>
-              See the decision point →
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* ============ STEP 2: DECISION ============ */}
-      {stepName === 'decision' && (
-        <section className="chess-step chess-step-decision">
-          <div className="chess-step-label">Your Decision</div>
-          <h2 className="chess-decision-question">{caseData.decision_point}</h2>
-          <div className="chess-options-grid">
-            {options.map((opt) => (
-              <button
-                key={opt.id}
-                className={`chess-option-card ${selectedOption?.id === opt.id ? 'selected' : ''}`}
-                onClick={() => handleSelect(opt)}
-                disabled={saving}
-              >
-                <span className="chess-option-label">{opt.option_label}</span>
-                <span className="chess-option-text">{opt.option_text}</span>
-              </button>
-            ))}
-          </div>
-          <div className="chess-step-nav">
-            <button className="chess-btn-secondary" onClick={goBack}>← Re-read situation</button>
-          </div>
-        </section>
-      )}
-
-      {/* ============ STEP 3: ANALYSIS ============ */}
-      {stepName === 'analysis' && selectedOption && (
-        <section className="chess-step chess-step-analysis">
-          <div className="chess-step-label">What Your Choice Reveals</div>
-          <div className="chess-your-choice">
-            <span className="chess-choice-badge">You chose {selectedOption.option_label}</span>
-            <p className="chess-choice-text">{selectedOption.option_text}</p>
-          </div>
-          <div className="chess-analysis-text">
-            {selectedOption.quick_analysis.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-          {stats && (
-            <div className="chess-stats-preview">
-              <p className="chess-stats-note">
-                {stats.percentages[selectedOption.id]}% of players made the same choice
-                <span className="chess-stats-total"> · {stats.total} players total</span>
-              </p>
-            </div>
-          )}
-          <div className="chess-step-actions">
-            <button className="chess-btn-primary chess-btn-reveal" onClick={goNext}>
-              Reveal the leader →
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* ============ STEP 4: REVEAL ============ */}
-      {stepName === 'reveal' && (
-        <section className="chess-step chess-step-reveal">
-          <div className="chess-reveal-dramatic">
-            {matchedLeader ? (
-              <div className="chess-reveal-match">
-                <div className="chess-reveal-icon">✦</div>
-                <p className="chess-reveal-tag">You chose the same path as</p>
-              </div>
-            ) : (
-              <div className="chess-reveal-differ">
-                <div className="chess-reveal-icon">◈</div>
-                <p className="chess-reveal-tag">You chose differently from</p>
-              </div>
-            )}
-            <h1 className="chess-reveal-name">{caseData.leader_name}</h1>
-            <p className="chess-reveal-period">{caseData.leader_period}</p>
-          </div>
-
-          <div className="chess-reveal-story">
-            <h3>What actually happened</h3>
-            {caseData.reveal_text.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-
-          <div className="chess-reveal-analysis">
-            <h3>Leadership analysis</h3>
-            {caseData.stoic_analysis.split('\n').map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-
-          {/* Stats breakdown */}
-          {stats && (
-            <div className="chess-reveal-stats">
-              <h3>How others decided</h3>
-              <div className="chess-stats-bars">
-                {options.map(opt => (
-                  <div key={opt.id} className={`chess-stat-bar ${opt.is_actual_decision ? 'actual' : ''} ${opt.id === selectedOption?.id ? 'yours' : ''}`}>
-                    <div className="chess-stat-bar-header">
-                      <span className="chess-stat-bar-label">
-                        {opt.option_label}
-                        {opt.is_actual_decision && <span className="chess-stat-actual-badge">Actual decision</span>}
-                        {opt.id === selectedOption?.id && <span className="chess-stat-yours-badge">Your choice</span>}
-                      </span>
-                      <span className="chess-stat-bar-pct">{stats.percentages[opt.id] || 0}%</span>
-                    </div>
-                    <div className="chess-stat-bar-track">
-                      <div className="chess-stat-bar-fill" style={{ width: `${stats.percentages[opt.id] || 0}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="chess-stats-total-note">{stats.total} leaders have played this scenario</p>
-            </div>
-          )}
-
-          <div className="chess-step-actions">
-            <button className="chess-btn-primary" onClick={goNext}>
-              See your result card →
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* ============ STEP 5: SHARE ============ */}
-      {stepName === 'share' && (
-        <section className="chess-step chess-step-share">
-          {/* Result card */}
-          <div className="chess-result-card">
-            <div className="chess-result-header">
-              <span className="chess-result-logo">Ledge</span>
-              <span className="chess-result-type">Leadership Chess</span>
-            </div>
-            <div className="chess-result-body">
-              <p className="chess-result-scenario">"{caseData.anonymous_title}"</p>
-              <p className="chess-result-match">
-                {matchedLeader 
-                  ? `You chose the same path as ${caseData.leader_name}.`
-                  : `You chose differently from ${caseData.leader_name}.`
-                }
-              </p>
-              {stats && (
-                <p className="chess-result-stat">
-                  {stats.percentages[selectedOption?.id] || 0}% of leaders agreed with you.
-                </p>
-              )}
-            </div>
-            <div className="chess-result-footer">
-              <span>ledge.news/chess</span>
-              <span>What's your next move?</span>
-            </div>
-          </div>
-
-          {/* Share actions */}
-          <div className="chess-share-actions">
-            <button className="chess-btn-primary chess-btn-share" onClick={shareResult}>
-              Share on LinkedIn
-            </button>
-            <button className="chess-btn-secondary" onClick={copyLink}>
-              Copy link
-            </button>
-          </div>
-
-          {/* Play more */}
-          <div className="chess-play-more">
-            <h3>Ready for another challenge?</h3>
-            <Link href="/chess" className="chess-btn-primary">
-              ← More scenarios
-            </Link>
-          </div>
-        </section>
-      )}
-    </div>
-  );
+@media (max-width: 600px) {
+  .chess-filters {
+    padding: 0 1rem;
+  }
+  .chess-share-buttons {
+    flex-direction: column;
+  }
+  .chess-stats {
+    flex-direction: column;
+  }
 }
