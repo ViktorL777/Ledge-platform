@@ -1,7 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic();
-
 export async function POST(request) {
   const {
     caseTitle,
@@ -45,14 +41,25 @@ Acknowledge their point honestly (if it has genuine merit, say so directly). The
   }
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }]
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }]
+      })
     });
 
-    return Response.json({ response: response.content[0].text });
+    const data = await response.json();
+    const text = data.content?.[0]?.text || "Interesting perspective. Every decision carries trade-offs the historical record only partially captures. Are you ready to see what actually happened?";
+
+    return Response.json({ response: text });
   } catch (error) {
     console.error('Debate API error:', error);
     return Response.json(
