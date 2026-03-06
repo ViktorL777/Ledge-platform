@@ -1335,3 +1335,420 @@ footer {
     gap: 0.5rem;
   }
 }
+/* ============================================================
+   LEADERSHIP CHESS — NEW ELEMENTS (Debate + Challenge + Wisdom)
+   Add this block at the END of the existing Chess CSS section
+   ============================================================ */
+
+/* --- Game button variants --- */
+.game-btn-ghost {
+  display: block;
+  width: 100%;
+  padding: 0.85rem 1.5rem;
+  background: transparent;
+  color: var(--mountain-grey);
+  border: 1px solid var(--mountain-grey);
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.2s, border-color 0.2s;
+  margin-top: 0.75rem;
+}
+.game-btn-ghost:hover {
+  color: var(--deep-blue);
+  border-color: var(--deep-blue);
+}
+
+/* --- Game footer action --- */
+.game-footer-action {
+  margin-top: 2rem;
+  text-align: center;
+}
+.game-footer-action .game-btn-primary {
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+/* --- Game header challenge badge --- */
+.game-header-challenge {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--copper);
+  background: rgba(184, 115, 51, 0.1);
+  border: 1px solid rgba(184, 115, 51, 0.3);
+  border-radius: 3px;
+  padding: 0.2rem 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* --- Challenge banner (top of step 1 when challenge play) --- */
+.challenge-banner {
+  background: rgba(184, 115, 51, 0.08);
+  border: 1px solid rgba(184, 115, 51, 0.25);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  color: var(--copper);
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+/* --- Debate offer section (step 3, when decision differs) --- */
+.debate-offer {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(107, 123, 141, 0.15);
+}
+.debate-offer-text {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  color: var(--deep-blue);
+  margin-bottom: 1rem;
+  text-align: center;
+  font-style: italic;
+}
+
+/* --- Debate step (step 4) --- */
+.debate-context {
+  background: rgba(26, 43, 74, 0.04);
+  border-left: 3px solid var(--copper);
+  border-radius: 0 4px 4px 0;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.debate-context-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mountain-grey);
+  margin-bottom: 0.4rem;
+}
+.debate-context-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--deep-blue);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.debate-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.9rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--deep-blue);
+  background: var(--warm-white);
+  border: 1px solid rgba(107, 123, 141, 0.3);
+  border-radius: 4px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+}
+.debate-textarea:focus {
+  border-color: var(--copper);
+}
+.debate-textarea::placeholder {
+  color: var(--mountain-grey);
+  opacity: 0.7;
+}
+
+.debate-response {
+  background: rgba(26, 43, 74, 0.04);
+  border: 1px solid rgba(107, 123, 141, 0.2);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  margin: 1rem 0;
+}
+.debate-response-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mountain-grey);
+  margin-bottom: 0.5rem;
+}
+.debate-response-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--deep-blue);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.debate-round2-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.debate-round2-buttons .game-btn-primary {
+  flex: 1;
+  min-width: 140px;
+}
+.debate-round2-buttons .game-btn-ghost {
+  flex: 1;
+  min-width: 140px;
+  margin-top: 0;
+}
+
+/* --- Challenge section (step 6) --- */
+.challenge-section {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: rgba(184, 115, 51, 0.05);
+  border: 1px solid rgba(184, 115, 51, 0.2);
+  border-radius: 6px;
+  text-align: center;
+}
+.challenge-section-label {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--deep-blue);
+  margin-bottom: 0.5rem;
+}
+.challenge-section-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  color: var(--mountain-grey);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* --- Challenge comparison (shown to friend who was challenged) --- */
+.challenge-comparison {
+  margin-top: 1.25rem;
+  border: 1px solid rgba(184, 115, 51, 0.25);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.challenge-comparison-label {
+  background: rgba(184, 115, 51, 0.08);
+  border-bottom: 1px solid rgba(184, 115, 51, 0.2);
+  padding: 0.6rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--copper);
+}
+.challenge-comparison-row {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  gap: 1rem;
+}
+.challenge-comparison-item {
+  flex: 1;
+  text-align: center;
+}
+.challenge-comparison-who {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mountain-grey);
+  margin-bottom: 0.3rem;
+}
+.challenge-comparison-choice {
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem;
+  color: var(--deep-blue);
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.challenge-comparison-match {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.challenge-comparison-match.matched {
+  color: #4a7c59;
+}
+.challenge-comparison-match.differed {
+  color: var(--mountain-grey);
+}
+.challenge-comparison-vs {
+  font-family: 'Fraunces', serif;
+  font-size: 0.9rem;
+  color: var(--copper);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* --- Share button variants --- */
+.share-btn-challenge {
+  background: var(--copper);
+  color: #fff;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  letter-spacing: 0.02em;
+}
+.share-btn-challenge:hover {
+  background: var(--copper-dark);
+  transform: translateY(-1px);
+}
+
+.share-btn-wisdom {
+  background: transparent;
+  color: var(--deep-blue);
+  border: 1.5px solid var(--deep-blue);
+  padding: 0.8rem 1.5rem;
+  border-radius: 4px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  letter-spacing: 0.02em;
+}
+.share-btn-wisdom:hover {
+  background: var(--deep-blue);
+  color: #fff;
+}
+
+/* --- Wisdom offer section --- */
+.wisdom-offer {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: rgba(26, 43, 74, 0.03);
+  border: 1px solid rgba(26, 43, 74, 0.12);
+  border-radius: 6px;
+  text-align: center;
+}
+.wisdom-offer-label {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--deep-blue);
+  margin-bottom: 0.5rem;
+}
+.wisdom-offer-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  color: var(--mountain-grey);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* --- Wisdom chat --- */
+.wisdom-chat {
+  margin-top: 1.5rem;
+  border: 1px solid rgba(26, 43, 74, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.wisdom-chat-label {
+  background: rgba(26, 43, 74, 0.05);
+  border-bottom: 1px solid rgba(26, 43, 74, 0.1);
+  padding: 0.6rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mountain-grey);
+}
+.wisdom-messages {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.wisdom-message {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  padding: 0.7rem 0.9rem;
+  border-radius: 6px;
+  max-width: 90%;
+}
+.wisdom-message-assistant {
+  background: rgba(26, 43, 74, 0.05);
+  color: var(--deep-blue);
+  align-self: flex-start;
+}
+.wisdom-message-user {
+  background: rgba(184, 115, 51, 0.1);
+  color: var(--deep-blue);
+  align-self: flex-end;
+  text-align: right;
+}
+.wisdom-thinking {
+  opacity: 0.55;
+  font-style: italic;
+}
+.wisdom-input-row {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(26, 43, 74, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.wisdom-input-row .debate-textarea {
+  margin-bottom: 0;
+}
+.wisdom-input-row .game-btn-primary {
+  align-self: flex-end;
+  width: auto;
+  padding: 0.6rem 1.5rem;
+}
+
+/* --- Wisdom final insight --- */
+.wisdom-insight {
+  padding: 1rem;
+  border-top: 1px solid rgba(26, 43, 74, 0.1);
+  background: rgba(184, 115, 51, 0.04);
+  text-align: center;
+}
+.wisdom-insight-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--copper);
+  margin-bottom: 0.6rem;
+}
+.wisdom-insight-text {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+  color: var(--deep-blue);
+  line-height: 1.65;
+  font-style: italic;
+  margin-bottom: 1rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 600px) {
+  .challenge-comparison-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .challenge-comparison-vs {
+    transform: rotate(90deg);
+  }
+  .debate-round2-buttons {
+    flex-direction: column;
+  }
+}
