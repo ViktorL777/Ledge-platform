@@ -659,30 +659,27 @@ export default function ChessGamePage() {
                   )}
                 </div>
 
-                {!wisdomDone && !wisdomLoading && (
-                  <div className="wisdom-input-row">
-                    <textarea
-                      className="debate-textarea"
-                      placeholder="Your reflection..."
-                      value={wisdomInput}
-                      onChange={(e) => setWisdomInput(e.target.value)}
-                      rows={2}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendWisdomMessage();
-                        }
-                      }}
-                    />
-                    <button
-                      className="game-btn game-btn-primary"
-                      disabled={!wisdomInput.trim()}
-                      onClick={sendWisdomMessage}
-                    >
-                      Send
-                    </button>
-                  </div>
-                )}
+{wisdomDone && wisdomInsight && (
+  <div className="wisdom-insight">
+    <div className="wisdom-insight-label">Your Leadership Insight</div>
+    <p className="wisdom-insight-text">{wisdomInsight}</p>
+    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <button className="share-btn share-btn-wisdom" onClick={copyInsight}>
+        {insightCopied ? '✓ Copied!' : 'Copy Your Insight'}
+      </button>
+      <button
+        className="share-btn share-btn-linkedin"
+        onClick={() => {
+          navigator.clipboard.writeText(wisdomInsight);
+          const url = encodeURIComponent(`https://ledge.news/chess/${caseData.slug}`);
+          window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+        }}
+      >
+        Share on LinkedIn
+      </button>
+    </div>
+  </div>
+)}
 
                 {wisdomDone && wisdomInsight && (
                   <div className="wisdom-insight">
