@@ -1,7 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic();
-
 export async function POST(request) {
   const {
     caseTitle,
@@ -27,7 +23,6 @@ Rules:
   let messages;
 
   if (!conversationHistory || conversationHistory.length === 0) {
-    // First message — open the reflection
     const openingQuestion = matchedLeader
       ? `You just made the same call as ${leaderName}. What was the core principle that drove your thinking?`
       : `You chose a different path than ${leaderName}. What were you protecting with that decision?`;
@@ -35,7 +30,7 @@ Rules:
     messages = [
       {
         role: 'user',
-        content: `Start a leadership reflection interview. 
+        content: `Start a leadership reflection interview.
 Case: "${caseTitle}"
 Player chose: "${userChoice}"
 Did they match the real leader (${leaderName})? ${matchedLeader ? 'Yes' : 'No'}
@@ -44,7 +39,6 @@ Open with: "${openingQuestion}"`
       }
     ];
   } else {
-    // Continue the conversation
     const isLastExchange = exchange >= 3;
 
     messages = [
@@ -59,31 +53,33 @@ Open with: "${openingQuestion}"`
   }
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 180,
-      system: systemPrompt,
-      messages
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 180,
+        system: systemPrompt,
+        messages
+      })
     });
 
-    const text = response.content[0].text;
+    const data = await response.json();
+    const text = data.content?.[0]?.text || "That's a powerful reflection. What would you tell a junior leader facing a similar situation?";
     const isFinal = text.includes('My leadership insight from this scenario:') || exchange >= 3;
 
-    return Response.json({
-      response: text,
-      isFinal
-    });
+    return Response.json({ response: text, isFinal });
   } catch (error) {
     console.error('Wisdom API error:', error);
 
-    // Graceful fallback
     const fallback = exchange >= 3
       ? `My leadership insight from this scenario: Under pressure, the decisions that matter most reveal not what we know — but what we value.`
       : `That's worth sitting with. What would you tell a junior leader facing a similar situation?`;
 
-    return Response.json({
-      response: fallback,
-      isFinal: exchange >= 3
-    });
+    return Response.json({ response: fallback, isFinal: exchange >= 3 });
   }
 }
