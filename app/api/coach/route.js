@@ -309,7 +309,7 @@ async function callClaude({ systemPrompt, messages }) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { messages, sessionId, mode: explicitMode } = body;
+    const { messages, sessionId, mode: explicitMode, profileInjection } = body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: 'Messages required' }, { status: 400 });
@@ -325,8 +325,8 @@ export async function POST(request) {
       mode = firstUserMsg ? detectMode(firstUserMsg.content) : 'clarify';
     }
 
-    // Build system prompt: base + mode extension
-    const systemPrompt = BASE_SYSTEM_PROMPT + '\n\n' + (MODE_EXTENSIONS[mode] || MODE_EXTENSIONS.clarify);
+    // Build system prompt: profile injection (if returning leader) + base + mode extension
+    const systemPrompt = (profileInjection ? profileInjection + '\n\n' : '') + BASE_SYSTEM_PROMPT + '\n\n' + (MODE_EXTENSIONS[mode] || MODE_EXTENSIONS.clarify);
 
     // Call Claude
     const assistantMessage = await callClaude({ systemPrompt, messages });
