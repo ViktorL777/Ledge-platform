@@ -1,12 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { createServerClient } from '@/lib/supabase-server';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 // ============================================================
-// SYSTEM PROMPTS — The soul of each coaching mode
-// STOIC PULSE framework operates invisibly as diagnostic lenses
-// Eight dimensions are never named — they guide, not label
+// LEDGE AI COACH — Backend
+// Uses fetch (same as pipeline) — no extra dependencies
 // ============================================================
 
 const SYSTEM_PROMPTS = {
@@ -54,14 +50,28 @@ How to work:
 — No jargon. No consultant-speak. Precise, honest, useful.`
 };
 
-const OPENING_PROMPTS = {
-  clarify: "Something's on your mind. Let's find out what it really is.\n\nWhat's been nagging at you lately — even if you can't quite articulate it yet?",
-  analyze: "You have a problem to work with. Let's map where it lives and what it's connected to.\n\nDescribe the core issue you're dealing with.",
-  transfer_window: "Let's assess your readiness for action.\n\nWhat change are you considering, and what's making you question the timing?"
-};
+async function callAnthropic({ system, messages }) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5-20250514',
+      max_tokens: 500,
+      system,
+      messages,
+    }),
+  });
 
-export async function GET() {
-  return Response.json({ opening: OPENING_PROMPTS });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Anthropic API error: ${response.status} — ${err}`);
+  }
+
+  return response.json();
 }
 
 export async function POST(request) {
@@ -77,8 +87,7 @@ export async function POST(request) {
       return Response.json({ error: 'Invalid mode' }, { status: 400 });
     }
 
-    // Filter out opening assistant message (it's hardcoded UI, not real Claude output)
-    // Only send real conversation turns to Claude
+    // Strip opening message (hardcoded UI, not a real Claude turn)
     const apiMessages = messages
       .filter(m => !m.isOpening)
       .map(m => ({ role: m.role, content: m.content }));
@@ -87,26 +96,16 @@ export async function POST(request) {
       return Response.json({ error: 'No messages to process' }, { status: 400 });
     }
 
-    // Call Claude Sonnet
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250514',
-      max_tokens: 500,
-      system: systemPrompt,
-      messages: apiMessages,
-    });
+    const data = await callAnthropic({ system: systemPrompt, messages: apiMessages });
+    const reply = data.content[0].text;
+    const tokensUsed = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0);
 
-    const reply = response.content[0].text;
-    const tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
-
-    // ============================================================
-    // Save to Supabase — async, non-blocking for UX
-    // ============================================================
+    // Save to Supabase — non-blocking
     try {
       const supabase = createServerClient();
 
       let sessionDbId;
 
-      // Find or create session
       const { data: existingSession } = await supabase
         .from('ai_coach_sessions')
         .select('id, message_count')
@@ -139,16 +138,13 @@ export async function POST(request) {
         sessionDbId = newSession?.id;
       }
 
-      // Save user message (the last one in the array)
-      const lastUserMsg = apiMessages[apiMessages.length - 1];
-      if (lastUserMsg && sessionDbId) {
+      if (sessionDbId) {
+        const lastUserMsg = apiMessages[apiMessages.length - 1];
         await supabase.from('ai_coach_messages').insert({
           coach_session_id: sessionDbId,
           role: 'user',
           content: lastUserMsg.content,
         });
-
-        // Save assistant reply
         await supabase.from('ai_coach_messages').insert({
           coach_session_id: sessionDbId,
           role: 'assistant',
@@ -157,7 +153,6 @@ export async function POST(request) {
         });
       }
     } catch (dbError) {
-      // DB errors should not break the user experience
       console.error('Supabase save error (non-fatal):', dbError.message);
     }
 
