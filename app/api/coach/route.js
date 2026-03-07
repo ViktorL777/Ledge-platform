@@ -1,15 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { createServerClient } from '@/lib/supabase-server';
-import { v4 as uuidv4 } from 'uuid';
 
 // ============================================================
 // LEDGE AI COACH — route.js v2
 // System prompt v2: 7-layer methodology
+// No external SDK — uses native fetch (same pattern as pipeline.js)
 // STOIC PULSE is always present, never named.
 // Viktor Lénárt / ZEL Group — Confidential
 // ============================================================
-
-const client = new Anthropic();
 
 // ============================================================
 // BASE SYSTEM PROMPT — shared across all three modes
@@ -246,36 +243,64 @@ ZEL Group integration (natural, not forced): When the readiness assessment revea
 };
 
 // ============================================================
-// MODE DETECTION — from first message / intent capture
+// MODE DETECTION — from intent text
 // ============================================================
 
 function detectMode(intentText) {
   if (!intentText) return 'clarify';
   const text = intentText.toLowerCase();
 
-  // Change Readiness signals
-  if (/\b(when (to|should i|is the right time)|ready|timing|right moment|act on|move forward|launch|commit|go ahead|decide|decision|is now|step forward|take action|timing)\b/i.test(text)) {
+  if (/\b(when (to|should i|is the right time)|ready|timing|right moment|act on|move forward|launch|commit|go ahead|decide|decision|is now|step forward|take action)\b/i.test(text)) {
     return 'change_readiness';
   }
 
-  // Analyze signals
   if (/\b(understand|why|how|connection|pattern|root cause|underlying|driving|what's behind|full picture|bigger picture|what's really|see clearly|map out|make sense of|analyze|analyse)\b/i.test(text)) {
     return 'analyze';
   }
 
-  // Default: Clarify (when in doubt, start by finding the real question)
   return 'clarify';
 }
-
-// ============================================================
-// MODE DISPLAY LABELS
-// ============================================================
 
 const MODE_LABELS = {
   clarify: 'Clarify',
   analyze: 'Analyze',
   change_readiness: 'Change Readiness'
 };
+
+// ============================================================
+// ANTHROPIC API CALL — native fetch (same as pipeline.js)
+// ============================================================
+
+async function callClaude({ systemPrompt, messages }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content,
+      })),
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  return data.content[0]?.text || '';
+}
 
 // ============================================================
 // API HANDLER
@@ -290,37 +315,26 @@ export async function POST(request) {
       return Response.json({ error: 'Messages required' }, { status: 400 });
     }
 
-    const currentSessionId = sessionId || uuidv4();
+    // Session ID — use provided or generate with built-in crypto
+    const currentSessionId = sessionId || crypto.randomUUID();
 
     // Determine mode
     let mode = explicitMode;
     if (!mode || !['clarify', 'analyze', 'change_readiness'].includes(mode)) {
-      // Auto-detect from first user message (the intent capture answer)
       const firstUserMsg = messages.find(m => m.role === 'user');
       mode = firstUserMsg ? detectMode(firstUserMsg.content) : 'clarify';
     }
 
-    // Build full system prompt: base + mode extension
+    // Build system prompt: base + mode extension
     const systemPrompt = BASE_SYSTEM_PROMPT + '\n\n' + (MODE_EXTENSIONS[mode] || MODE_EXTENSIONS.clarify);
 
     // Call Claude
-    const response = await client.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content,
-      })),
-    });
-
-    const assistantMessage = response.content[0].text;
+    const assistantMessage = await callClaude({ systemPrompt, messages });
 
     // Save to Supabase
     try {
       const supabase = createServerClient();
 
-      // Upsert session record
       await supabase.from('ai_coach_sessions').upsert({
         id: currentSessionId,
         coach_mode: mode,
@@ -328,7 +342,6 @@ export async function POST(request) {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
 
-      // Save assistant message
       await supabase.from('ai_coach_messages').insert({
         session_id: currentSessionId,
         role: 'assistant',
@@ -336,14 +349,13 @@ export async function POST(request) {
         created_at: new Date().toISOString(),
       });
     } catch (dbError) {
-      // Don't fail the response if DB write fails
       console.error('DB write error:', dbError);
     }
 
     return Response.json({
       message: assistantMessage,
       sessionId: currentSessionId,
-      mode: mode,
+      mode,
       modeLabel: MODE_LABELS[mode] || 'Clarify',
     });
 
