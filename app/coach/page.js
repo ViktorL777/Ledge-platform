@@ -2,240 +2,183 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 // ============================================================
-// LEDGE AI COACH
-// Three independent modes, each with a clear job to do
+// LEDGE AI COACH — page.js v2
+// Single entry point: intent capture → auto-routing
+// Mode shown discreetly in header, never chosen explicitly
 // STOIC PULSE invisible — eight lenses, never named
 // ============================================================
 
-const MODES = [
-  {
-    id: 'clarify',
-    name: 'Clarify',
-    tagline: 'Something feels off',
-    description: "You can sense it but can't name it yet. This mode asks the right questions until what's really happening becomes impossible to ignore.",
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="16" cy="16" r="5" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="16" y1="4" x2="16" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="16" y1="24" x2="16" y2="28" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="4" y1="16" x2="8" y2="16" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="24" y1="16" x2="28" y2="16" stroke="currentColor" strokeWidth="1.5"/>
-      </svg>
-    ),
-    opening: "Something's on your mind. Let's find out what it really is.\n\nWhat's been nagging at you lately — even if you can't quite articulate it yet?",
+const MODE_META = {
+  clarify: {
+    label: 'Clarify',
+    hint: 'Finding the real question',
+    color: '#1a2b4a',
   },
-  {
-    id: 'analyze',
-    name: 'Analyze',
-    tagline: 'Map the connections',
-    description: "You know what the problem is. Now see how it ripples through your organization — and where the real leverage point is.",
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <circle cx="8" cy="16" r="3" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="24" cy="8" r="3" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="24" cy="24" r="3" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="11" y1="15" x2="21" y2="9.5" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="11" y1="17" x2="21" y2="22.5" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="24" y1="11" x2="24" y2="21" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2"/>
-      </svg>
-    ),
-    opening: "You have a problem to work with. Let's map where it lives and what it's connected to.\n\nDescribe the core issue you're dealing with.",
+  analyze: {
+    label: 'Analyze',
+    hint: 'Mapping the full picture',
+    color: '#1a2b4a',
   },
-  {
-    id: 'change_readiness',
-    name: 'Change Readiness',
-    tagline: 'Is the moment right?',
-    description: "There are windows when change is possible — and windows that are already closed. This mode tells you which one you're in.",
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <rect x="4" y="4" width="24" height="24" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="4" y1="12" x2="28" y2="12" stroke="currentColor" strokeWidth="1"/>
-        <rect x="8" y="16" width="6" height="8" fill="currentColor" opacity="0.3"/>
-        <rect x="18" y="16" width="6" height="4" stroke="currentColor" strokeWidth="1" strokeDasharray="2 1"/>
-        <line x1="8" y1="8" x2="8" y2="4" stroke="currentColor" strokeWidth="1.5"/>
-        <line x1="24" y1="8" x2="24" y2="4" stroke="currentColor" strokeWidth="1.5"/>
-      </svg>
-    ),
-    opening: "Let's assess your readiness for action.\n\nWhat change are you considering, and what's making you question the timing?",
+  change_readiness: {
+    label: 'Change Readiness',
+    hint: 'Assessing when to act',
+    color: '#1a2b4a',
   },
-];
+};
 
 // ============================================================
-// TOPOGRAPHIC SVG PATTERN — reused from brand identity
+// INTENT CAPTURE SCREEN (replaces mode picker)
 // ============================================================
-const TopographicBg = () => (
-  <svg
-    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0.04 }}
-    xmlns="http://www.w3.org/2000/svg"
-    preserveAspectRatio="xMidYMid slice"
-  >
-    <defs>
-      <pattern id="topoCoach" x="0" y="0" width="200" height="200" patternUnits="userSpaceOnUse">
-        <path d="M 100 0 Q 140 40 100 80 Q 60 120 100 160 Q 140 200 100 200" fill="none" stroke="#b87333" strokeWidth="0.8"/>
-        <path d="M 0 60 Q 50 40 100 60 Q 150 80 200 60" fill="none" stroke="#b87333" strokeWidth="0.6"/>
-        <path d="M 0 120 Q 50 100 100 120 Q 150 140 200 120" fill="none" stroke="#b87333" strokeWidth="0.6"/>
-        <path d="M 40 0 Q 20 60 40 120 Q 60 180 40 200" fill="none" stroke="#6b7b8d" strokeWidth="0.5"/>
-        <path d="M 160 0 Q 180 60 160 120 Q 140 180 160 200" fill="none" stroke="#6b7b8d" strokeWidth="0.5"/>
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#topoCoach)"/>
-  </svg>
-);
+function IntentCapture({ onStart }) {
+  const [intent, setIntent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const textareaRef = useRef(null);
 
-// ============================================================
-// MODE PICKER
-// ============================================================
-function ModePicker({ onSelect }) {
-  const [hoveredMode, setHoveredMode] = useState(null);
+  useEffect(() => {
+    if (textareaRef.current) textareaRef.current.focus();
+  }, []);
+
+  const handleSubmit = () => {
+    const trimmed = intent.trim();
+    if (!trimmed || isSubmitting) return;
+    setIsSubmitting(true);
+    onStart(trimmed);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#1a2b4a',
+      backgroundColor: '#f7f6f3',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '2rem',
       fontFamily: "'DM Sans', sans-serif",
-      position: 'relative',
-      overflow: 'hidden',
     }}>
-      <TopographicBg />
-
-      <div style={{
-        position: 'relative',
-        zIndex: 1,
-        maxWidth: '900px',
-        margin: '0 auto',
-        padding: '80px 24px 60px',
-      }}>
-        {/* Header */}
-        <div style={{ marginBottom: '64px' }}>
-          <a href="/" style={{ 
-            color: '#b87333', 
-            textDecoration: 'none', 
-            fontSize: '13px',
-            fontFamily: "'DM Sans', sans-serif",
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            marginBottom: '40px',
-          }}>
-            ← Ledge
-          </a>
-
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '12px' }}>
-            <span style={{ 
-              color: '#b87333', 
-              fontSize: '11px', 
-              fontFamily: "'DM Sans', sans-serif",
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              fontWeight: '500',
-            }}>
-              AI Coach
-            </span>
-          </div>
-
-          <h1 style={{
+      {/* Logo */}
+      <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
+        <a href="/" style={{ textDecoration: 'none' }}>
+          <span style={{
             fontFamily: "'Fraunces', serif",
-            fontSize: 'clamp(32px, 5vw, 52px)',
-            fontWeight: '300',
-            color: '#f7f6f3',
-            margin: '0 0 20px 0',
-            lineHeight: '1.15',
-            letterSpacing: '-0.01em',
+            fontSize: '1.5rem',
+            fontWeight: '700',
+            color: '#1a2b4a',
+            letterSpacing: '-0.02em',
           }}>
-            What kind of clarity<br />do you need today?
-          </h1>
-
-          <p style={{
-            color: '#6b7b8d',
-            fontSize: '16px',
-            margin: 0,
-            maxWidth: '480px',
-            lineHeight: '1.6',
+            LEDGE
+          </span>
+          <span style={{
+            display: 'block',
+            fontSize: '0.7rem',
+            color: '#b87333',
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+            marginTop: '2px',
           }}>
-            Choose your mode. Each one has a different job. You can always switch.
-          </p>
-        </div>
+            AI Coach
+          </span>
+        </a>
+      </div>
 
-        {/* Mode cards */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: '16px',
+      {/* Main card */}
+      <div style={{
+        backgroundColor: '#fff',
+        borderRadius: '16px',
+        padding: '3rem',
+        maxWidth: '600px',
+        width: '100%',
+        boxShadow: '0 4px 24px rgba(26,43,74,0.08)',
+        border: '1px solid rgba(26,43,74,0.06)',
+      }}>
+        <h1 style={{
+          fontFamily: "'Fraunces', serif",
+          fontSize: '1.7rem',
+          fontWeight: '600',
+          color: '#1a2b4a',
+          marginBottom: '0.75rem',
+          lineHeight: '1.3',
+          letterSpacing: '-0.02em',
         }}>
-          {MODES.map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => onSelect(mode)}
-              onMouseEnter={() => setHoveredMode(mode.id)}
-              onMouseLeave={() => setHoveredMode(null)}
-              style={{
-                background: hoveredMode === mode.id
-                  ? 'rgba(184, 115, 51, 0.08)'
-                  : 'rgba(255, 255, 255, 0.03)',
-                border: `1px solid ${hoveredMode === mode.id ? '#b87333' : 'rgba(255,255,255,0.08)'}`,
-                borderRadius: '4px',
-                padding: '32px 28px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.2s ease',
-                transform: hoveredMode === mode.id ? 'translateY(-2px)' : 'translateY(0)',
-              }}
-            >
-              <div style={{ 
-                color: hoveredMode === mode.id ? '#b87333' : '#6b7b8d',
-                marginBottom: '20px',
-                transition: 'color 0.2s ease',
-              }}>
-                {mode.icon}
-              </div>
-
-              <div style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: '11px',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: '#b87333',
-                marginBottom: '6px',
-                fontWeight: '500',
-              }}>
-                {mode.tagline}
-              </div>
-
-              <h3 style={{
-                fontFamily: "'Fraunces', serif",
-                fontSize: '24px',
-                fontWeight: '300',
-                color: '#f7f6f3',
-                margin: '0 0 14px 0',
-                letterSpacing: '-0.01em',
-              }}>
-                {mode.name}
-              </h3>
-
-              <p style={{
-                color: '#6b7b8d',
-                fontSize: '14px',
-                lineHeight: '1.6',
-                margin: 0,
-              }}>
-                {mode.description}
-              </p>
-            </button>
-          ))}
-        </div>
+          By the end of this conversation, what do you want to have — that you don't have right now?
+        </h1>
 
         <p style={{
-          color: 'rgba(107, 123, 141, 0.5)',
-          fontSize: '12px',
-          marginTop: '40px',
-          textAlign: 'center',
+          fontSize: '0.9rem',
+          color: '#6b7b8d',
+          marginBottom: '2rem',
+          lineHeight: '1.6',
         }}>
-          Conversations are not stored to your account. Sessions reset on page refresh.
+          A clarity you're missing. A decision you can't make yet. A map of something complex. Name it.
         </p>
+
+        <textarea
+          ref={textareaRef}
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="e.g. I want to understand why I keep avoiding this conversation with my board..."
+          rows={4}
+          style={{
+            width: '100%',
+            padding: '1rem',
+            fontSize: '0.95rem',
+            lineHeight: '1.6',
+            color: '#1a2b4a',
+            backgroundColor: '#f7f6f3',
+            border: '1.5px solid rgba(26,43,74,0.12)',
+            borderRadius: '10px',
+            resize: 'vertical',
+            outline: 'none',
+            fontFamily: "'DM Sans', sans-serif",
+            boxSizing: 'border-box',
+            transition: 'border-color 0.2s',
+          }}
+          onFocus={(e) => { e.target.style.borderColor = '#b87333'; }}
+          onBlur={(e) => { e.target.style.borderColor = 'rgba(26,43,74,0.12)'; }}
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', gap: '0.75rem', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', color: '#9ba8b5' }}>⌘ + Enter to begin</span>
+          <button
+            onClick={handleSubmit}
+            disabled={!intent.trim() || isSubmitting}
+            style={{
+              backgroundColor: intent.trim() ? '#1a2b4a' : '#c8d0d8',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.75rem 1.75rem',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              cursor: intent.trim() ? 'pointer' : 'not-allowed',
+              fontFamily: "'DM Sans', sans-serif",
+              transition: 'background-color 0.2s',
+              letterSpacing: '0.01em',
+            }}
+          >
+            {isSubmitting ? 'Starting...' : 'Begin session'}
+          </button>
+        </div>
       </div>
+
+      <p style={{
+        marginTop: '2rem',
+        fontSize: '0.75rem',
+        color: '#9ba8b5',
+        textAlign: 'center',
+        maxWidth: '400px',
+        lineHeight: '1.5',
+      }}>
+        Your conversation is private and not stored to a profile by default. No login required.
+      </p>
     </div>
   );
 }
@@ -243,448 +186,379 @@ function ModePicker({ onSelect }) {
 // ============================================================
 // CHAT INTERFACE
 // ============================================================
-function ChatInterface({
-  mode,
-  messages,
-  input,
-  setInput,
-  isLoading,
-  onSend,
-  onKeyDown,
-  onBack,
-  onInsights,
-  messagesEndRef,
-  inputRef,
-}) {
+function ChatInterface({ initialIntent, sessionId, mode, modeLabel, messages, onSendMessage, isLoading, onReset }) {
+  const [input, setInput] = useState('');
+  const [showInsights, setShowInsights] = useState(false);
+  const [insights, setInsights] = useState(null);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = () => {
+    const trimmed = input.trim();
+    if (!trimmed || isLoading) return;
+    onSendMessage(trimmed);
+    setInput('');
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const loadInsights = async () => {
+    if (loadingInsights || insights) {
+      setShowInsights(!showInsights);
+      return;
+    }
+    setLoadingInsights(true);
+    setShowInsights(true);
+    try {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      const res = await fetch('/api/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: lastUserMsg?.content || initialIntent,
+          mode,
+        }),
+      });
+      const data = await res.json();
+      setInsights(data.articles || []);
+    } catch {
+      setInsights([]);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  const modeMeta = MODE_META[mode] || MODE_META.clarify;
+
   return (
     <div style={{
-      height: '100vh',
-      background: '#1a2b4a',
-      fontFamily: "'DM Sans', sans-serif",
+      minHeight: '100vh',
+      backgroundColor: '#f7f6f3',
       display: 'flex',
       flexDirection: 'column',
-      position: 'relative',
+      fontFamily: "'DM Sans', sans-serif",
     }}>
-      <TopographicBg />
-
-      {/* Top bar */}
-      <div style={{
-        position: 'relative',
-        zIndex: 2,
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        padding: '0 24px',
-        height: '56px',
+      {/* Header */}
+      <header style={{
+        backgroundColor: '#fff',
+        borderBottom: '1px solid rgba(26,43,74,0.08)',
+        padding: '0.875rem 1.5rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        flexShrink: 0,
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <button
-            onClick={onBack}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#6b7b8d',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontFamily: "'DM Sans', sans-serif",
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              letterSpacing: '0.02em',
-            }}
-          >
-            ← Back
-          </button>
-          <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: '#b87333',
-              display: 'inline-block',
-            }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <a href="/" style={{ textDecoration: 'none' }}>
             <span style={{
               fontFamily: "'Fraunces', serif",
-              fontSize: '15px',
-              fontWeight: '300',
-              color: '#f7f6f3',
-              letterSpacing: '-0.01em',
-            }}>
-              {mode.name}
+              fontSize: '1.15rem',
+              fontWeight: '700',
+              color: '#1a2b4a',
+              letterSpacing: '-0.02em',
+            }}>LEDGE</span>
+          </a>
+          {/* Mode badge — discreet */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            backgroundColor: 'rgba(184,115,51,0.08)',
+            border: '1px solid rgba(184,115,51,0.2)',
+            borderRadius: '20px',
+            padding: '0.2rem 0.7rem',
+          }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#b87333', display: 'block' }} />
+            <span style={{ fontSize: '0.72rem', color: '#b87333', fontWeight: '600', letterSpacing: '0.05em' }}>
+              {modeLabel}
             </span>
-            <span style={{
-              color: '#6b7b8d',
-              fontSize: '12px',
-            }}>
-              — {mode.tagline}
-            </span>
+            <span style={{ fontSize: '0.68rem', color: '#9ba8b5' }}>— {modeMeta.hint}</span>
           </div>
         </div>
 
-        <button
-          onClick={onInsights}
-          style={{
-            background: 'none',
-            border: '1px solid rgba(184, 115, 51, 0.3)',
-            borderRadius: '3px',
-            color: '#b87333',
-            cursor: 'pointer',
-            fontSize: '11px',
-            fontFamily: "'DM Sans', sans-serif",
-            padding: '5px 12px',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(184, 115, 51, 0.1)';
-            e.currentTarget.style.borderColor = '#b87333';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'none';
-            e.currentTarget.style.borderColor = 'rgba(184, 115, 51, 0.3)';
-          }}
-        >
-          Related Insights
-        </button>
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* Related Insights — lazy load on click */}
+          <button
+            onClick={loadInsights}
+            style={{
+              backgroundColor: 'transparent',
+              border: '1px solid rgba(26,43,74,0.15)',
+              borderRadius: '6px',
+              padding: '0.4rem 0.8rem',
+              fontSize: '0.75rem',
+              color: '#6b7b8d',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+            }}
+          >
+            <span>📎</span>
+            <span>Related insights</span>
+          </button>
+
+          <button
+            onClick={onReset}
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: '#9ba8b5',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              padding: '0.4rem 0.6rem',
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            New session
+          </button>
+        </div>
+      </header>
+
+      {/* Related Insights panel */}
+      {showInsights && (
+        <div style={{
+          backgroundColor: '#fff',
+          borderBottom: '1px solid rgba(26,43,74,0.08)',
+          padding: '1rem 1.5rem',
+        }}>
+          <h3 style={{ fontSize: '0.8rem', color: '#6b7b8d', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
+            Related Insights from Ledge
+          </h3>
+          {loadingInsights ? (
+            <p style={{ fontSize: '0.85rem', color: '#9ba8b5' }}>Loading...</p>
+          ) : insights && insights.length > 0 ? (
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {insights.map((article, i) => (
+                <a
+                  key={i}
+                  href={article.url || article.original_url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'block',
+                    backgroundColor: '#f7f6f3',
+                    border: '1px solid rgba(26,43,74,0.08)',
+                    borderRadius: '8px',
+                    padding: '0.7rem 1rem',
+                    maxWidth: '280px',
+                    textDecoration: 'none',
+                    transition: 'border-color 0.2s',
+                  }}
+                >
+                  <p style={{ fontSize: '0.78rem', color: '#b87333', fontWeight: '600', marginBottom: '0.25rem' }}>
+                    {article.primary_dimension || article.dimension || 'Leadership'}
+                  </p>
+                  <p style={{ fontSize: '0.85rem', color: '#1a2b4a', lineHeight: '1.4', fontWeight: '500' }}>
+                    {article.title}
+                  </p>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.85rem', color: '#9ba8b5' }}>No related articles found for this conversation.</p>
+          )}
+        </div>
+      )}
 
       {/* Messages area */}
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        position: 'relative',
-        zIndex: 2,
-        padding: '40px 24px',
-        scrollBehavior: 'smooth',
+        padding: '2rem 1.5rem',
+        maxWidth: '720px',
+        width: '100%',
+        margin: '0 auto',
+        boxSizing: 'border-box',
       }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          {messages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} />
-          ))}
+        {/* Intent context — always visible at top */}
+        <div style={{
+          backgroundColor: 'rgba(26,43,74,0.04)',
+          border: '1px solid rgba(26,43,74,0.08)',
+          borderRadius: '10px',
+          padding: '0.875rem 1.25rem',
+          marginBottom: '2rem',
+        }}>
+          <p style={{ fontSize: '0.72rem', color: '#9ba8b5', marginBottom: '0.3rem', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Session goal
+          </p>
+          <p style={{ fontSize: '0.88rem', color: '#1a2b4a', lineHeight: '1.5', fontStyle: 'italic' }}>
+            "{initialIntent}"
+          </p>
+        </div>
 
-          {isLoading && (
-            <div style={{ marginBottom: '32px' }}>
-              <div style={{
-                display: 'flex',
-                gap: '6px',
-                alignItems: 'center',
-                padding: '4px 0',
-              }}>
-                {[0, 1, 2].map(j => (
-                  <div
-                    key={j}
-                    style={{
-                      width: '5px',
-                      height: '5px',
-                      borderRadius: '50%',
-                      background: '#b87333',
-                      animation: 'coachPulse 1.2s ease-in-out infinite',
-                      animationDelay: `${j * 0.2}s`,
-                    }}
-                  />
+        {/* Messages */}
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            style={{
+              marginBottom: '1.5rem',
+              display: 'flex',
+              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+              gap: '0.75rem',
+              alignItems: 'flex-start',
+            }}
+          >
+            {/* Avatar */}
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              backgroundColor: msg.role === 'user' ? '#1a2b4a' : '#b87333',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              fontSize: '0.7rem',
+              fontWeight: '700',
+              color: '#fff',
+              letterSpacing: '0.05em',
+            }}>
+              {msg.role === 'user' ? 'YOU' : 'LC'}
+            </div>
+
+            {/* Bubble */}
+            <div style={{
+              backgroundColor: msg.role === 'user' ? '#1a2b4a' : '#fff',
+              color: msg.role === 'user' ? '#f7f6f3' : '#1a2b4a',
+              borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+              padding: '0.875rem 1.125rem',
+              maxWidth: '85%',
+              fontSize: '0.92rem',
+              lineHeight: '1.65',
+              boxShadow: msg.role === 'assistant' ? '0 1px 8px rgba(26,43,74,0.06)' : 'none',
+              border: msg.role === 'assistant' ? '1px solid rgba(26,43,74,0.06)' : 'none',
+              whiteSpace: 'pre-wrap',
+            }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+
+        {/* Typing indicator */}
+        {isLoading && (
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              backgroundColor: '#b87333', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.7rem', fontWeight: '700', color: '#fff',
+            }}>LC</div>
+            <div style={{
+              backgroundColor: '#fff',
+              border: '1px solid rgba(26,43,74,0.06)',
+              borderRadius: '4px 16px 16px 16px',
+              padding: '0.875rem 1.25rem',
+              boxShadow: '0 1px 8px rgba(26,43,74,0.06)',
+            }}>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    backgroundColor: '#b87333', opacity: 0.6,
+                    animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+                  }} />
                 ))}
               </div>
             </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input area */}
       <div style={{
-        position: 'relative',
-        zIndex: 2,
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-        padding: '20px 24px',
-        flexShrink: 0,
-        background: 'rgba(26, 43, 74, 0.95)',
-        backdropFilter: 'blur(8px)',
+        backgroundColor: '#fff',
+        borderTop: '1px solid rgba(26,43,74,0.08)',
+        padding: '1rem 1.5rem',
+        position: 'sticky',
+        bottom: 0,
       }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'flex-end',
-          }}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder="Type your response..."
-              rows={1}
-              style={{
-                flex: 1,
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '4px',
-                padding: '12px 16px',
-                color: '#f7f6f3',
-                fontSize: '15px',
-                fontFamily: "'DM Sans', sans-serif",
-                resize: 'none',
-                outline: 'none',
-                lineHeight: '1.5',
-                minHeight: '46px',
-                maxHeight: '140px',
-                overflowY: 'auto',
-                transition: 'border-color 0.15s ease',
-              }}
-              onFocus={e => e.target.style.borderColor = 'rgba(184, 115, 51, 0.4)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
-              onInput={e => {
-                e.target.style.height = 'auto';
-                e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
-              }}
-            />
-            <button
-              onClick={onSend}
-              disabled={!input.trim() || isLoading}
-              style={{
-                width: '46px',
-                height: '46px',
-                background: input.trim() && !isLoading ? '#b87333' : 'rgba(184, 115, 51, 0.2)',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.15s ease',
-                flexShrink: 0,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M14 8L2 2l3 6-3 6 12-6z" fill={input.trim() && !isLoading ? '#f7f6f3' : 'rgba(247,246,243,0.4)'}/>
-              </svg>
-            </button>
-          </div>
-          <p style={{
-            color: 'rgba(107, 123, 141, 0.5)',
-            fontSize: '11px',
-            margin: '8px 0 0 0',
-            letterSpacing: '0.02em',
-          }}>
-            Enter to send · Shift+Enter for new line
-          </p>
+        <div style={{
+          maxWidth: '720px',
+          margin: '0 auto',
+          display: 'flex',
+          gap: '0.75rem',
+          alignItems: 'flex-end',
+        }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Your response..."
+            rows={1}
+            style={{
+              flex: 1,
+              padding: '0.75rem 1rem',
+              fontSize: '0.92rem',
+              lineHeight: '1.5',
+              color: '#1a2b4a',
+              backgroundColor: '#f7f6f3',
+              border: '1.5px solid rgba(26,43,74,0.12)',
+              borderRadius: '10px',
+              resize: 'none',
+              outline: 'none',
+              fontFamily: "'DM Sans', sans-serif",
+              transition: 'border-color 0.2s',
+              minHeight: '44px',
+              maxHeight: '160px',
+              overflow: 'auto',
+            }}
+            onFocus={(e) => { e.target.style.borderColor = '#b87333'; }}
+            onBlur={(e) => { e.target.style.borderColor = 'rgba(26,43,74,0.12)'; }}
+            onInput={(e) => {
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px';
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || isLoading}
+            style={{
+              backgroundColor: input.trim() && !isLoading ? '#1a2b4a' : '#c8d0d8',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '10px',
+              width: '44px',
+              height: '44px',
+              cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'background-color 0.2s',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
         </div>
+        <p style={{ maxWidth: '720px', margin: '0.5rem auto 0', fontSize: '0.7rem', color: '#9ba8b5', textAlign: 'center' }}>
+          Enter to send · Shift+Enter for new line
+        </p>
       </div>
 
       <style>{`
-        @keyframes coachPulse {
-          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-          40% { opacity: 1; transform: scale(1.1); }
+        @keyframes pulse {
+          0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+          40% { transform: scale(1.1); opacity: 1; }
         }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(184, 115, 51, 0.2); border-radius: 2px; }
-        ::placeholder { color: rgba(107, 123, 141, 0.5); }
       `}</style>
-    </div>
-  );
-}
-
-// ============================================================
-// MESSAGE BUBBLE
-// ============================================================
-function MessageBubble({ message }) {
-  const isUser = message.role === 'user';
-  const text = message.content || '';
-
-  return (
-    <div style={{
-      marginBottom: '28px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: isUser ? 'flex-end' : 'flex-start',
-    }}>
-      {!isUser && (
-        <div style={{
-          fontSize: '10px',
-          color: '#b87333',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          marginBottom: '8px',
-          fontWeight: '500',
-        }}>
-          Coach
-        </div>
-      )}
-      <div style={{
-        maxWidth: isUser ? '80%' : '100%',
-        background: isUser
-          ? 'rgba(184, 115, 51, 0.12)'
-          : 'transparent',
-        border: isUser
-          ? '1px solid rgba(184, 115, 51, 0.2)'
-          : 'none',
-        borderRadius: isUser ? '4px' : '0',
-        padding: isUser ? '12px 16px' : '0',
-        borderLeft: !isUser ? '2px solid rgba(184, 115, 51, 0.3)' : 'none',
-        paddingLeft: !isUser ? '16px' : isUser ? '16px' : '0',
-      }}>
-        {text.split('\n').map((line, i) => (
-          line ? (
-            <p key={i} style={{
-              color: isUser ? 'rgba(247, 246, 243, 0.8)' : '#f7f6f3',
-              fontSize: '15px',
-              lineHeight: '1.65',
-              margin: '0 0 8px 0',
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {line}
-            </p>
-          ) : <br key={i} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// RELATED INSIGHTS PANEL (lazy-loaded on button click)
-// ============================================================
-function InsightsPanel({ isOpen, onClose, sessionId, mode }) {
-  const [insights, setInsights] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [fetched, setFetched] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && !fetched) {
-      setLoading(true);
-      setFetched(true);
-      fetch(`/api/insights?mode=${mode}&session_id=${sessionId}`)
-        .then(r => r.json())
-        .then(data => {
-          setInsights(data.articles || []);
-          setLoading(false);
-        })
-        .catch(() => {
-          setInsights([]);
-          setLoading(false);
-        });
-    }
-  }, [isOpen, fetched, mode, sessionId]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div style={{
-      position: 'fixed',
-      right: 0,
-      top: 0,
-      bottom: 0,
-      width: '340px',
-      background: 'rgba(15, 25, 45, 0.98)',
-      borderLeft: '1px solid rgba(184, 115, 51, 0.2)',
-      zIndex: 100,
-      display: 'flex',
-      flexDirection: 'column',
-      backdropFilter: 'blur(12px)',
-    }}>
-      <div style={{
-        padding: '20px 20px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <div>
-          <div style={{
-            fontSize: '10px',
-            color: '#b87333',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            marginBottom: '4px',
-          }}>Related Insights</div>
-          <div style={{
-            fontFamily: "'Fraunces', serif",
-            fontSize: '16px',
-            color: '#f7f6f3',
-            fontWeight: '300',
-          }}>From the Ledge feed</div>
-        </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#6b7b8d',
-            cursor: 'pointer',
-            fontSize: '18px',
-            padding: '4px',
-            lineHeight: 1,
-          }}
-        >
-          ×
-        </button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-        {loading && (
-          <div style={{ color: '#6b7b8d', fontSize: '13px', textAlign: 'center', paddingTop: '32px' }}>
-            Finding relevant articles...
-          </div>
-        )}
-        {!loading && insights.length === 0 && (
-          <div style={{ color: '#6b7b8d', fontSize: '13px', textAlign: 'center', paddingTop: '32px' }}>
-            Continue the conversation to surface relevant insights.
-          </div>
-        )}
-        {insights.map((article, i) => (
-          <a
-            key={i}
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'block',
-              padding: '14px 0',
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
-              textDecoration: 'none',
-              transition: 'opacity 0.15s ease',
-            }}
-            onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-          >
-            <div style={{
-              fontSize: '10px',
-              color: '#b87333',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              marginBottom: '5px',
-            }}>
-              {article.primary_dimension || article.dimension}
-            </div>
-            <div style={{
-              fontFamily: "'Fraunces', serif",
-              fontSize: '14px',
-              fontWeight: '300',
-              color: '#f7f6f3',
-              lineHeight: '1.4',
-              marginBottom: '6px',
-            }}>
-              {article.title}
-            </div>
-            <div style={{
-              fontSize: '12px',
-              color: '#6b7b8d',
-              lineHeight: '1.5',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}>
-              {article.leadership_angle || article.lead}
-            </div>
-          </a>
-        ))}
-      </div>
     </div>
   );
 }
@@ -693,41 +567,60 @@ function InsightsPanel({ isOpen, onClose, sessionId, mode }) {
 // MAIN PAGE COMPONENT
 // ============================================================
 export default function CoachPage() {
-  const [selectedMode, setSelectedMode] = useState(null);
+  const [phase, setPhase] = useState('intent'); // 'intent' | 'chat'
+  const [intent, setIntent] = useState('');
+  const [sessionId] = useState(() => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+  const [mode, setMode] = useState('clarify');
+  const [modeLabel, setModeLabel] = useState('Clarify');
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() =>
-    typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2)
-  );
-  const [showInsights, setShowInsights] = useState(false);
 
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  const handleStart = useCallback(async (intentText) => {
+    setIntent(intentText);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    // Send first message to get mode detection + opening response from coach
+    setIsLoading(true);
 
-  const handleSelectMode = useCallback((mode) => {
-    setSelectedMode(mode);
-    setShowInsights(false);
-    setMessages([{
-      role: 'assistant',
-      content: mode.opening,
-      isOpening: true,
-    }]);
-    setInput('');
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+    const firstMessages = [{
+      role: 'user',
+      content: intentText,
+    }];
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
+    setMessages(firstMessages);
+    setPhase('chat');
 
-    const userMessage = { role: 'user', content: input.trim() };
-    const newMessages = [...messages, userMessage];
+    try {
+      const res = await fetch('/api/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: firstMessages,
+          sessionId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.mode) setMode(data.mode);
+      if (data.modeLabel) setModeLabel(data.modeLabel);
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.message || 'Something went wrong. Please try again.',
+      }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'I\'m having trouble connecting right now. Please try again in a moment.',
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sessionId]);
+
+  const handleSendMessage = useCallback(async (text) => {
+    const newMessages = [...messages, { role: 'user', content: text }];
     setMessages(newMessages);
-    setInput('');
     setIsLoading(true);
 
     try {
@@ -735,64 +628,56 @@ export default function CoachPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: selectedMode.id,
           messages: newMessages,
-          session_id: sessionId,
+          sessionId,
+          mode,
         }),
       });
 
-      if (!res.ok) throw new Error('Network response was not ok');
-
       const data = await res.json();
-      if (data.reply) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+
+      // Update mode if it shifted
+      if (data.mode && data.mode !== mode) {
+        setMode(data.mode);
+        setModeLabel(data.modeLabel || data.mode);
       }
-    } catch (err) {
-      console.error('Coach error:', err);
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: "I'm having trouble connecting right now. Please try again in a moment.",
+        content: data.message || 'Something went wrong. Please try again.',
+      }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'I\'m having trouble connecting right now. Please try again.',
       }]);
     } finally {
       setIsLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [input, isLoading, messages, selectedMode, sessionId]);
+  }, [messages, sessionId, mode]);
 
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }, [sendMessage]);
+  const handleReset = useCallback(() => {
+    setPhase('intent');
+    setIntent('');
+    setMessages([]);
+    setMode('clarify');
+    setModeLabel('Clarify');
+  }, []);
 
-  if (!selectedMode) {
-    return <ModePicker onSelect={handleSelectMode} />;
+  if (phase === 'intent') {
+    return <IntentCapture onStart={handleStart} />;
   }
 
   return (
-    <div style={{ position: 'relative' }}>
-      <ChatInterface
-        mode={selectedMode}
-        messages={messages}
-        input={input}
-        setInput={setInput}
-        isLoading={isLoading}
-        onSend={sendMessage}
-        onKeyDown={handleKeyDown}
-        onBack={() => setSelectedMode(null)}
-        onInsights={() => setShowInsights(true)}
-        showInsights={showInsights}
-        onCloseInsights={() => setShowInsights(false)}
-        messagesEndRef={messagesEndRef}
-        inputRef={inputRef}
-      />
-      <InsightsPanel
-        isOpen={showInsights}
-        onClose={() => setShowInsights(false)}
-        sessionId={sessionId}
-        mode={selectedMode.id}
-      />
-    </div>
+    <ChatInterface
+      initialIntent={intent}
+      sessionId={sessionId}
+      mode={mode}
+      modeLabel={modeLabel}
+      messages={messages}
+      onSendMessage={handleSendMessage}
+      isLoading={isLoading}
+      onReset={handleReset}
+    />
   );
 }
