@@ -43,8 +43,8 @@ const MODES = [
     opening: "You have a problem to work with. Let's map where it lives and what it's connected to.\n\nDescribe the core issue you're dealing with.",
   },
   {
-    id: 'transfer_window',
-    name: 'change_readiness',
+    id: 'change_readiness',
+    name: 'Change Readiness',
     tagline: 'Is the moment right?',
     description: "There are windows when change is possible — and windows that are already closed. This mode tells you which one you're in.",
     icon: (
@@ -558,7 +558,6 @@ function InsightsPanel({ isOpen, onClose, sessionId, mode }) {
     if (isOpen && !fetched) {
       setLoading(true);
       setFetched(true);
-      // Fetch related articles from Supabase via news API
       fetch(`/api/insights?mode=${mode}&session_id=${sessionId}`)
         .then(r => r.json())
         .then(data => {
