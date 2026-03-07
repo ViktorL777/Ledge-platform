@@ -44,7 +44,7 @@ const MODES = [
   },
   {
     id: 'transfer_window',
-    name: 'Transfer Window',
+    name: 'change_readiness',
     tagline: 'Is the moment right?',
     description: "There are windows when change is possible — and windows that are already closed. This mode tells you which one you're in.",
     icon: (
