@@ -34,7 +34,8 @@ RULES:
 - Stay true to your archetype or identity — that is your value here
 - 3 short, dense paragraphs maximum
 - No headers, no bullet points, no lists — flowing prose only
-- No diplomatic hedging. Say what you actually think.`
+- No diplomatic hedging. Say what you actually think.
+- Respond in the same language the user wrote their problem in.`
 
     userMessage = `The leadership challenge under examination:
 
@@ -64,7 +65,8 @@ RULES:
 - 2-3 paragraphs maximum
 - Stay in character — your perspective is the value you bring
 - No headers, no lists — flowing prose only
-- Do NOT simply summarise what others said — react to it`
+- Do NOT simply summarise what others said — react to it
+- Respond in the same language the user wrote their problem in.`
 
     userMessage = `The leadership challenge:
 "${problem}"
