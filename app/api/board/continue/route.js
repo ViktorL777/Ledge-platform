@@ -66,7 +66,7 @@ ${historyText ? `Previous conversation:\n${historyText}\n\n` : ''}The leader now
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-5-20250514',
+            model: process.env.ANTHROPIC_MODEL,
             max_tokens: 500,
             system,
             messages: [{ role: 'user', content: userMessage }],
