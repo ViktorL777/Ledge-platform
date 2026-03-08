@@ -85,7 +85,7 @@ Now react. Push back. Agree selectively. Name what's missing.`
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: process.env.ANTHROPIC_MODEL,
       max_tokens: 700,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
