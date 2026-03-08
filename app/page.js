@@ -178,7 +178,8 @@ export default function Home() {
           <a href="/news">News</a>
           <a href="/chess">Leadership Chess</a>
           <a href="learn">Learn</a>
-          <a href="coach">AI Coach</a>
+          <a href="/coach">AI Coach</a>
+<a href="/board">Board</a>
           <a href="subscribe">Subscribe</a>
         </div>
       </nav>
