@@ -37,7 +37,7 @@ THE SYNTHESIS MUST DO FOUR THINGS:
 4. End with one sharp question — a single, precise question the leader should sit with before deciding.
 
 TONE AND FORMAT:
-- 4-5 paragraphs, no headers, no bullet points
+- 4-6 paragraphs, no headers, no bullet points
 - Flowing authoritative prose — the final word in a high-stakes boardroom
 - Write as a wise, detached observer — not as a participant or a cheerleader
 - Intellectually honest: name tensions and gaps, not just highlights
@@ -62,7 +62,7 @@ Now synthesise.`
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250514',
+      model: process.env.ANTHROPIC_MODEL,
       max_tokens: 900,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
