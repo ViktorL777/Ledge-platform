@@ -4,6 +4,9 @@
 // Called once after both rounds are complete
 // ============================================
 
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 export async function POST(request) {
   const { problem, personas, round1, round2 } = await request.json()
 
@@ -37,7 +40,7 @@ THE SYNTHESIS MUST DO FOUR THINGS:
 4. End with one sharp question — a single, precise question the leader should sit with before deciding.
 
 TONE AND FORMAT:
-- 4-6 paragraphs, no headers, no bullet points
+- 4-5 paragraphs, no headers, no bullet points
 - Flowing authoritative prose — the final word in a high-stakes boardroom
 - Write as a wise, detached observer — not as a participant or a cheerleader
 - Intellectually honest: name tensions and gaps, not just highlights
@@ -63,7 +66,7 @@ Now synthesise.`
     },
     body: JSON.stringify({
       model: process.env.ANTHROPIC_MODEL,
-      max_tokens: 900,
+      max_tokens: 1500,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
     }),
