@@ -1,39 +1,35 @@
-import './globals.css'
-import { Analytics } from '@vercel/analytics/next'
+import { Inter } from 'next/font/google';
+import LedgeNav from '@/components/LedgeNav';
+import './globals.css';
+
+// ============================================================
+// app/layout.js — Root layout
+// LedgeNav renders on all pages EXCEPT the homepage (/).
+// The homepage has its own full-screen nav — LedgeNav
+// auto-hides when pathname === '/'.
+// ============================================================
 
 export const metadata = {
-  title: 'Ledge — See further. Lead smarter. Balance uncertainty.',
-  description: 'Sharpens leadership judgement in the age of intelligent technologies. AI-curated news, interactive case studies, and an intelligent coaching engine.',
-  keywords: 'leadership, AI, leadership intelligence, leadership chess, executive development, leadership news',
+  title: 'Ledge — Leadership Intelligence',
+  description: 'Sharpens leadership judgement in the age of intelligent technologies.',
+  metadataBase: new URL('https://ledge.news'),
   openGraph: {
-    title: 'Ledge — See further. Lead smarter. Balance uncertainty.',
-    description: 'Sharpens leadership judgement in the age of intelligent technologies.',
+    title: 'Ledge — Leadership Intelligence',
+    description: 'See further. Lead smarter. Balance uncertainty.',
     url: 'https://ledge.news',
     siteName: 'Ledge',
+    locale: 'en_US',
     type: 'website',
   },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Ledge — See further. Lead smarter. Balance uncertainty.',
-    description: 'Sharpens leadership judgement in the age of intelligent technologies.',
-  },
-}
+};
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body>
+        <LedgeNav />
         {children}
-        <Analytics />
       </body>
     </html>
-  )
+  );
 }
