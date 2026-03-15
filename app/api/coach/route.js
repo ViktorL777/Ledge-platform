@@ -1,23 +1,18 @@
-
 import { createServerClient } from '@/lib/supabase-server';
 
 // ============================================================
-// LEDGE AI COACH — route.js v7
-// System prompt v7: all 24 EU official language adapters
+// LEDGE AI COACH — route.js v8
+// System prompt v7 base + v8 additions:
 //
-// CHANGES FROM v6:
-// + LANGUAGE_ADAPTERS: 4 → 24 (all EU official languages)
-// + All adapters use NATIVE THINKING instruction:
-//   "Think and speak directly in [language] — do not translate
-//    from English." Eliminates grammatical calques.
-// + detectLanguage() upgraded: detects all 24 EU languages
-// + HU adapter: vonzat error rules retained (Viktor-validated)
-// + Supabase: detected_language now logged per session
+// CHANGES FROM v7:
+// + BOARD ACTIVATION SIGNAL added to BASE_SYSTEM_PROMPT
+//   (Layer 8 end): model appends [BOARD_READY: reason] when
+//   complexity threshold is met — parsed and stripped client-side
+// + reformulate mode: POST body { reformulate: true } triggers
+//   question reformulation for Board session, bypasses coaching flow
+// + board_ready + board_reason returned in every response
+// + API response now returns finalMessage (board signal stripped)
 //
-// NOTE: Irish (GA) and Maltese (MT) included with fallback note
-// — model coverage limited, auto-falls back to EN if needed.
-//
-// LAYERS 1–8: unchanged from v6
 // Viktor Lénárt / ZEL Group — Confidential
 // ============================================================
 
@@ -355,7 +350,22 @@ Three things to invite before close:
 → LEARNING ABOUT SITUATION: "What looks different about this situation now than when we started?"
 → FORWARD STEP: "What's one concrete thing you're taking from here — and when will you do it?"
 Accountability is self-designed, not imposed. The leader chooses the step. The leader chooses how to hold themselves accountable. Your job is to make it concrete and time-bound: "By when, specifically?"
-The session is complete when the leader has named what shifted and what they're doing next. Not before.`;
+The session is complete when the leader has named what shifted and what they're doing next. Not before.
+
+══════════════════════════════════════════════════════
+BOARD ACTIVATION SIGNAL — internal protocol only
+══════════════════════════════════════════════════════
+
+After composing every response, silently evaluate: has this conversation surfaced a challenge meeting ALL of these conditions?
+→ At least 3 substantive exchanges have occurred in this session
+→ The challenge involves multiple stakeholders, a genuine strategic tension, or significant organizational consequence
+→ The current mode is Analyze or Change Readiness (not early Clarify)
+→ The problem has crystallized enough that advisory perspectives would add meaningful value — not just validation
+
+If ALL conditions are met: append exactly this at the very end of your response, preceded by a blank line:
+[BOARD_READY: <one sentence, 8–14 words, stating specifically why advisory perspectives add value here>]
+
+If conditions are not all met: append nothing. Do not mention the Board, advisory sessions, or any multi-voice process anywhere in your response text.`;
 
 // ============================================================
 // MODE-SPECIFIC EXTENSIONS
@@ -463,73 +473,28 @@ function detectLanguage(messages) {
   if (!firstUser) return 'en';
   const t = firstUser.content || '';
 
-  // Hungarian — ő ű unique to Hungarian among EU languages
   if (/[őű]/i.test(t) || /\b(és|hogy|nem|van|egy|az|de|is|már|ezt|csak|én)\b/i.test(t)) return 'hu';
-
-  // Polish — ł ą ę ź ż ć ń ś
   if (/[łąęźżćńś]/i.test(t) || /\b(i|w|z|na|do|że|się|nie|to|jak|co|po|jest)\b/i.test(t)) return 'pl';
-
-  // Bulgarian — Cyrillic
   if (/[\u0400-\u04FF]/.test(t)) return 'bg';
-
-  // Greek — Greek alphabet
   if (/[\u0370-\u03FF\u1F00-\u1FFF]/.test(t)) return 'el';
-
-  // Czech — č š ž ř ů (ř unique to Czech)
   if (/[řů]/i.test(t) || /\b(a|v|na|je|se|to|jak|pro|ten|ale|být|jsem|že)\b/i.test(t)) return 'cs';
-
-  // Slovak — ľ ĺ ŕ unique to Slovak
   if (/[ľĺŕ]/i.test(t) || /\b(a|v|na|je|sa|to|ako|pre|ten|ale|som|nie|som)\b/i.test(t)) return 'sk';
-
-  // Romanian — ș ț ă î â
   if (/[șțăî]/i.test(t) || /\b(și|în|la|cu|de|că|nu|se|este|care|din|sau)\b/i.test(t)) return 'ro';
-
-  // Latvian — ģ ķ ļ ņ ŗ unique to Latvian
   if (/[ģķļņŗ]/i.test(t) || /\b(un|ir|ar|no|uz|par|bet|kas|kā|lai|var|tā)\b/i.test(t)) return 'lv';
-
-  // Lithuanian — ė į ų unique to Lithuanian
   if (/[ėįų]/i.test(t) || /\b(ir|yra|su|iš|į|per|kaip|bet|kad|tai|jis|ji)\b/i.test(t)) return 'lt';
-
-  // Estonian — distinct from Finnish
   if (/\b(ja|on|ei|see|ta|me|te|nad|või|et|olla|mina|sina|kas)\b/i.test(t)) return 'et';
-
-  // Finnish — double vowels + distinct words
   if (/\b(ja|on|ei|se|hän|tai|että|olla|minä|sinä|mitä|mikä)\b/i.test(t)) return 'fi';
-
-  // Swedish — å combined with Swedish words
   if (/å/i.test(t) && /\b(och|är|att|det|en|ett|som|för|med|på|av|om|vi|inte)\b/i.test(t)) return 'sv';
-
-  // Danish — ø combined with Danish words
   if (/ø/i.test(t) || /\b(og|er|at|det|en|et|som|for|med|på|af|om|vi|ikke)\b/i.test(t)) return 'da';
-
-  // Dutch — distinct from German
   if (/\b(en|de|het|van|een|is|ik|niet|te|op|dat|zijn|voor|maar|jij|je)\b/i.test(t)) return 'nl';
-
-  // German — ä ö ü ß
   if (/[äöüß]/i.test(t) || /\b(und|ich|das|die|der|ist|nicht|mit|sich|auch|für|auf|wir)\b/i.test(t)) return 'de';
-
-  // Croatian — đ unique to Croatian/Serbian + Croatian words
   if (/đ/i.test(t) || /\b(i|u|na|je|se|da|ne|što|kao|ali|ili|koji|za|iz)\b/i.test(t)) return 'hr';
-
-  // Slovenian — distinct Slovenian words
   if (/\b(in|je|na|se|da|ni|kot|ali|ki|za|iz|pa|bi|sem)\b/i.test(t)) return 'sl';
-
-  // Italian — distinct words
   if (/\b(e|il|la|un|una|è|sono|che|non|in|per|con|si|del|della|ho|io)\b/i.test(t)) return 'it';
-
-  // Portuguese — ã õ unique
   if (/[ãõ]/i.test(t) || /\b(e|o|a|de|em|um|uma|é|não|que|com|para|os|as|eu)\b/i.test(t)) return 'pt';
-
-  // French — distinct patterns
   if (/[àâçèêëîïôùûü]/i.test(t) || /\b(et|je|le|la|les|de|un|une|est|pas|dans|avec|que|pour|nous)\b/i.test(t)) return 'fr';
-
-  // Spanish — ¿ ¡ ñ
   if (/[¿¡ñ]/i.test(t) || /\b(y|el|la|los|de|que|en|un|una|es|no|con|por|para|yo)\b/i.test(t)) return 'es';
-
-  // Irish — distinct patterns
   if (/\b(agus|an|ní|tá|ar|sa|le|ó|do|go|nach|ach|féin|atá)\b/i.test(t)) return 'ga';
-
-  // Maltese — distinct patterns
   if (/\b(u|l-|ta'|fi|bi|minn|fuq|li|din|dak|hemm|hawn|għal)\b/i.test(t)) return 'mt';
 
   return 'en';
@@ -537,16 +502,10 @@ function detectLanguage(messages) {
 
 // ============================================================
 // LANGUAGE ADAPTERS — all 24 EU official languages
-//
-// Core principle for every adapter:
-// "Think and speak directly in [language] — do not translate
-//  from English. The analytical layers give the internal frame,
-//  but the voice must be native."
 // ============================================================
 
 const LANGUAGE_ADAPTERS = {
 
-  // ── HUNGARIAN (HU) ───────────────────────────────────────
   hu: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Magyar
 ══════════════════════════════════════════════════════
@@ -578,7 +537,6 @@ VONZATSZABÁLYOK:
 KULTURÁLIS KALIBRÁCIÓ:
 A nyílt konfrontáció kerülendő, de az intellektuális kihívás elvárható. A tömörség erény.`,
 
-  // ── GERMAN (DE) ──────────────────────────────────────────
   de: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Deutsch
 ══════════════════════════════════════════════════════
@@ -603,7 +561,6 @@ ANREDE: „Sie" — Wechsel zu „du" nur auf explizite Einladung.
 KULTURELLE KALIBRIERUNG:
 Systematische Analyse vor Lösungen. Schweigen ist erlaubt.`,
 
-  // ── FRENCH (FR) ──────────────────────────────────────────
   fr: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Français
 ══════════════════════════════════════════════════════
@@ -627,7 +584,6 @@ VOUVOIEMENT: Toujours „vous" en contexte professionnel.
 
 CALIBRATION: Contradiction directe acceptable si bien argumentée.`,
 
-  // ── SPANISH (ES) ─────────────────────────────────────────
   es: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Español
 ══════════════════════════════════════════════════════
@@ -647,11 +603,8 @@ FORMULACIONES NATURALES:
 → „¿Qué es lo que realmente está en juego?"
 → „¿Qué es lo que todavía no te has dicho?"
 
-TUTEO: Tuteo por defecto en coaching ejecutivo. „Usted" si el líder lo usa primero.
+TUTEO: Tuteo por defecto en coaching ejecutivo. „Usted" si el líder lo usa primero.`,
 
-CALIBRACIÓN: Adapta España vs. Latinoamérica — matices distintos en registro y calidez.`,
-
-  // ── ITALIAN (IT) ─────────────────────────────────────────
   it: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Italiano
 ══════════════════════════════════════════════════════
@@ -671,11 +624,8 @@ FORMULAZIONI NATURALI:
 → „Cosa è davvero in gioco qui?"
 → „Cosa non ti sei ancora detto?"
 
-FORMA: „Lei" in contesti formali. „Tu" solo su invito esplicito.
+FORMA: „Lei" in contesti formali. „Tu" solo su invito esplicito.`,
 
-CALIBRAZIONE: La relazione personale precede l'analisi.`,
-
-  // ── POLISH (PL) ──────────────────────────────────────────
   pl: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Polski
 ══════════════════════════════════════════════════════
@@ -697,7 +647,6 @@ NATURALNE SFORMUŁOWANIA:
 
 FORMA: „Ty" w kontekście coachingowym. „Pan/Pani" przy wyraźnie formalnym tonie.`,
 
-  // ── DUTCH (NL) ───────────────────────────────────────────
   nl: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Nederlands
 ══════════════════════════════════════════════════════
@@ -705,7 +654,7 @@ LANGUAGE ADAPTER — Nederlands
 Denk en formuleer direct in het Nederlands — vertaal niet vanuit het Engels. De analytische lagen blijven in het Engels voor precisie, maar de uitdrukking moet voortkomen uit native Nederlands denken. Talen niet mengen.
 
 TON EN STIJL:
-Directheid, nuchterheid en gelijkwaardigheid. „Doe maar gewoon" is een deugd. Geen opgeblazen taal.
+Directheid, nuchterheid en gelijkwaardigheid. Geen opgeblazen taal.
 
 NATUURLIJKE FORMULERINGE:
 → „Wat speelt hier eigenlijk echt?"
@@ -719,7 +668,6 @@ NATUURLIJKE FORMULERINGE:
 
 AANSPREEKVORM: „Jij/je" is standaard. „U" alleen bij duidelijk formeel signaal.`,
 
-  // ── SWEDISH (SV) ─────────────────────────────────────────
   sv: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Svenska
 ══════════════════════════════════════════════════════
@@ -727,7 +675,7 @@ LANGUAGE ADAPTER — Svenska
 Tänk och formulera direkt på svenska — översätt inte från engelska. De analytiska lagren förblir på engelska för precision, men uttrycket ska uppstå ur nativt svenskt tänkande. Blanda inte språk.
 
 TON OCH STIL:
-Saklighet, jämlikhet och konsensus. „Lagom" är en kraft. Inget pompöst eller hierarkiskt språk.
+Saklighet, jämlikhet och konsensus. Inget pompöst eller hierarkiskt språk.
 
 NATURLIGA FORMULERINGAR:
 → „Vad handlar det egentligen om?"
@@ -741,7 +689,6 @@ NATURLIGA FORMULERINGAR:
 
 TILLTAL: „Du" är standard i alla professionella sammanhang.`,
 
-  // ── DANISH (DA) ──────────────────────────────────────────
   da: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Dansk
 ══════════════════════════════════════════════════════
@@ -749,7 +696,7 @@ LANGUAGE ADAPTER — Dansk
 Tænk og formuler direkte på dansk — oversæt ikke fra engelsk. De analytiske lag forbliver på engelsk for præcision, men udtrykket skal opstå fra nativt dansk tænkning. Bland ikke sprogene.
 
 TON OG STIL:
-Ærlighed, lighed og humor. Janteloven er en realitet — udfordr det med intellektuel præcision, ikke hierarki.
+Ærlighed, lighed og humor. Udfordr med intellektuel præcision, ikke hierarki.
 
 NATURLIGE FORMULERINGER:
 → „Hvad handler det egentlig om?"
@@ -763,7 +710,6 @@ NATURLIGE FORMULERINGER:
 
 TILTALE: „Du" er standard i alle professionelle sammenhænge.`,
 
-  // ── FINNISH (FI) ─────────────────────────────────────────
   fi: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Suomi
 ══════════════════════════════════════════════════════
@@ -771,7 +717,7 @@ LANGUAGE ADAPTER — Suomi
 Ajattele ja muotoile suoraan suomeksi — älä käännä englannista. Analyyttiset kerrokset pysyvät englanniksi tarkkuuden vuoksi, mutta ilmaisu tulee syntyä natiivista suomalaisesta ajattelusta. Älä sekoita kieliä.
 
 SÄVY JA TYYLI:
-Suoruus, rehellisyys ja tiiviys. Hiljaisuus on kommunikaatiota — anna sen toimia. Tyhjät kohteliaisuudet koetaan epäaitoina.
+Suoruus, rehellisyys ja tiiviys. Hiljaisuus on kommunikaatiota — anna sen toimia.
 
 LUONTEVIA ILMAISUJA:
 → „Mistä tässä oikeasti on kyse?"
@@ -783,9 +729,8 @@ LUONTEVIA ILMAISUJA:
 → „Mitä todella on vaakalaudalla?"
 → „Mitä et ole vielä sanonut itsellesi?"
 
-PUHUTTELU: „Sinä" on standardi. Anna hiljaisuudelle tilaa — älä täytä jokaista taukoa.`,
+PUHUTTELU: „Sinä" on standardi. Anna hiljaisuudelle tilaa.`,
 
-  // ── ROMANIAN (RO) ────────────────────────────────────────
   ro: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Română
 ══════════════════════════════════════════════════════
@@ -807,7 +752,6 @@ FORMULĂRI NATURALE:
 
 ADRESARE: „Tu" în coaching. „Dumneavoastră" la semnal explicit de formalitate.`,
 
-  // ── CZECH (CS) ───────────────────────────────────────────
   cs: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Čeština
 ══════════════════════════════════════════════════════
@@ -815,7 +759,7 @@ LANGUAGE ADAPTER — Čeština
 Mysli a formuluj přímo česky — nepřekládej z angličtiny. Analytické vrstvy zůstávají v angličtině pro přesnost, ale vyjadřování musí vycházet z nativního českého myšlení. Nemíchej jazyky.
 
 TÓN A STYL:
-Intelektuální hloubka, věcnost a přímočarost. Ironie a skepticismus jsou kulturní norma — přijmi je jako výzvu.
+Intelektuální hloubka, věcnost a přímočarost. Ironie a skepticismus jsou kulturní norma.
 
 PŘIROZENÉ FORMULACE:
 → „Co za tím skutečně stojí?"
@@ -829,7 +773,6 @@ PŘIROZENÉ FORMULACE:
 
 OSLOVENÍ: „Ty" v koučovacím kontextu. „Vy" při zřejmě formálním tónu.`,
 
-  // ── SLOVAK (SK) ──────────────────────────────────────────
   sk: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Slovenčina
 ══════════════════════════════════════════════════════
@@ -851,7 +794,6 @@ PRIRODZENÉ FORMULÁCIE:
 
 OSLOVENIE: „Ty" v koučovacom kontexte. „Vy" pri zrejmom formálnom tóne.`,
 
-  // ── CROATIAN (HR) ────────────────────────────────────────
   hr: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Hrvatski
 ══════════════════════════════════════════════════════
@@ -873,7 +815,6 @@ PRIRODNE FORMULACIJE:
 
 OSLOVLJAVANJE: „Ti" u coaching kontekstu. „Vi" pri jasno formalnom tonu.`,
 
-  // ── SLOVENIAN (SL) ───────────────────────────────────────
   sl: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Slovenščina
 ══════════════════════════════════════════════════════
@@ -895,7 +836,6 @@ NARAVNE FORMULACIJE:
 
 NAGOVARJANJE: „Ti" v coaching kontekstu. „Vi" pri jasno formalnem tonu.`,
 
-  // ── BULGARIAN (BG) ───────────────────────────────────────
   bg: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Български
 ══════════════════════════════════════════════════════
@@ -917,7 +857,6 @@ LANGUAGE ADAPTER — Български
 
 ОБРЪЩЕНИЕ: „Ти" в coaching контекст. „Вие" при очевидно формален тон.`,
 
-  // ── GREEK (EL) ───────────────────────────────────────────
   el: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Ελληνικά
 ══════════════════════════════════════════════════════
@@ -939,7 +878,6 @@ LANGUAGE ADAPTER — Ελληνικά
 
 ΠΡΟΣΦΩΝΗΣΗ: „Εσύ" σε coaching πλαίσιο. „Εσείς" μόνο σε επίσημο τόνο.`,
 
-  // ── LATVIAN (LV) ─────────────────────────────────────────
   lv: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Latviešu
 ══════════════════════════════════════════════════════
@@ -961,7 +899,6 @@ FORMULĒJUMI:
 
 UZRUNA: „Tu" koučinga kontekstā. „Jūs" pie skaidra formāla toņa.`,
 
-  // ── LITHUANIAN (LT) ──────────────────────────────────────
   lt: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Lietuvių
 ══════════════════════════════════════════════════════
@@ -983,7 +920,6 @@ FORMULAVIMAI:
 
 KREIPINYS: „Tu" koučingo kontekste. „Jūs" prie akivaizdžiai formalaus tono.`,
 
-  // ── ESTONIAN (ET) ────────────────────────────────────────
   et: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Eesti
 ══════════════════════════════════════════════════════
@@ -1005,7 +941,6 @@ SÕNASTUSED:
 
 PÖÖRDUMINE: „Sina" coaching-kontekstis. „Teie" selgelt formaalse tooni puhul.`,
 
-  // ── PORTUGUESE (PT) ──────────────────────────────────────
   pt: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Português
 ══════════════════════════════════════════════════════
@@ -1027,7 +962,6 @@ FORMULAÇÕES NATURAIS:
 
 TRATAMENTO: „Tu" em Portugal; „você" no Brasil. Adapta ao contexto regional.`,
 
-  // ── IRISH (GA) ───────────────────────────────────────────
   ga: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Gaeilge
 ══════════════════════════════════════════════════════
@@ -1038,7 +972,6 @@ NÓTA: Má tá do chuid Gaeilge teoranta in aon fhreagra, aistrígh go Béarla g
 
 TUIN: Doimhneacht intleachtúil agus teas pearsanta. Seachain jargón coaching Angla-Sacsanach.`,
 
-  // ── MALTESE (MT) ─────────────────────────────────────────
   mt: `══════════════════════════════════════════════════════
 LANGUAGE ADAPTER — Malti
 ══════════════════════════════════════════════════════
@@ -1050,8 +983,6 @@ NOTA: Jekk il-kwalità tal-Malti tkun limitata, ibdel għall-Ingliż mingħajr k
 TON: Profondità intellettwali u relazzjonijiet personali. Evita l-ġargon tal-koċċjar Anglo-Sassonu.`,
 
 };
-
-// English: no adapter — BASE_SYSTEM_PROMPT is already in EN
 
 // ============================================================
 // ANTHROPIC API CALL — native fetch
@@ -1095,12 +1026,35 @@ async function callClaude({ systemPrompt, messages }) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { messages, sessionId, mode: explicitMode, profileInjection } = body;
+    const { messages, sessionId, mode: explicitMode, profileInjection, reformulate } = body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: 'Messages required' }, { status: 400 });
     }
 
+    // ── REFORMULATE MODE ────────────────────────────────────
+    // Used by Board tab "I invite the AI-coach to formulate my question"
+    if (reformulate) {
+      const reformulateSystem = `You help executives articulate a leadership challenge for a Board of Advisors session. Transform the rough description into a sharp, well-structured board question.
+
+The result must:
+- Name the real challenge (not the symptom)
+- Identify the key strategic decision or tension point
+- Give the advisors enough context to bring distinct, valuable perspectives
+- Be 3–5 sentences maximum
+- Begin with exactly: "The challenge I want the Board to examine:"
+
+Respond with only the reformulated question. No preamble, no explanation, nothing else.`;
+
+      const reformulated = await callClaude({
+        systemPrompt: reformulateSystem,
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+      });
+
+      return Response.json({ message: reformulated, reformulated: true });
+    }
+
+    // ── NORMAL COACHING MODE ─────────────────────────────────
     const currentSessionId = sessionId || crypto.randomUUID();
 
     let mode = explicitMode;
@@ -1123,6 +1077,19 @@ export async function POST(request) {
 
     const assistantMessage = await callClaude({ systemPrompt, messages });
 
+    // ── PARSE BOARD_READY SIGNAL ─────────────────────────────
+    let boardReady = false;
+    let boardReason = '';
+    let finalMessage = assistantMessage;
+
+    const boardMatch = assistantMessage.match(/\n\[BOARD_READY:\s*([^\]]+)\]/);
+    if (boardMatch) {
+      boardReady = true;
+      boardReason = boardMatch[1].trim();
+      finalMessage = assistantMessage.replace(/\n\[BOARD_READY:[^\]]+\]/, '').trim();
+    }
+
+    // ── DB LOGGING ───────────────────────────────────────────
     try {
       const supabase = createServerClient();
 
@@ -1137,7 +1104,7 @@ export async function POST(request) {
       await supabase.from('ai_coach_messages').insert({
         session_id: currentSessionId,
         role: 'assistant',
-        content: assistantMessage,
+        content: finalMessage,
         created_at: new Date().toISOString(),
       });
     } catch (dbError) {
@@ -1145,11 +1112,13 @@ export async function POST(request) {
     }
 
     return Response.json({
-      message: assistantMessage,
+      message: finalMessage,
       sessionId: currentSessionId,
       mode,
       modeLabel: MODE_LABELS[mode] || 'Clarify',
       detectedLanguage: detectedLang,
+      board_ready: boardReady,
+      board_reason: boardReason,
     });
 
   } catch (error) {
