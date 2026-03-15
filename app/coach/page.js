@@ -3,20 +3,16 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 // ============================================================
 // LEDGE — AI Coach & Advisory Board
-// app/coach/page.js v4
+// app/coach/page.js v4.1
 //
-// CHANGES FROM v3:
-// + Tab structure: AI Coach | Advisory Board (same page)
-// + Advisory Board tab: full inline board flow
-//   - "Activate your Board" always visible + active
-//   - "I invite the AI-coach to formulate my question" option
-//   - Coach reformulation via route.js reformulate mode
-// + Board-ready banner in Coach chat (from route.js board_ready signal)
-//   - Banner appears, Board tab activates with editable pre-filled context
-// + Coach history passed as context when activating Board from Coach
+// CHANGES FROM v4:
+// - BoardReadyBanner removed (board_ready signal approach dropped)
+// - "Discuss with your Board →" always-visible button in Coach header
+// - Language selector added to IntentCapture screen
+// - selectedLanguage passed to /api/coach on every request
+// - board_ready state and related handlers removed
 // ============================================================
 
-// ── BOARD ARCHETYPES ──────────────────────────────────────────
 const BASE_ARCHETYPES = [
   { id: 'systems_thinker', title: 'The Systems Thinker', subtitle: 'After Senge & Meadows', tagline: 'Traces every decision back to its structural root.', role: 'Slows down immediate solutions — reveals the deeper structure.', avatar: '⬡', color: '#2d4a6a' },
   { id: 'provocative_strategist', title: 'The Provocative Strategist', subtitle: 'After Sun Tzu & Machiavelli', tagline: 'Says what no one else dares to say.', role: 'Challenges comfortable consensus — asks the forbidden questions.', avatar: '◈', color: '#7a3a1a' },
@@ -34,6 +30,27 @@ const MODE_META = {
   analyze: { label: 'Analyze', hint: 'Mapping the full picture' },
   change_readiness: { label: 'Change Readiness', hint: 'Assessing when to act' },
 };
+
+// Language code map for display
+const LANGUAGE_CODES = {
+  english: 'en', hungarian: 'hu', german: 'de', french: 'fr', spanish: 'es',
+  italian: 'it', polish: 'pl', dutch: 'nl', swedish: 'sv', danish: 'da',
+  finnish: 'fi', romanian: 'ro', czech: 'cs', slovak: 'sk', croatian: 'hr',
+  slovenian: 'sl', bulgarian: 'bg', greek: 'el', latvian: 'lv', lithuanian: 'lt',
+  estonian: 'et', portuguese: 'pt', irish: 'ga', maltese: 'mt',
+  // common native names
+  magyar: 'hu', deutsch: 'de', français: 'fr', español: 'es', italiano: 'it',
+  polski: 'pl', nederlands: 'nl', svenska: 'sv', dansk: 'da', suomi: 'fi',
+  română: 'ro', čeština: 'cs', slovenčina: 'sk', hrvatski: 'hr', slovenščina: 'sl',
+  български: 'bg', ελληνικά: 'el', latviešu: 'lv', lietuvių: 'lt', eesti: 'et',
+  português: 'pt', gaeilge: 'ga', malti: 'mt',
+};
+
+function resolveLanguageCode(input) {
+  if (!input || !input.trim()) return null;
+  const normalized = input.trim().toLowerCase();
+  return LANGUAGE_CODES[normalized] || normalized;
+}
 
 // ============================================================
 // EMAIL GATE MODAL
@@ -89,15 +106,19 @@ function ProfileSavedBanner({ isNew, onDismiss }) {
 function IntentCapture({ savedEmail, onStart }) {
   const [intent, setIntent] = useState('');
   const [email, setEmail] = useState(savedEmail || '');
+  const [language, setLanguage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef(null);
   useEffect(() => { textareaRef.current?.focus(); }, []);
+
   const handleSubmit = () => {
     const trimmed = intent.trim();
     if (!trimmed || isSubmitting) return;
     setIsSubmitting(true);
-    onStart(trimmed, email.trim() || null);
+    const langCode = resolveLanguageCode(language);
+    onStart(trimmed, email.trim() || null, langCode);
   };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f7f6f3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
@@ -106,24 +127,42 @@ function IntentCapture({ savedEmail, onStart }) {
           <span style={{ display: 'block', fontSize: '0.7rem', color: '#b87333', letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: '2px' }}>AI Coach</span>
         </a>
       </div>
+
       <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '3rem', maxWidth: '600px', width: '100%', boxShadow: '0 4px 24px rgba(26,43,74,0.08)', border: '1px solid rgba(26,43,74,0.06)' }}>
         <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: '1.7rem', fontWeight: '600', color: '#1a2b4a', marginBottom: '0.75rem', lineHeight: '1.3', letterSpacing: '-0.02em' }}>
           By the end of this conversation, what do you want to have — that you don't have right now?
         </h1>
         <p style={{ fontSize: '0.9rem', color: '#6b7b8d', marginBottom: '2rem', lineHeight: '1.6' }}>A clarity you're missing. A decision you can't make yet. A map of something complex. Name it.</p>
-        <textarea ref={textareaRef} value={intent} onChange={e => setIntent(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
+
+        <textarea ref={textareaRef} value={intent} onChange={e => setIntent(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
           placeholder="e.g. I want to understand why I keep avoiding this conversation with my board..."
           rows={4}
           style={{ width: '100%', padding: '1rem', fontSize: '0.95rem', lineHeight: '1.6', color: '#1a2b4a', backgroundColor: '#f7f6f3', border: '1.5px solid rgba(26,43,74,0.12)', borderRadius: '10px', resize: 'vertical', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
           onFocus={e => { e.target.style.borderColor = '#b87333'; }} onBlur={e => { e.target.style.borderColor = 'rgba(26,43,74,0.12)'; }}
         />
+
+        {/* Language field */}
         <div style={{ marginTop: '1rem' }}>
+          <p style={{ fontSize: '0.75rem', color: '#9ba8b5', marginBottom: '0.4rem' }}>
+            Preferred language — type it in (e.g. English, Magyar, Deutsch). Leave blank for auto-detect.
+          </p>
+          <input type="text" value={language} onChange={e => setLanguage(e.target.value)}
+            placeholder="e.g. English"
+            style={{ width: '100%', padding: '0.65rem 0.9rem', fontSize: '0.85rem', color: '#1a2b4a', backgroundColor: '#f7f6f3', border: '1.5px solid rgba(26,43,74,0.10)', borderRadius: '8px', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
+            onFocus={e => { e.target.style.borderColor = '#b87333'; }} onBlur={e => { e.target.style.borderColor = 'rgba(26,43,74,0.10)'; }}
+          />
+        </div>
+
+        {/* Returning email */}
+        <div style={{ marginTop: '0.75rem' }}>
           <p style={{ fontSize: '0.75rem', color: '#9ba8b5', marginBottom: '0.4rem' }}>Returning? Enter your email to load your coaching profile.</p>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com (optional)"
             style={{ width: '100%', padding: '0.65rem 0.9rem', fontSize: '0.85rem', color: '#1a2b4a', backgroundColor: '#f7f6f3', border: '1.5px solid rgba(26,43,74,0.10)', borderRadius: '8px', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
             onFocus={e => { e.target.style.borderColor = '#b87333'; }} onBlur={e => { e.target.style.borderColor = 'rgba(26,43,74,0.10)'; }}
           />
         </div>
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', gap: '0.75rem', alignItems: 'center' }}>
           <span style={{ fontSize: '0.75rem', color: '#9ba8b5' }}>⌘ + Enter to begin</span>
           <button onClick={handleSubmit} disabled={!intent.trim() || isSubmitting}
@@ -132,33 +171,9 @@ function IntentCapture({ savedEmail, onStart }) {
           </button>
         </div>
       </div>
+
       <div style={{ marginTop: '1.5rem' }}>
         <a href="/settings/coach" style={{ fontSize: '0.75rem', color: '#9ba8b5', textDecoration: 'none' }}>Settings & Privacy</a>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// BOARD READY BANNER — appears in Coach chat when signal fires
-// ============================================================
-function BoardReadyBanner({ reason, onActivate, onDismiss }) {
-  return (
-    <div style={{ backgroundColor: 'rgba(184,115,51,0.06)', border: '1.5px solid rgba(184,115,51,0.3)', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-      <div style={{ flex: 1 }}>
-        <p style={{ fontSize: '0.78rem', fontWeight: '700', color: '#b87333', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Advisory Board available</p>
-        <p style={{ fontSize: '0.85rem', color: '#1a2b4a', lineHeight: '1.55', marginBottom: '0.75rem' }}>{reason}</p>
-        <p style={{ fontSize: '0.72rem', color: '#9ba8b5', lineHeight: '1.4' }}>The Advisory Board is a limited feature. It uses your session quota or is available as a paid add-on.</p>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
-        <button onClick={onActivate}
-          style={{ backgroundColor: '#b87333', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.55rem 1rem', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-          Activate your Board →
-        </button>
-        <button onClick={onDismiss}
-          style={{ backgroundColor: 'transparent', border: 'none', color: '#9ba8b5', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'center' }}>
-          Not now
-        </button>
       </div>
     </div>
   );
@@ -172,14 +187,14 @@ function CoachChatInterface({
   onSendMessage, isLoading, onReset, leaderEmail,
   onRequestSaveProfile, profileSaved, isNewProfile,
   onDismissProfileBanner, showEmailGate, onSaveWithEmail,
-  onDismissEmailGate, isSavingProfile,
-  boardReadyData, onActivateBoard, onDismissBoardBanner,
+  onDismissEmailGate, isSavingProfile, onOpenBoard,
 }) {
   const [input, setInput] = useState('');
   const [showInsights, setShowInsights] = useState(false);
   const [insights, setInsights] = useState(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const messagesEndRef = useRef(null);
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const handleSend = () => {
@@ -221,13 +236,22 @@ function CoachChatInterface({
           </div>
           {leaderEmail && <span style={{ fontSize: '0.72rem', color: '#9ba8b5' }}>↩ Profile loaded</span>}
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button onClick={loadInsights} style={{ backgroundColor: 'transparent', border: '1px solid rgba(26,43,74,0.15)', borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.75rem', color: '#6b7b8d', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <span>📎</span><span>Related insights</span>
           </button>
+
+          {/* Always-visible Board button */}
+          <button onClick={onOpenBoard}
+            style={{ backgroundColor: 'rgba(184,115,51,0.1)', border: '1px solid rgba(184,115,51,0.3)', borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.75rem', color: '#b87333', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: '600' }}>
+            Discuss with your Board →
+          </button>
+
           {sessionLongEnough && !leaderEmail && !profileSaved && (
             <button onClick={onRequestSaveProfile} style={{ backgroundColor: 'rgba(184,115,51,0.1)', border: '1px solid rgba(184,115,51,0.3)', borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.75rem', color: '#b87333', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: '600' }}>Save profile</button>
           )}
+
           <button onClick={onReset} style={{ backgroundColor: 'transparent', border: 'none', color: '#9ba8b5', cursor: 'pointer', fontSize: '0.8rem', padding: '0.4rem 0.6rem', fontFamily: "'DM Sans', sans-serif" }}>New session</button>
         </div>
       </header>
@@ -254,15 +278,7 @@ function CoachChatInterface({
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '2rem 1.5rem', maxWidth: '720px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         {profileSaved && <ProfileSavedBanner isNew={isNewProfile} onDismiss={onDismissProfileBanner} />}
-        {boardReadyData && (
-          <BoardReadyBanner
-            reason={boardReadyData.reason}
-            onActivate={onActivateBoard}
-            onDismiss={onDismissBoardBanner}
-          />
-        )}
 
-        {/* Session goal */}
         <div style={{ backgroundColor: 'rgba(26,43,74,0.04)', border: '1px solid rgba(26,43,74,0.08)', borderRadius: '10px', padding: '0.875rem 1.25rem', marginBottom: '2rem' }}>
           <p style={{ fontSize: '0.72rem', color: '#9ba8b5', marginBottom: '0.3rem', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Session goal</p>
           <p style={{ fontSize: '0.88rem', color: '#1a2b4a', lineHeight: '1.5', fontStyle: 'italic' }}>"{initialIntent}"</p>
@@ -295,7 +311,8 @@ function CoachChatInterface({
       {/* Input */}
       <div style={{ backgroundColor: '#fff', borderTop: '1px solid rgba(26,43,74,0.08)', padding: '1rem 1.5rem', position: 'sticky', bottom: 0 }}>
         <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          <textarea value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="Your response..." rows={1}
             style={{ flex: 1, padding: '0.75rem 1rem', fontSize: '0.92rem', lineHeight: '1.5', color: '#1a2b4a', backgroundColor: '#f7f6f3', border: '1.5px solid rgba(26,43,74,0.12)', borderRadius: '10px', resize: 'none', outline: 'none', fontFamily: "'DM Sans', sans-serif", minHeight: '44px', maxHeight: '160px', overflow: 'auto' }}
             onFocus={e => { e.target.style.borderColor = '#b87333'; }} onBlur={e => { e.target.style.borderColor = 'rgba(26,43,74,0.12)'; }}
@@ -316,10 +333,9 @@ function CoachChatInterface({
 }
 
 // ============================================================
-// ADVISORY BOARD TAB — full inline board flow
+// ADVISORY BOARD TAB
 // ============================================================
 function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
-  // Board phases: 'input' | 'reformulating' | 'casting' | 'running' | 'complete' | 'continuing'
   const [boardPhase, setBoardPhase] = useState('input');
   const [problem, setProblem] = useState(prefilledContext || '');
   const [isReformulating, setIsReformulating] = useState(false);
@@ -332,10 +348,9 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
   const [continueMessages, setContinueMessages] = useState([]);
   const [continueInput, setContinueInput] = useState('');
   const [continueLoading, setContinueLoading] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 5, label: '' });
+  const [progress, setProgress] = useState({ current: 0, total: 11, label: '' });
   const bottomRef = useRef(null);
 
-  // Sync prefilled context when it changes
   useEffect(() => {
     if (prefilledContext) { setProblem(prefilledContext); onClearPrefill && onClearPrefill(); }
   }, [prefilledContext]);
@@ -343,53 +358,29 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
   const getPersona = id => personas.find(p => p.id === id);
   const updatePersona = (i, updates) => setPersonas(prev => prev.map((p, idx) => idx === i ? { ...p, ...updates } : p));
 
-  // ── REFORMULATE via Coach API ─────────────────────────────
   const handleReformulate = async () => {
     if (!problem.trim() || isReformulating) return;
     setIsReformulating(true);
     try {
-      const res = await fetch('/api/coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: problem }],
-          reformulate: true,
-        }),
-      });
+      const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: problem }], reformulate: true }) });
       const data = await res.json();
       if (data.message) setProblem(data.message);
-    } catch { /* silent — keep original text */ }
+    } catch { }
     finally { setIsReformulating(false); }
   };
 
-  // ── BOARD API CALLS ───────────────────────────────────────
   const callSpeak = async (persona, round, existingR1 = []) => {
-    const res = await fetch('/api/board/speak', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        problem,
-        persona: { id: persona.id, title: persona.title, subtitle: persona.subtitle, tagline: persona.tagline, role: persona.role, realPerson: persona.realPerson },
-        round,
-        allPersonas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson })),
-        round1Opinions: existingR1,
-      }),
-    });
+    const res = await fetch('/api/board/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problem, persona: { id: persona.id, title: persona.title, subtitle: persona.subtitle, tagline: persona.tagline, role: persona.role, realPerson: persona.realPerson }, round, allPersonas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson })), round1Opinions: existingR1 }) });
     const data = await res.json();
     return data.opinion || '';
   };
 
   const callSynthesize = async (r1, r2) => {
-    const res = await fetch('/api/board/synthesize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ problem, personas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson })), round1: r1, round2: r2 }),
-    });
+    const res = await fetch('/api/board/synthesize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problem, personas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson })), round1: r1, round2: r2 }) });
     const data = await res.json();
     return data.synthesis || '';
   };
 
-  // ── RUN BOARD ─────────────────────────────────────────────
   const handleRunBoard = async () => {
     if (!problem.trim()) return;
     setLastBoard(personas.map(p => ({ ...p })));
@@ -430,7 +421,6 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
     }
   };
 
-  // ── CONTINUE ─────────────────────────────────────────────
   const handleContinue = async () => {
     if (!continueInput.trim() || continueLoading) return;
     const question = continueInput.trim();
@@ -438,35 +428,21 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
     const newMessages = [...continueMessages, { role: 'user', text: question }];
     setContinueMessages(newMessages);
     try {
-      const res = await fetch('/api/board/continue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problem, personas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson, subtitle: p.subtitle, tagline: p.tagline, role: p.role })), round1, round2, synthesis, history: continueMessages, question }),
-      });
+      const res = await fetch('/api/board/continue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problem, personas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson, subtitle: p.subtitle, tagline: p.tagline, role: p.role })), round1, round2, synthesis, history: continueMessages, question }) });
       const data = await res.json();
-      const boardResponse = data.responses || [];
-      setContinueMessages([...newMessages, ...boardResponse.map(r => ({ role: 'board', personaId: r.personaId, text: r.reply }))]);
+      setContinueMessages([...newMessages, ...(data.responses || []).map(r => ({ role: 'board', personaId: r.personaId, text: r.reply }))]);
     } catch { setContinueMessages(prev => [...prev, { role: 'error', text: 'The board could not respond.' }]); }
     setContinueLoading(false); setBoardPhase('complete');
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  const handleReset = () => {
-    setBoardPhase('input'); setProblem('');
-    setRound1([]); setRound2([]); setSynthesis(''); setContinueMessages([]);
-    setPersonas(makePersonas(BASE_ARCHETYPES));
-  };
-
+  const handleReset = () => { setBoardPhase('input'); setProblem(''); setRound1([]); setRound2([]); setSynthesis(''); setContinueMessages([]); setPersonas(makePersonas(BASE_ARCHETYPES)); };
   const isRunning = boardPhase === 'running';
-  const showRound1 = round1.length > 0;
-  const showRound2 = round2.length > 0;
-  const showSynthesis = synthesis !== '';
 
   return (
     <div style={{ minHeight: 'calc(100vh - 56px)', backgroundColor: '#f7f6f3', fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2.5rem 1.5rem 6rem' }}>
 
-        {/* ── INPUT SECTION ─────────────────────────────── */}
         {(boardPhase === 'input' || boardPhase === 'casting') && (
           <section style={{ marginBottom: '2.5rem' }}>
             <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>The challenge</div>
@@ -478,12 +454,10 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
               />
               {boardPhase === 'input' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                  {/* Invite coach to reformulate */}
                   <button onClick={handleReformulate} disabled={!problem.trim() || isReformulating}
-                    style={{ background: 'none', border: '1px solid rgba(184,115,51,0.4)', borderRadius: 8, color: '#b87333', fontSize: '0.8rem', cursor: problem.trim() && !isReformulating ? 'pointer' : 'not-allowed', padding: '0.55rem 1rem', fontFamily: "'DM Sans', sans-serif", opacity: problem.trim() && !isReformulating ? 1 : 0.5, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    style={{ background: 'none', border: '1px solid rgba(184,115,51,0.4)', borderRadius: 8, color: '#b87333', fontSize: '0.8rem', cursor: problem.trim() && !isReformulating ? 'pointer' : 'not-allowed', padding: '0.55rem 1rem', fontFamily: "'DM Sans', sans-serif", opacity: problem.trim() && !isReformulating ? 1 : 0.5 }}>
                     {isReformulating ? '✦ Reformulating...' : '✦ I invite the AI-coach to formulate my question'}
                   </button>
-                  {/* Activate board */}
                   <button onClick={() => setBoardPhase('casting')} disabled={problem.trim().length <= 20}
                     style={{ backgroundColor: problem.trim().length > 20 ? '#1a2b4a' : '#c8d0d8', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1.75rem', fontSize: '0.9rem', fontWeight: 600, cursor: problem.trim().length > 20 ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans', sans-serif" }}>
                     Activate your Board →
@@ -497,14 +471,11 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
           </section>
         )}
 
-        {/* ── CASTING / PERSONA SELECTION ───────────────── */}
         {boardPhase === 'casting' && (
           <section style={{ marginBottom: '2.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
               <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Your board</div>
-              {lastBoard && (
-                <button onClick={() => setPersonas(lastBoard.map(p => ({ ...p, swapping: false, swapInput: '' })))} style={{ background: 'none', border: '1px solid rgba(26,43,74,0.2)', borderRadius: 6, color: '#6b7b8d', fontSize: '0.75rem', cursor: 'pointer', padding: '0.3rem 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>↩ Use last board</button>
-              )}
+              {lastBoard && <button onClick={() => setPersonas(lastBoard.map(p => ({ ...p, swapping: false, swapInput: '' })))} style={{ background: 'none', border: '1px solid rgba(26,43,74,0.2)', borderRadius: 6, color: '#6b7b8d', fontSize: '0.75rem', cursor: 'pointer', padding: '0.3rem 0.75rem', fontFamily: "'DM Sans', sans-serif" }}>↩ Use last board</button>}
             </div>
             <p style={{ color: '#6b7b8d', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: '1.5rem', maxWidth: 680 }}>Five archetypal advisors have been assembled. You can replace any with a real person — they will speak in that person's documented style and worldview.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(195px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
@@ -543,7 +514,6 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
               ))}
             </div>
 
-            {/* Mode selector */}
             <div style={{ marginBottom: '2rem' }}>
               <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Session mode</div>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -551,24 +521,20 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
                   <button key={opt.val} onClick={() => setMode(opt.val)}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: mode === opt.val ? '#1a2b4a' : '#fff', color: mode === opt.val ? '#f7f6f3' : '#1a2b4a', border: mode === opt.val ? 'none' : '1.5px solid rgba(26,43,74,0.15)', borderRadius: 10, padding: '0.9rem 1.5rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'left' }}>
                     <span style={{ fontSize: '1.3rem' }}>{opt.icon}</span>
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.2 }}>{opt.title}</div>
-                      <div style={{ fontSize: '0.72rem', opacity: 0.7, marginTop: '0.15rem' }}>{opt.sub}</div>
-                    </div>
+                    <div><div style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.2 }}>{opt.title}</div><div style={{ fontSize: '0.72rem', opacity: 0.7, marginTop: '0.15rem' }}>{opt.sub}</div></div>
                   </button>
                 ))}
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <button onClick={handleRunBoard} style={{ background: '#1a2b4a', color: '#f7f6f3', border: 'none', borderRadius: 10, padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", letterSpacing: '-0.01em' }}>
+              <button onClick={handleRunBoard} style={{ background: '#1a2b4a', color: '#f7f6f3', border: 'none', borderRadius: 10, padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 {mode === 'fast' ? '⚡ Run Board' : '◎ Watch it unfold'} →
               </button>
             </div>
           </section>
         )}
 
-        {/* ── PROGRESS ──────────────────────────────────── */}
         {isRunning && (
           <div style={{ background: '#fff', borderRadius: 12, padding: '2rem', textAlign: 'center', marginBottom: '2rem', border: '1px solid rgba(26,43,74,0.08)' }}>
             <div style={{ color: '#1a2b4a', fontFamily: "'Fraunces', serif", fontSize: '1rem', fontWeight: 500, marginBottom: '1rem' }}>{progress.label}</div>
@@ -579,18 +545,17 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
           </div>
         )}
 
-        {/* ── ROUND 1 ───────────────────────────────────── */}
-        {showRound1 && (
+        {round1.length > 0 && (
           <section style={{ marginBottom: '2.5rem' }}>
             <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Round 1 — Initial positions</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
               {round1.map(({ personaId, opinion }) => {
                 const p = getPersona(personaId);
                 return (
-                  <div key={personaId} style={{ background: '#fff', padding: '1.25rem', border: '1px solid rgba(26,43,74,0.08)', borderTop: `3px solid ${p.color}`, borderRadius: 4, boxShadow: '0 2px 8px rgba(26,43,74,0.04)' }}>
+                  <div key={personaId} style={{ background: '#fff', padding: '1.25rem', border: '1px solid rgba(26,43,74,0.08)', borderTop: `3px solid ${p.color}`, borderRadius: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <span style={{ width: 26, height: 26, borderRadius: 5, background: p.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#fff', flexShrink: 0 }}>{p.avatar}</span>
-                      <span style={{ fontFamily: "'Fraunces', serif", color: '#1a2b4a', fontSize: '0.8rem', fontWeight: 600, flex: 1, lineHeight: 1.2 }}>{p.realPerson || p.title}</span>
+                      <span style={{ fontFamily: "'Fraunces', serif", color: '#1a2b4a', fontSize: '0.8rem', fontWeight: 600 }}>{p.realPerson || p.title}</span>
                     </div>
                     <p style={{ color: '#3a4a5a', fontSize: '0.83rem', lineHeight: 1.75, margin: 0, whiteSpace: 'pre-line' }}>{opinion}</p>
                   </div>
@@ -600,8 +565,7 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
           </section>
         )}
 
-        {/* ── ROUND 2 ───────────────────────────────────── */}
-        {showRound2 && (
+        {round2.length > 0 && (
           <section style={{ marginBottom: '2.5rem' }}>
             <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Round 2 — The board reacts</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -611,7 +575,7 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
                   <div key={personaId} style={{ background: 'rgba(26,43,74,0.02)', padding: '1.25rem', border: '1px solid rgba(26,43,74,0.08)', borderTop: `3px solid ${p.color}`, borderRadius: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                       <span style={{ width: 26, height: 26, borderRadius: 5, background: p.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#fff', flexShrink: 0 }}>{p.avatar}</span>
-                      <span style={{ fontFamily: "'Fraunces', serif", color: '#1a2b4a', fontSize: '0.8rem', fontWeight: 600, flex: 1, lineHeight: 1.2 }}>{p.realPerson || p.title}</span>
+                      <span style={{ fontFamily: "'Fraunces', serif", color: '#1a2b4a', fontSize: '0.8rem', fontWeight: 600 }}>{p.realPerson || p.title}</span>
                       <span style={{ background: 'rgba(184,115,51,0.1)', color: '#b87333', fontSize: '0.58rem', borderRadius: 3, padding: '0.1rem 0.35rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>reacting</span>
                     </div>
                     <p style={{ color: '#3a4a5a', fontSize: '0.83rem', lineHeight: 1.75, margin: 0, whiteSpace: 'pre-line' }}>{reaction}</p>
@@ -622,30 +586,25 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
           </section>
         )}
 
-        {/* ── SYNTHESIS ─────────────────────────────────── */}
-        {showSynthesis && (
+        {synthesis && (
           <div style={{ background: '#1a2b4a', borderRadius: 16, padding: '2.5rem', marginBottom: '2rem' }}>
             <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>Board Synthesis</div>
             <div style={{ fontSize: '0.95rem', lineHeight: 1.85, color: '#f7f6f3', whiteSpace: 'pre-line', marginBottom: '2rem' }}>{synthesis}</div>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <button onClick={() => navigator.clipboard?.writeText(`Board of Advisors — Ledge\n\nChallenge:\n${problem}\n\nSynthesis:\n${synthesis}`)}
-                style={{ background: '#b87333', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Copy synthesis
-              </button>
+              <button onClick={() => navigator.clipboard?.writeText(`Board of Advisors — Ledge\n\nChallenge:\n${problem}\n\nSynthesis:\n${synthesis}`)} style={{ background: '#b87333', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Copy synthesis</button>
               <button onClick={handleReset} style={{ background: 'rgba(247,246,243,0.1)', color: '#f7f6f3', border: '1px solid rgba(247,246,243,0.2)', borderRadius: 8, padding: '0.65rem 1.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>New session</button>
             </div>
           </div>
         )}
 
-        {/* ── CONTINUE CONVERSATION ─────────────────────── */}
-        {(boardPhase === 'complete' || boardPhase === 'continuing') && showSynthesis && (
+        {(boardPhase === 'complete' || boardPhase === 'continuing') && synthesis && (
           <section style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid rgba(26,43,74,0.1)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Continue the conversation</div>
-                <p style={{ color: '#6b7b8d', fontSize: '0.83rem', margin: 0, lineHeight: 1.5 }}>Ask the board a follow-up question. They will respond individually.</p>
+                <p style={{ color: '#6b7b8d', fontSize: '0.83rem', margin: 0, lineHeight: 1.5 }}>Ask the board a follow-up question.</p>
               </div>
-              <div style={{ background: 'rgba(184,115,51,0.1)', color: '#b87333', fontSize: '0.75rem', fontWeight: 600, borderRadius: 6, padding: '0.3rem 0.75rem', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>€0.99 / round</div>
+              <div style={{ background: 'rgba(184,115,51,0.1)', color: '#b87333', fontSize: '0.75rem', fontWeight: 600, borderRadius: 6, padding: '0.3rem 0.75rem' }}>€0.99 / round</div>
             </div>
 
             {continueMessages.map((msg, i) => {
@@ -668,7 +627,6 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
             })}
 
             <div ref={bottomRef} />
-
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', marginTop: '1.25rem' }}>
               <textarea value={continueInput} onChange={e => setContinueInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleContinue())}
                 placeholder="Ask the board a follow-up…" rows={3} disabled={continueLoading}
@@ -679,7 +637,7 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
                 {continueLoading ? '…' : 'Ask →'}
               </button>
             </div>
-            <div style={{ color: '#9ba8b5', fontSize: '0.68rem', marginTop: '0.5rem' }}>Each follow-up round is billed separately. ⌘+Enter to send.</div>
+            <div style={{ color: '#9ba8b5', fontSize: '0.68rem', marginTop: '0.5rem' }}>Each follow-up round is billed separately.</div>
           </section>
         )}
       </div>
@@ -688,12 +646,12 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
 }
 
 // ============================================================
-// MAIN PAGE — tab container
+// MAIN PAGE
 // ============================================================
 export default function CoachPage() {
-  const [activeTab, setActiveTab] = useState('coach'); // 'coach' | 'board'
+  const [activeTab, setActiveTab] = useState('coach');
 
-  // ── Coach state ───────────────────────────────────────────
+  // Coach state
   const [phase, setPhase] = useState('intent');
   const [intent, setIntent] = useState('');
   const [sessionId] = useState(() => crypto.randomUUID());
@@ -703,38 +661,40 @@ export default function CoachPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [leaderEmail, setLeaderEmail] = useState(null);
   const [profileInjection, setProfileInjection] = useState(null);
+  const [selectedLanguage, setSelectedLanguage] = useState(null);
 
-  // Profile saving
+  // Profile saving state
   const [showEmailGate, setShowEmailGate] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [isNewProfile, setIsNewProfile] = useState(false);
 
-  // Board-ready signal from Coach
-  const [boardReadyData, setBoardReadyData] = useState(null); // { reason: string }
+  // Board prefill
   const [boardPrefilledContext, setBoardPrefilledContext] = useState(null);
 
-  // ── Load profile ──────────────────────────────────────────
-  const handleStart = useCallback(async (intentText, emailInput) => {
+  const handleStart = useCallback(async (intentText, emailInput, langCode) => {
     setIntent(intentText);
+    setSelectedLanguage(langCode || null);
+
     let injection = null;
     if (emailInput) {
       try {
         const res = await fetch(`/api/coach/profile?email=${encodeURIComponent(emailInput)}`);
         const data = await res.json();
         if (data.profile) { setLeaderEmail(emailInput); injection = data.profileInjection || null; setProfileInjection(injection); if (data.profile.preferred_mode) setMode(data.profile.preferred_mode); }
-      } catch { /* silent */ }
+      } catch { }
     }
+
     setIsLoading(true);
     const firstMessages = [{ role: 'user', content: intentText }];
     setMessages(firstMessages);
     setPhase('chat');
+
     try {
-      const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: firstMessages, sessionId, profileInjection: injection }) });
+      const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: firstMessages, sessionId, profileInjection: injection, selectedLanguage: langCode || null }) });
       const data = await res.json();
       if (data.mode) setMode(data.mode);
       if (data.modeLabel) setModeLabel(data.modeLabel);
-      if (data.board_ready && data.board_reason) setBoardReadyData({ reason: data.board_reason });
       setMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Something went wrong.' }]);
     } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Connection issue. Please try again.' }]); }
     finally { setIsLoading(false); }
@@ -745,14 +705,13 @@ export default function CoachPage() {
     setMessages(newMessages);
     setIsLoading(true);
     try {
-      const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: newMessages, sessionId, mode, profileInjection }) });
+      const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: newMessages, sessionId, mode, profileInjection, selectedLanguage }) });
       const data = await res.json();
       if (data.mode && data.mode !== mode) { setMode(data.mode); setModeLabel(data.modeLabel || data.mode); }
-      if (data.board_ready && data.board_reason && !boardReadyData) setBoardReadyData({ reason: data.board_reason });
       setMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Something went wrong.' }]);
     } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Connection issue. Please try again.' }]); }
     finally { setIsLoading(false); }
-  }, [messages, sessionId, mode, profileInjection, boardReadyData]);
+  }, [messages, sessionId, mode, profileInjection, selectedLanguage]);
 
   const handleSaveWithEmail = useCallback(async (email) => {
     setIsSavingProfile(true);
@@ -760,20 +719,14 @@ export default function CoachPage() {
       const res = await fetch('/api/coach/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, messages, sessionId, mode }) });
       const data = await res.json();
       if (data.success) { setLeaderEmail(email); setIsNewProfile(data.isNewProfile); setProfileSaved(true); setShowEmailGate(false); }
-    } catch { /* silent */ }
+    } catch { }
     finally { setIsSavingProfile(false); }
   }, [messages, sessionId, mode]);
 
-  // Activate Board from Coach: build context summary + switch tab
-  const handleActivateBoardFromCoach = useCallback(() => {
-    const contextLines = messages
-      .filter(m => m.role === 'user')
-      .map(m => m.content)
-      .join('\n\n');
-    const summary = `Context from coaching session:\n\n${contextLines}`;
-    setBoardPrefilledContext(summary);
+  const handleOpenBoard = useCallback(() => {
+    const contextLines = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');
+    if (contextLines) setBoardPrefilledContext(`Context from coaching session:\n\n${contextLines}`);
     setActiveTab('board');
-    setBoardReadyData(null);
   }, [messages]);
 
   const handleReset = () => {
@@ -781,12 +734,9 @@ export default function CoachPage() {
     setMode('clarify'); setModeLabel('Clarify');
     setLeaderEmail(null); setProfileInjection(null);
     setProfileSaved(false); setShowEmailGate(false);
-    setBoardReadyData(null);
+    setSelectedLanguage(null);
   };
 
-  // ── RENDER ────────────────────────────────────────────────
-
-  // Intent capture has no tab bar — full screen
   if (phase === 'intent') {
     return <IntentCapture savedEmail={leaderEmail} onStart={handleStart} />;
   }
@@ -794,25 +744,21 @@ export default function CoachPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f7f6f3', fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* ── GLOBAL HEADER WITH TABS ─────────────────────── */}
+      {/* Global header with tabs */}
       <header style={{ backgroundColor: '#fff', borderBottom: '1px solid rgba(26,43,74,0.08)', position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', height: '56px' }}>
           <a href="/" style={{ textDecoration: 'none' }}>
             <span style={{ fontFamily: "'Fraunces', serif", fontSize: '1.15rem', fontWeight: '700', color: '#1a2b4a', letterSpacing: '-0.02em' }}>LEDGE</span>
           </a>
 
-          {/* Tabs */}
           <div style={{ display: 'flex', gap: '0', border: '1px solid rgba(26,43,74,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
             <button onClick={() => setActiveTab('coach')}
-              style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: activeTab === 'coach' ? 700 : 400, color: activeTab === 'coach' ? '#fff' : '#6b7b8d', backgroundColor: activeTab === 'coach' ? '#1a2b4a' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s' }}>
+              style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: activeTab === 'coach' ? 700 : 400, color: activeTab === 'coach' ? '#fff' : '#6b7b8d', backgroundColor: activeTab === 'coach' ? '#1a2b4a' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
               AI Coach
             </button>
             <button onClick={() => setActiveTab('board')}
-              style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: activeTab === 'board' ? 700 : 400, color: activeTab === 'board' ? '#fff' : '#6b7b8d', backgroundColor: activeTab === 'board' ? '#b87333' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: activeTab === 'board' ? 700 : 400, color: activeTab === 'board' ? '#fff' : '#6b7b8d', backgroundColor: activeTab === 'board' ? '#b87333' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
               Advisory Board
-              {boardReadyData && (
-                <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#b87333', border: '1.5px solid #fff', display: 'inline-block' }} />
-              )}
             </button>
           </div>
 
@@ -820,7 +766,6 @@ export default function CoachPage() {
         </div>
       </header>
 
-      {/* ── TAB CONTENT ─────────────────────────────────── */}
       <div style={{ display: activeTab === 'coach' ? 'block' : 'none' }}>
         <CoachChatInterface
           initialIntent={intent} sessionId={sessionId}
@@ -835,9 +780,7 @@ export default function CoachPage() {
           onSaveWithEmail={handleSaveWithEmail}
           onDismissEmailGate={() => setShowEmailGate(false)}
           isSavingProfile={isSavingProfile}
-          boardReadyData={boardReadyData}
-          onActivateBoard={handleActivateBoardFromCoach}
-          onDismissBoardBanner={() => setBoardReadyData(null)}
+          onOpenBoard={handleOpenBoard}
         />
       </div>
 
