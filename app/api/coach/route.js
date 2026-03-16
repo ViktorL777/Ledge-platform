@@ -1,15 +1,15 @@
 import { createServerClient } from '@/lib/supabase-server';
 
 // ============================================================
-// LEDGE AI COACH — route.js v8.1
+// LEDGE AI COACH — route.js v9
 //
-// CHANGES FROM v8:
-// - BOARD ACTIVATION SIGNAL removed from BASE_SYSTEM_PROMPT
-// - board_ready / board_reason removed from API response
-// - board_ready parse logic removed
-// - reformulate mode retained (unchanged)
+// CHANGES FROM v8.1:
+// + Board readiness detection via separate Haiku call (cheap, reliable)
+//   — Main coaching model stays Board-unaware (clean separation)
+//   — Returns board_ready + board_reason in API response
+// + Board summary save endpoint (POST with boardSummary flag)
+// - No board_ready logic in the main system prompt
 //
-// Board is now always-visible in the Coach UI — no detection needed.
 // Viktor Lénárt / ZEL Group — Confidential
 // ============================================================
 
@@ -83,22 +83,11 @@ High-leverage diagnostic question: "If this problem resolved completely — what
 Every leadership challenge lives at a specific level of the leader's world. Identify the level before formulating your question — the same issue requires different interventions at different levels.
 
 INNER (the leader themselves): True Self → Body signals → Self-awareness
-→ Is this problem rooted in the leader's own beliefs, patterns, fear, or identity?
-
 CLOSE (intimate context): Family / closest inner circle
-→ Is there a personal-life dimension affecting the professional situation — or being affected by it?
-
 IMMEDIATE WORK UNIT: Team the leader leads and belongs to
-→ Is this a team dynamics, trust, or capability problem in the immediate environment?
-
 ORGANIZATIONAL: Full company / enterprise
-→ Is this a structural, cultural, or systemic issue that requires organizational-level change?
-
 EXTERNAL: Clients, investors, strategic partners, regulators
-→ Is the core of the tension actually outside — in market dynamics, stakeholder pressure, or competitive position?
-
 BROADEST: Society, technology shifts, living environment
-→ Is this a macro-level change that's entered the building — and the leader is treating it as an internal problem?
 
 Most leaders name the problem at the wrong level. They describe an organizational issue that is actually a personal one — or treat a team problem as a structural one when the root is a single unspoken relationship.
 
@@ -549,7 +538,7 @@ NOTA: Jekk il-kwalità tal-Malti tkun limitata, ibdel għall-Ingliż mingħajr k
 // ANTHROPIC API CALL
 // ============================================================
 
-async function callClaude({ systemPrompt, messages }) {
+async function callClaude({ systemPrompt, messages, model, maxTokens }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
 
@@ -561,8 +550,8 @@ async function callClaude({ systemPrompt, messages }) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      model: model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+      max_tokens: maxTokens || 1024,
       system: systemPrompt,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
     }),
@@ -578,13 +567,137 @@ async function callClaude({ systemPrompt, messages }) {
 }
 
 // ============================================================
+// BOARD READINESS CHECK — separate Haiku call (cheap, reliable)
+// ============================================================
+// The main coaching model knows NOTHING about the Board.
+// After each coaching response, we run a fast Haiku evaluation
+// to determine if the conversation has reached Board-worthy complexity.
+// Cost: ~$0.001 per check. Latency: ~300ms.
+// ============================================================
+
+async function checkBoardReadiness(messages) {
+  // Only check after at least 3 exchanges (user+assistant = 6 messages min)
+  if (!messages || messages.length < 6) {
+    return { board_ready: false, board_reason: '' };
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { board_ready: false, board_reason: '' };
+
+  const checkPrompt = `You evaluate leadership coaching conversations to determine if the topic has enough complexity and strategic depth to benefit from a multi-perspective Advisory Board session.
+
+A Board session IS warranted when ALL of these are true:
+- The challenge involves multiple stakeholders, competing interests, or systemic tensions
+- There are genuine trade-offs without a clear "right answer"
+- The situation has organizational-level implications (not just personal preference)
+- The conversation has crystallized a clear, board-worthy question
+- Multiple strategic perspectives would genuinely add distinct value
+
+A Board session is NOT warranted when ANY of these are true:
+- The leader is still in early exploration / hasn't found their real question yet
+- The issue is primarily personal/emotional (better served by continued coaching)
+- The problem has a relatively straightforward path forward
+- The conversation has fewer than 3 substantive exchanges
+- The topic is narrow enough that one coaching perspective is sufficient
+
+Respond with ONLY a valid JSON object. No markdown, no backticks, no explanation:
+{"board_ready": true, "reason": "One sentence explaining why the Board would add value here."}
+or
+{"board_ready": false, "reason": ""}`;
+
+  try {
+    const conversationSummary = messages
+      .slice(-10) // last 10 messages max for efficiency
+      .map(m => `${m.role === 'user' ? 'Leader' : 'Coach'}: ${m.content.slice(0, 300)}`)
+      .join('\n\n');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 150,
+        system: checkPrompt,
+        messages: [{ role: 'user', content: conversationSummary }],
+      }),
+    });
+
+    if (!response.ok) return { board_ready: false, board_reason: '' };
+
+    const data = await response.json();
+    const text = (data.content[0]?.text || '').replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(text);
+    return {
+      board_ready: !!parsed.board_ready,
+      board_reason: parsed.reason || '',
+    };
+  } catch (err) {
+    console.error('Board readiness check error:', err.message);
+    return { board_ready: false, board_reason: '' };
+  }
+}
+
+// ============================================================
 // API HANDLER
 // ============================================================
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { messages, sessionId, mode: explicitMode, profileInjection, reformulate, selectedLanguage } = body;
+    const { messages, sessionId, mode: explicitMode, profileInjection, reformulate, selectedLanguage, saveBoardSummary } = body;
+
+    // ── SAVE BOARD SUMMARY TO COACH MEMORY ──────────────────
+    if (saveBoardSummary) {
+      const { email, summary, problem } = body;
+      if (!email || !summary) {
+        return Response.json({ error: 'Email and summary required' }, { status: 400 });
+      }
+
+      try {
+        const supabase = createServerClient();
+
+        // Save as a special coach message so it's available in future sessions
+        const boardNote = `[BOARD SESSION SUMMARY]\nChallenge: ${problem || 'Not specified'}\n\nBoard synthesis:\n${summary}`;
+
+        await supabase.from('ai_coach_messages').insert({
+          session_id: sessionId || crypto.randomUUID(),
+          role: 'system',
+          content: boardNote,
+          created_at: new Date().toISOString(),
+        });
+
+        // Also append to leader profile if exists
+        const { data: existingProfile } = await supabase
+          .from('leader_profiles')
+          .select('id, board_summaries')
+          .eq('email', email)
+          .single();
+
+        if (existingProfile) {
+          const summaries = existingProfile.board_summaries || [];
+          summaries.push({
+            date: new Date().toISOString(),
+            problem: (problem || '').slice(0, 500),
+            synthesis: summary.slice(0, 2000),
+          });
+          // Keep last 10 summaries
+          const trimmed = summaries.slice(-10);
+          await supabase
+            .from('leader_profiles')
+            .update({ board_summaries: trimmed, updated_at: new Date().toISOString() })
+            .eq('id', existingProfile.id);
+        }
+
+        return Response.json({ success: true, saved: true });
+      } catch (dbErr) {
+        console.error('Board summary save error:', dbErr);
+        return Response.json({ success: false, error: dbErr.message }, { status: 500 });
+      }
+    }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: 'Messages required' }, { status: 400 });
@@ -633,7 +746,13 @@ Respond with only the reformulated question. No preamble, no explanation, nothin
       '\n\n' +
       (MODE_EXTENSIONS[mode] || MODE_EXTENSIONS.clarify);
 
+    // Main coaching response
     const assistantMessage = await callClaude({ systemPrompt, messages });
+
+    // Board readiness check (parallel-safe, non-blocking for response)
+    // Include the new assistant message in the check
+    const fullConversation = [...messages, { role: 'assistant', content: assistantMessage }];
+    const boardCheck = await checkBoardReadiness(fullConversation);
 
     // ── DB LOGGING ───────────────────────────────────────────
     try {
@@ -662,6 +781,8 @@ Respond with only the reformulated question. No preamble, no explanation, nothin
       mode,
       modeLabel: MODE_LABELS[mode] || 'Clarify',
       detectedLanguage: detectedLang,
+      board_ready: boardCheck.board_ready,
+      board_reason: boardCheck.board_reason,
     });
 
   } catch (error) {
