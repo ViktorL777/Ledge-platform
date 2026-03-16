@@ -3,14 +3,18 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 // ============================================================
 // LEDGE — AI Coach & Advisory Board
-// app/coach/page.js v4.1
+// app/coach/page.js v5
 //
-// CHANGES FROM v4:
-// - BoardReadyBanner removed (board_ready signal approach dropped)
-// - "Discuss with your Board →" always-visible button in Coach header
-// - Language selector added to IntentCapture screen
-// - selectedLanguage passed to /api/coach on every request
-// - board_ready state and related handlers removed
+// CHANGES FROM v4.1:
+// - "Discuss with your Board →" now HIDDEN in Coach — appears only
+//   when route.js board_ready: true (Haiku detection)
+// - BoardReadyBanner: copper animated banner inside chat flow
+// - "Add to my Coach session" at Board synthesis end (saves to
+//   leader profile for cross-session memory)
+// - fromCoach tracking: knows if Board was entered from Coach
+// - Board button dismissible (user can close it if not interested)
+//
+// Viktor Lénárt / ZEL Group — Confidential
 // ============================================================
 
 const BASE_ARCHETYPES = [
@@ -31,14 +35,12 @@ const MODE_META = {
   change_readiness: { label: 'Change Readiness', hint: 'Assessing when to act' },
 };
 
-// Language code map for display
 const LANGUAGE_CODES = {
   english: 'en', hungarian: 'hu', german: 'de', french: 'fr', spanish: 'es',
   italian: 'it', polish: 'pl', dutch: 'nl', swedish: 'sv', danish: 'da',
   finnish: 'fi', romanian: 'ro', czech: 'cs', slovak: 'sk', croatian: 'hr',
   slovenian: 'sl', bulgarian: 'bg', greek: 'el', latvian: 'lv', lithuanian: 'lt',
   estonian: 'et', portuguese: 'pt', irish: 'ga', maltese: 'mt',
-  // common native names
   magyar: 'hu', deutsch: 'de', français: 'fr', español: 'es', italiano: 'it',
   polski: 'pl', nederlands: 'nl', svenska: 'sv', dansk: 'da', suomi: 'fi',
   română: 'ro', čeština: 'cs', slovenčina: 'sk', hrvatski: 'hr', slovenščina: 'sl',
@@ -55,7 +57,7 @@ function resolveLanguageCode(input) {
 // ============================================================
 // EMAIL GATE MODAL
 // ============================================================
-function EmailGateModal({ onSave, onDismiss, isSaving }) {
+function EmailGateModal({ onSave, onDismiss, isSaving, title, description }) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const inputRef = useRef(null);
@@ -68,8 +70,8 @@ function EmailGateModal({ onSave, onDismiss, isSaving }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, backgroundColor: 'rgba(26,43,74,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
       <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2.5rem', maxWidth: '460px', width: '100%', boxShadow: '0 20px 60px rgba(26,43,74,0.2)' }}>
-        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '1.4rem', fontWeight: '600', color: '#1a2b4a', marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>Save your coaching profile</h2>
-        <p style={{ fontSize: '0.88rem', color: '#6b7b8d', lineHeight: '1.65', marginBottom: '1.75rem' }}>The Coach will remember your patterns, challenges, and commitments across sessions — so the next conversation starts exactly where this one left off.</p>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: '1.4rem', fontWeight: '600', color: '#1a2b4a', marginBottom: '0.75rem', letterSpacing: '-0.02em' }}>{title || 'Save your coaching profile'}</h2>
+        <p style={{ fontSize: '0.88rem', color: '#6b7b8d', lineHeight: '1.65', marginBottom: '1.75rem' }}>{description || 'The Coach will remember your patterns, challenges, and commitments across sessions — so the next conversation starts exactly where this one left off.'}</p>
         <input ref={inputRef} type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} placeholder="your@email.com"
           style={{ width: '100%', padding: '0.85rem 1rem', fontSize: '0.95rem', color: '#1a2b4a', backgroundColor: '#f7f6f3', border: error ? '1.5px solid #e05a5a' : '1.5px solid rgba(26,43,74,0.12)', borderRadius: '10px', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box', marginBottom: '0.5rem' }}
           onFocus={e => { if (!error) e.target.style.borderColor = '#b87333'; }} onBlur={e => { if (!error) e.target.style.borderColor = 'rgba(26,43,74,0.12)'; }}
@@ -77,7 +79,7 @@ function EmailGateModal({ onSave, onDismiss, isSaving }) {
         {error && <p style={{ fontSize: '0.78rem', color: '#e05a5a', marginBottom: '0.5rem' }}>{error}</p>}
         <p style={{ fontSize: '0.72rem', color: '#9ba8b5', marginBottom: '1.5rem', lineHeight: '1.5' }}>Your data is encrypted and never sold. You can delete everything from Settings at any time.</p>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button onClick={handleSubmit} disabled={isSaving} style={{ flex: 1, backgroundColor: '#1a2b4a', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.75rem 1rem', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{isSaving ? 'Saving...' : 'Save profile'}</button>
+          <button onClick={handleSubmit} disabled={isSaving} style={{ flex: 1, backgroundColor: '#1a2b4a', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.75rem 1rem', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>{isSaving ? 'Saving...' : 'Save'}</button>
           <button onClick={onDismiss} style={{ backgroundColor: 'transparent', border: '1px solid rgba(26,43,74,0.15)', borderRadius: '8px', padding: '0.75rem 1rem', fontSize: '0.9rem', color: '#6b7b8d', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Not now</button>
         </div>
       </div>
@@ -96,6 +98,58 @@ function ProfileSavedBanner({ isNew, onDismiss }) {
         <p style={{ fontSize: '0.78rem', color: '#6b7b8d' }}>{isNew ? 'The Coach will remember your patterns in future sessions.' : 'Your coaching profile has been updated with insights from this session.'}</p>
       </div>
       <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ba8b5', fontSize: '1.1rem', padding: '0 0.25rem' }}>×</button>
+    </div>
+  );
+}
+
+// ============================================================
+// BOARD READY BANNER — appears inside chat when Haiku triggers
+// ============================================================
+function BoardReadyBanner({ reason, onActivate, onDismiss }) {
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, rgba(184,115,51,0.06) 0%, rgba(184,115,51,0.12) 100%)',
+      border: '1px solid rgba(184,115,51,0.3)',
+      borderRadius: '12px',
+      padding: '1.125rem 1.5rem',
+      marginBottom: '1.5rem',
+      animation: 'boardSlideIn 0.5s ease-out',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+        <div style={{
+          width: '36px', height: '36px', borderRadius: '10px',
+          background: 'linear-gradient(135deg, #b87333, #d4945a)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, fontSize: '1rem', color: '#fff',
+        }}>⬡</div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: "'Fraunces', serif", fontSize: '0.92rem', fontWeight: '600', color: '#1a2b4a', marginBottom: '0.35rem', lineHeight: '1.3' }}>
+            Your Advisory Board could add value here
+          </p>
+          <p style={{ fontSize: '0.82rem', color: '#6b7b8d', lineHeight: '1.55', marginBottom: '0.75rem' }}>
+            {reason || 'This challenge has the complexity and strategic depth that benefits from multiple perspectives.'}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button onClick={onActivate} style={{
+              background: 'linear-gradient(135deg, #b87333, #d4945a)',
+              color: '#fff', border: 'none', borderRadius: '8px',
+              padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: '600',
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              boxShadow: '0 2px 8px rgba(184,115,51,0.3)',
+            }}>
+              Discuss with your Board →
+            </button>
+            <span style={{ fontSize: '0.7rem', color: '#9ba8b5' }}>Premium feature · Limited sessions</span>
+            <button onClick={onDismiss} style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#9ba8b5', fontSize: '0.75rem', padding: '0.3rem 0.5rem',
+              fontFamily: "'DM Sans', sans-serif", textDecoration: 'underline',
+            }}>
+              Not now
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -142,7 +196,6 @@ function IntentCapture({ savedEmail, onStart }) {
           onFocus={e => { e.target.style.borderColor = '#b87333'; }} onBlur={e => { e.target.style.borderColor = 'rgba(26,43,74,0.12)'; }}
         />
 
-        {/* Language field */}
         <div style={{ marginTop: '1rem' }}>
           <p style={{ fontSize: '0.75rem', color: '#9ba8b5', marginBottom: '0.4rem' }}>
             Preferred language — type it in (e.g. English, Magyar, Deutsch). Leave blank for auto-detect.
@@ -154,7 +207,6 @@ function IntentCapture({ savedEmail, onStart }) {
           />
         </div>
 
-        {/* Returning email */}
         <div style={{ marginTop: '0.75rem' }}>
           <p style={{ fontSize: '0.75rem', color: '#9ba8b5', marginBottom: '0.4rem' }}>Returning? Enter your email to load your coaching profile.</p>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com (optional)"
@@ -187,7 +239,8 @@ function CoachChatInterface({
   onSendMessage, isLoading, onReset, leaderEmail,
   onRequestSaveProfile, profileSaved, isNewProfile,
   onDismissProfileBanner, showEmailGate, onSaveWithEmail,
-  onDismissEmailGate, isSavingProfile, onOpenBoard,
+  onDismissEmailGate, isSavingProfile,
+  boardReadyData, onActivateBoard, onDismissBoardReady,
 }) {
   const [input, setInput] = useState('');
   const [showInsights, setShowInsights] = useState(false);
@@ -195,7 +248,7 @@ function CoachChatInterface({
   const [loadingInsights, setLoadingInsights] = useState(false);
   const messagesEndRef = useRef(null);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, boardReadyData]);
 
   const handleSend = () => {
     const trimmed = input.trim();
@@ -240,12 +293,6 @@ function CoachChatInterface({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button onClick={loadInsights} style={{ backgroundColor: 'transparent', border: '1px solid rgba(26,43,74,0.15)', borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.75rem', color: '#6b7b8d', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <span>📎</span><span>Related insights</span>
-          </button>
-
-          {/* Always-visible Board button */}
-          <button onClick={onOpenBoard}
-            style={{ backgroundColor: 'rgba(184,115,51,0.1)', border: '1px solid rgba(184,115,51,0.3)', borderRadius: '6px', padding: '0.4rem 0.8rem', fontSize: '0.75rem', color: '#b87333', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: '600' }}>
-            Discuss with your Board →
           </button>
 
           {sessionLongEnough && !leaderEmail && !profileSaved && (
@@ -295,6 +342,15 @@ function CoachChatInterface({
           </div>
         ))}
 
+        {/* Board Ready Banner — appears after messages when triggered */}
+        {boardReadyData && (
+          <BoardReadyBanner
+            reason={boardReadyData.reason}
+            onActivate={onActivateBoard}
+            onDismiss={onDismissBoardReady}
+          />
+        )}
+
         {isLoading && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#b87333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '700', color: '#fff' }}>LC</div>
@@ -327,7 +383,10 @@ function CoachChatInterface({
         </div>
         <p style={{ maxWidth: '720px', margin: '0.5rem auto 0', fontSize: '0.7rem', color: '#9ba8b5', textAlign: 'center' }}>Enter to send · Shift+Enter for new line</p>
       </div>
-      <style>{`@keyframes pulse { 0%,80%,100%{transform:scale(0.8);opacity:0.4} 40%{transform:scale(1.1);opacity:1} }`}</style>
+      <style>{`
+        @keyframes pulse { 0%,80%,100%{transform:scale(0.8);opacity:0.4} 40%{transform:scale(1.1);opacity:1} }
+        @keyframes boardSlideIn { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
+      `}</style>
     </div>
   );
 }
@@ -335,7 +394,7 @@ function CoachChatInterface({
 // ============================================================
 // ADVISORY BOARD TAB
 // ============================================================
-function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
+function AdvisoryBoardTab({ prefilledContext, onClearPrefill, fromCoach, leaderEmail, sessionId }) {
   const [boardPhase, setBoardPhase] = useState('input');
   const [problem, setProblem] = useState(prefilledContext || '');
   const [isReformulating, setIsReformulating] = useState(false);
@@ -349,6 +408,9 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
   const [continueInput, setContinueInput] = useState('');
   const [continueLoading, setContinueLoading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 11, label: '' });
+  const [showSaveToCoach, setShowSaveToCoach] = useState(false);
+  const [savingToCoach, setSavingToCoach] = useState(false);
+  const [savedToCoach, setSavedToCoach] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -369,6 +431,26 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
     finally { setIsReformulating(false); }
   };
 
+  const handleSaveToCoach = async (email) => {
+    setSavingToCoach(true);
+    try {
+      const res = await fetch('/api/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saveBoardSummary: true,
+          email,
+          summary: synthesis,
+          problem,
+          sessionId: sessionId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) { setSavedToCoach(true); setShowSaveToCoach(false); }
+    } catch { }
+    finally { setSavingToCoach(false); }
+  };
+
   const callSpeak = async (persona, round, existingR1 = []) => {
     const res = await fetch('/api/board/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ problem, persona: { id: persona.id, title: persona.title, subtitle: persona.subtitle, tagline: persona.tagline, role: persona.role, realPerson: persona.realPerson }, round, allPersonas: personas.map(p => ({ id: p.id, title: p.title, realPerson: p.realPerson })), round1Opinions: existingR1 }) });
     const data = await res.json();
@@ -385,7 +467,7 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
     if (!problem.trim()) return;
     setLastBoard(personas.map(p => ({ ...p })));
     setBoardPhase('running');
-    setRound1([]); setRound2([]); setSynthesis(''); setContinueMessages([]);
+    setRound1([]); setRound2([]); setSynthesis(''); setContinueMessages([]); setSavedToCoach(false);
 
     if (mode === 'fast') {
       setProgress({ current: 0, total: 11, label: 'Running full board session…' });
@@ -436,11 +518,21 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  const handleReset = () => { setBoardPhase('input'); setProblem(''); setRound1([]); setRound2([]); setSynthesis(''); setContinueMessages([]); setPersonas(makePersonas(BASE_ARCHETYPES)); };
+  const handleReset = () => { setBoardPhase('input'); setProblem(''); setRound1([]); setRound2([]); setSynthesis(''); setContinueMessages([]); setPersonas(makePersonas(BASE_ARCHETYPES)); setSavedToCoach(false); };
   const isRunning = boardPhase === 'running';
 
   return (
     <div style={{ minHeight: 'calc(100vh - 56px)', backgroundColor: '#f7f6f3', fontFamily: "'DM Sans', sans-serif" }}>
+      {showSaveToCoach && (
+        <EmailGateModal
+          onSave={handleSaveToCoach}
+          onDismiss={() => setShowSaveToCoach(false)}
+          isSaving={savingToCoach}
+          title="Add to your Coach session"
+          description="The Board synthesis will be saved to your coaching profile. The AI Coach will remember this analysis in future sessions — so your coaching builds on what the Board uncovered."
+        />
+      )}
+
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2.5rem 1.5rem 6rem' }}>
 
         {(boardPhase === 'input' || boardPhase === 'casting') && (
@@ -590,8 +682,24 @@ function AdvisoryBoardTab({ prefilledContext, onClearPrefill }) {
           <div style={{ background: '#1a2b4a', borderRadius: 16, padding: '2.5rem', marginBottom: '2rem' }}>
             <div style={{ fontFamily: "'Fraunces', serif", color: '#b87333', fontSize: '0.68rem', fontWeight: 500, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>Board Synthesis</div>
             <div style={{ fontSize: '0.95rem', lineHeight: 1.85, color: '#f7f6f3', whiteSpace: 'pre-line', marginBottom: '2rem' }}>{synthesis}</div>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <button onClick={() => navigator.clipboard?.writeText(`Board of Advisors — Ledge\n\nChallenge:\n${problem}\n\nSynthesis:\n${synthesis}`)} style={{ background: '#b87333', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Copy synthesis</button>
+
+              {/* Add to Coach session — only if coming from Coach or if user wants it */}
+              {!savedToCoach ? (
+                <button onClick={() => leaderEmail ? handleSaveToCoach(leaderEmail) : setShowSaveToCoach(true)}
+                  style={{
+                    background: 'rgba(247,246,243,0.1)', color: '#b87333',
+                    border: '1px solid rgba(184,115,51,0.4)', borderRadius: 8,
+                    padding: '0.65rem 1.5rem', fontSize: '0.875rem', fontWeight: 600,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  }}>
+                  Add to my Coach session
+                </button>
+              ) : (
+                <span style={{ color: '#b87333', fontSize: '0.82rem', fontWeight: 600 }}>✓ Saved to your coaching profile</span>
+              )}
+
               <button onClick={handleReset} style={{ background: 'rgba(247,246,243,0.1)', color: '#f7f6f3', border: '1px solid rgba(247,246,243,0.2)', borderRadius: 8, padding: '0.65rem 1.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>New session</button>
             </div>
           </div>
@@ -669,8 +777,10 @@ export default function CoachPage() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [isNewProfile, setIsNewProfile] = useState(false);
 
-  // Board prefill
+  // Board integration
+  const [boardReadyData, setBoardReadyData] = useState(null);
   const [boardPrefilledContext, setBoardPrefilledContext] = useState(null);
+  const [boardFromCoach, setBoardFromCoach] = useState(false);
 
   const handleStart = useCallback(async (intentText, emailInput, langCode) => {
     setIntent(intentText);
@@ -696,6 +806,10 @@ export default function CoachPage() {
       if (data.mode) setMode(data.mode);
       if (data.modeLabel) setModeLabel(data.modeLabel);
       setMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Something went wrong.' }]);
+      // Board readiness check (won't trigger on first message — too early)
+      if (data.board_ready && data.board_reason) {
+        setBoardReadyData({ reason: data.board_reason });
+      }
     } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Connection issue. Please try again.' }]); }
     finally { setIsLoading(false); }
   }, [sessionId]);
@@ -704,11 +818,17 @@ export default function CoachPage() {
     const newMessages = [...messages, { role: 'user', content: text }];
     setMessages(newMessages);
     setIsLoading(true);
+    // Dismiss any existing board banner when user sends new message
+    setBoardReadyData(null);
     try {
       const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: newMessages, sessionId, mode, profileInjection, selectedLanguage }) });
       const data = await res.json();
       if (data.mode && data.mode !== mode) { setMode(data.mode); setModeLabel(data.modeLabel || data.mode); }
       setMessages(prev => [...prev, { role: 'assistant', content: data.message || 'Something went wrong.' }]);
+      // Check board readiness
+      if (data.board_ready && data.board_reason) {
+        setBoardReadyData({ reason: data.board_reason });
+      }
     } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Connection issue. Please try again.' }]); }
     finally { setIsLoading(false); }
   }, [messages, sessionId, mode, profileInjection, selectedLanguage]);
@@ -726,6 +846,8 @@ export default function CoachPage() {
   const handleOpenBoard = useCallback(() => {
     const contextLines = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');
     if (contextLines) setBoardPrefilledContext(`Context from coaching session:\n\n${contextLines}`);
+    setBoardFromCoach(true);
+    setBoardReadyData(null);
     setActiveTab('board');
   }, [messages]);
 
@@ -734,7 +856,7 @@ export default function CoachPage() {
     setMode('clarify'); setModeLabel('Clarify');
     setLeaderEmail(null); setProfileInjection(null);
     setProfileSaved(false); setShowEmailGate(false);
-    setSelectedLanguage(null);
+    setSelectedLanguage(null); setBoardReadyData(null);
   };
 
   if (phase === 'intent') {
@@ -757,8 +879,12 @@ export default function CoachPage() {
               AI Coach
             </button>
             <button onClick={() => setActiveTab('board')}
-              style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: activeTab === 'board' ? 700 : 400, color: activeTab === 'board' ? '#fff' : '#6b7b8d', backgroundColor: activeTab === 'board' ? '#b87333' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: activeTab === 'board' ? 700 : 400, color: activeTab === 'board' ? '#fff' : '#6b7b8d', backgroundColor: activeTab === 'board' ? '#b87333' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
               Advisory Board
+              {/* Notification dot when board_ready in Coach tab */}
+              {boardReadyData && activeTab === 'coach' && (
+                <span style={{ position: 'absolute', top: '4px', right: '4px', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#b87333', animation: 'pulse 1.4s ease-in-out infinite' }} />
+              )}
             </button>
           </div>
 
@@ -780,7 +906,9 @@ export default function CoachPage() {
           onSaveWithEmail={handleSaveWithEmail}
           onDismissEmailGate={() => setShowEmailGate(false)}
           isSavingProfile={isSavingProfile}
-          onOpenBoard={handleOpenBoard}
+          boardReadyData={boardReadyData}
+          onActivateBoard={handleOpenBoard}
+          onDismissBoardReady={() => setBoardReadyData(null)}
         />
       </div>
 
@@ -788,6 +916,9 @@ export default function CoachPage() {
         <AdvisoryBoardTab
           prefilledContext={boardPrefilledContext}
           onClearPrefill={() => setBoardPrefilledContext(null)}
+          fromCoach={boardFromCoach}
+          leaderEmail={leaderEmail}
+          sessionId={sessionId}
         />
       </div>
 
