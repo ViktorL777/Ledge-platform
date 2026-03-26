@@ -177,10 +177,11 @@ export default function Home() {
         <div className="nav-links">
           <a href="/news">News</a>
           <a href="/chess">Leadership Chess</a>
-          <a href="learn">Learn</a>
+          <a href="/learn">Learn</a>
           <a href="/coach">AI Coach</a>
-<a href="/board">Board</a>
-          <a href="subscribe">Subscribe</a>
+          <a href="/board">Board</a>
+          <a href="/360">360°</a>
+          <a href="/subscribe">Subscribe</a>
         </div>
       </nav>
 
@@ -248,12 +249,14 @@ export default function Home() {
       <section id="chess">
         <div className="section-inner">
           <div className="section-label">Platform</div>
-          <div className="section-title">Five engines.<br/>One daily habit.</div>
+          <div className="section-title">Six engines.<br/>One daily habit.</div>
           <div className="section-text">
             Each feature is designed to create a reason to return — 
             and a reason to share.
           </div>
           <div className="feature-grid">
+
+            {/* 01 — The Daily Ledge */}
             <div className="feature-card">
               <div className="feature-icon">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -268,6 +271,8 @@ export default function Home() {
               </div>
               <span className="feature-tag">Daily · Automated</span>
             </div>
+
+            {/* 02 — Leadership Chess */}
             <div className="feature-card">
               <div className="feature-icon">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -284,6 +289,8 @@ export default function Home() {
               </div>
               <span className="feature-tag">Interactive · Shareable</span>
             </div>
+
+            {/* 03 — Explain in 5 Minutes */}
             <div className="feature-card" id="learn">
               <div className="feature-icon">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -298,6 +305,8 @@ export default function Home() {
               </div>
               <span className="feature-tag">Library · 4 Levels</span>
             </div>
+
+            {/* 04 — Ask Ledge */}
             <div className="feature-card" id="coach">
               <div className="feature-icon">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -313,6 +322,46 @@ export default function Home() {
               </div>
               <span className="feature-tag">AI Coach · Coming Phase 2</span>
             </div>
+
+            {/* 05 — Ledge Board */}
+            <div className="feature-card" id="board">
+              <div className="feature-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="3" y="3" width="7" height="9" rx="1"/>
+                  <rect x="14" y="3" width="7" height="5" rx="1"/>
+                  <rect x="14" y="12" width="7" height="9" rx="1"/>
+                  <rect x="3" y="16" width="7" height="5" rx="1"/>
+                </svg>
+              </div>
+              <div className="feature-title">Ledge Board</div>
+              <div className="feature-text">
+                Your personal leadership command centre. Save articles, track 
+                your development across eight dimensions, and build a private 
+                record of insights worth returning to.
+              </div>
+              <span className="feature-tag">Personal · Dashboard</span>
+            </div>
+
+            {/* 06 — Ledge 360° */}
+            <div className="feature-card" id="ledge360">
+              <div className="feature-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 3c2.5 2.5 4 5.6 4 9s-1.5 6.5-4 9"/>
+                  <path d="M12 3c-2.5 2.5-4 5.6-4 9s1.5 6.5 4 9"/>
+                  <path d="M3 12h18"/>
+                  <path d="M4.2 7h15.6M4.2 17h15.6"/>
+                </svg>
+              </div>
+              <div className="feature-title">Ledge 360°</div>
+              <div className="feature-text">
+                AI-powered leadership assessment that goes beyond questionnaires. 
+                Collect structured feedback, map blind spots across all eight 
+                dimensions, and get a development roadmap grounded in real data.
+              </div>
+              <span className="feature-tag">Assessment · B2B · 29 EUR/mo</span>
+            </div>
+
           </div>
         </div>
       </section>
