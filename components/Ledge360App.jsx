@@ -3170,6 +3170,10 @@ function ProjectView({ nav, goBack, ctx }) {
   const [editingProj, setEditingProj] = useState(false);
   const [editName,    setEditName]    = useState('');
   const [editClient,  setEditClient]  = useState('');
+  const [editRoles,   setEditRoles]   = useState([]);
+  const [newRoleLabel, setNewRoleLabel] = useState('');
+  const [newRoleColor, setNewRoleColor] = useState(BLUE);
+  const ROLE_COLORS = [BLUE, GREEN, PURP, ORAN, RED, GOLD, '#5B8A8A', '#8A5B7A'];
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [deletingPartId, setDeletingPartId] = useState(null);
   const [collabs, setCollabs] = useState([]);
@@ -3214,10 +3218,30 @@ function ProjectView({ nav, goBack, ctx }) {
   }
 
   async function saveEdit() {
-    const updated = { ...proj, name: editName.trim() || proj.name, client: editClient.trim() };
+    const updated = { ...proj, name: editName.trim() || proj.name, client: editClient.trim(), roles: editRoles };
     await db.set(projectId, updated);
     setProj(updated);
     setEditingProj(false);
+  }
+
+  function openEditProj() {
+    setEditName(proj.name);
+    setEditClient(proj.client || '');
+    setEditRoles(JSON.parse(JSON.stringify(proj.roles || DEFAULT_ROLES)));
+    setNewRoleLabel('');
+    setNewRoleColor(BLUE);
+    setEditingProj(true);
+  }
+
+  function addEditRole() {
+    if (!newRoleLabel.trim()) return;
+    const id = 'role_' + newRoleLabel.trim().toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+    setEditRoles(prev => [...prev, { id, label: newRoleLabel.trim(), color: newRoleColor }]);
+    setNewRoleLabel('');
+  }
+
+  function removeEditRole(roleId) {
+    setEditRoles(prev => prev.filter(r => r.id !== roleId));
   }
 
   async function archiveProject() {
@@ -3283,7 +3307,7 @@ function ProjectView({ nav, goBack, ctx }) {
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar title={proj.name} subtitle={proj.client} back onBack={goBack}
         right={<div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <Btn variant="ghost" size="sm" onClick={() => { setEditingProj(true); setEditName(proj.name); setEditClient(proj.client||''); }}>✎</Btn>
+          <Btn variant="ghost" size="sm" onClick={openEditProj}>✎</Btn>
           {proj.status === 'archived'
             ? <><Badge color={MUTED}>Archivált</Badge><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)}>Visszaállítás</Btn></>
             : proj.status === 'active'
@@ -3425,11 +3449,67 @@ function ProjectView({ nav, goBack, ctx }) {
 
       {editingProj && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
+          <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:480,boxShadow:'0 8px 30px rgba(0,0,0,.1)',maxHeight:'90vh',overflowY:'auto'}}>
             <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>Projekt szerkesztése</div>
+
+            {/* Alap adatok */}
             <Input label="Projekt neve" value={editName} onChange={setEditName} placeholder="Projekt neve"/>
             <Input label="Ügyfél / Szervezet" value={editClient} onChange={setEditClient} placeholder="Ügyfél neve"/>
-            <div style={{display:'flex',gap:10,marginTop:8}}>
+
+            {/* Szerepek szerkesztése */}
+            <div style={{marginTop:20,marginBottom:8}}>
+              <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12}}>Értékelői szerepek</div>
+
+              {/* Meglévő szerepek */}
+              <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
+                {editRoles.map(r => (
+                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,background:S2,borderRadius:8,padding:'8px 12px',border:`1px solid ${BORD}`}}>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:r.color,flexShrink:0}}/>
+                    <span style={{flex:1,fontSize:13,color:TEXT}}>{r.label}</span>
+                    <button
+                      onClick={() => removeEditRole(r.id)}
+                      style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:16,padding:'0 4px',lineHeight:1}}
+                      title="Törlés"
+                    >✕</button>
+                  </div>
+                ))}
+                {editRoles.length === 0 && (
+                  <div style={{fontSize:12,color:MUTED,textAlign:'center',padding:'10px 0'}}>Nincs szerep megadva.</div>
+                )}
+              </div>
+
+              {/* Új szerep hozzáadása */}
+              <div style={{background:S2,borderRadius:10,padding:'12px 14px',border:`1px solid ${BORD}`}}>
+                <div style={{fontSize:11,color:MUTED,marginBottom:8}}>Új szerep hozzáadása</div>
+                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8}}>
+                  <input
+                    value={newRoleLabel}
+                    onChange={e => setNewRoleLabel(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addEditRole()}
+                    placeholder="pl. HR vezető, Mentor..."
+                    style={{flex:1,background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:8,padding:'8px 12px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}
+                  />
+                  <Btn size="sm" onClick={addEditRole} disabled={!newRoleLabel.trim()}>+ Hozzáad</Btn>
+                </div>
+                {/* Szín választó */}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {ROLE_COLORS.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setNewRoleColor(c)}
+                      style={{
+                        width:22, height:22, borderRadius:'50%', background:c, border:'none', cursor:'pointer',
+                        outline: newRoleColor === c ? `2px solid ${TEXT}` : 'none',
+                        outlineOffset:2, transition:'outline .15s'
+                      }}
+                      title={c}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:10,marginTop:20}}>
               <Btn onClick={saveEdit} disabled={!editName.trim()}>Mentés</Btn>
               <Btn variant="ghost" onClick={() => setEditingProj(false)}>Mégse</Btn>
             </div>
