@@ -910,26 +910,42 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:20}}>
+            {/* ── Radar + Bar charts ── */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:8}}>
               <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Radar</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <RadarChart data={radarData} margin={{top:10,right:30,bottom:10,left:30}}>
+                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Kompetencia radar</div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadarChart data={radarData} margin={{top:22,right:44,bottom:22,left:44}}>
                     <PolarGrid stroke={BORD}/>
-                    <PolarAngleAxis dataKey="dim" tick={{fill:MUTED,fontSize:11}}/>
+                    <PolarAngleAxis
+                      dataKey="dim"
+                      tick={({ x, y, payload, cx, cy }) => {
+                        const dx = x - cx;
+                        const dy = y - cy;
+                        const anchor = dx > 5 ? 'start' : dx < -5 ? 'end' : 'middle';
+                        const offsetX = dx > 5 ? 6 : dx < -5 ? -6 : 0;
+                        const offsetY = dy > 5 ? 14 : dy < -5 ? -4 : 0;
+                        return (
+                          <text x={x + offsetX} y={y + offsetY} textAnchor={anchor}
+                            fill={MUTED} fontSize={11} fontFamily="'DM Sans',sans-serif" fontWeight={600}>
+                            {payload.value}
+                          </text>
+                        );
+                      }}
+                    />
                     <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                    <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
+                    <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
                     {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:3}}/>}
-                    {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED}}/>}
+                    {hasOthers && <Legend wrapperStyle={{fontSize:11,color:MUTED,paddingTop:8}}/>}
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
               <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={barData} layout="vertical" margin={{left:55}}>
+                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió összehasonlítás</div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={barData} layout="vertical" margin={{left:10,right:24,top:4,bottom:4}}>
                     <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
-                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={48}/>
+                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={36}/>
                     <Tooltip content={<CT/>}/>
                     <Bar dataKey="Önértékelés" radius={4}>
                       {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
@@ -938,6 +954,103 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+            </div>
+
+            {/* ── Dimenzió átlagok táblázat — Spidergap stílusban ── */}
+            <div style={{marginBottom:24}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
+              <div style={{background:S2,borderRadius:12,overflow:'hidden',border:`1px solid ${BORD}`}}>
+                {/* Fejléc */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 110px' + (hasOthers ? ' 110px 80px' : ''),background:S3,padding:'8px 16px',gap:8}}>
+                  <div style={{fontSize:11,color:MUTED,fontWeight:600}}>Kompetencia dimenzió</div>
+                  <div style={{fontSize:11,color:GOLD,fontWeight:600,textAlign:'center'}}>Önértékelés</div>
+                  {hasOthers && <div style={{fontSize:11,color:BLUE,fontWeight:600,textAlign:'center'}}>Mások átlaga</div>}
+                  {hasOthers && <div style={{fontSize:11,color:MUTED,fontWeight:600,textAlign:'center'}}>Δ Különbség</div>}
+                </div>
+                {dims.map((d, idx) => {
+                  const sv  = dimAvg(ss, d);
+                  const ov  = hasOthers ? dimAvg(othersAvg, d) : null;
+                  const gap = (ov !== null && sv > 0 && ov > 0) ? +(sv - ov).toFixed(2) : null;
+                  const pctSelf   = sv > 0 ? (sv / sMax) * 100 : 0;
+                  const pctOthers = ov !== null && ov > 0 ? (ov / sMax) * 100 : 0;
+                  return (
+                    <div key={d.id}
+                      style={{display:'grid',gridTemplateColumns:'1fr 110px' + (hasOthers ? ' 110px 80px' : ''),padding:'10px 16px',gap:8,borderTop:`1px solid ${BORD}`,background:idx%2===0?'transparent':S2+'66',alignItems:'center'}}>
+                      {/* Dimenzió neve */}
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{width:28,fontSize:10,fontWeight:700,color:d.color,flexShrink:0,letterSpacing:'.04em'}}>{d.id}</span>
+                        <span style={{fontSize:13,color:TEXT}}>{d.label}</span>
+                      </div>
+                      {/* Önértékelés */}
+                      <div style={{display:'flex',alignItems:'center',gap:6}}>
+                        <div style={{flex:1,height:6,background:BORD,borderRadius:3,overflow:'hidden'}}>
+                          <div style={{width:`${pctSelf}%`,height:'100%',background:d.color,borderRadius:3,transition:'width .4s'}}/>
+                        </div>
+                        <span style={{fontSize:13,fontWeight:700,color:sv>0?d.color:DIM,width:28,textAlign:'right',flexShrink:0}}>
+                          {sv > 0 ? sv.toFixed(1) : '—'}
+                        </span>
+                      </div>
+                      {/* Mások átlaga */}
+                      {hasOthers && (
+                        <div style={{display:'flex',alignItems:'center',gap:6}}>
+                          <div style={{flex:1,height:6,background:BORD,borderRadius:3,overflow:'hidden'}}>
+                            <div style={{width:`${pctOthers}%`,height:'100%',background:BLUE,borderRadius:3,transition:'width .4s'}}/>
+                          </div>
+                          <span style={{fontSize:13,fontWeight:700,color:ov&&ov>0?BLUE:DIM,width:28,textAlign:'right',flexShrink:0}}>
+                            {ov !== null && ov > 0 ? ov.toFixed(1) : '—'}
+                          </span>
+                        </div>
+                      )}
+                      {/* Gap */}
+                      {hasOthers && (
+                        <div style={{textAlign:'center'}}>
+                          {gap !== null
+                            ? <span style={{fontSize:12,fontWeight:700,color:gap>0.3?RED:gap<-0.3?GREEN:MUTED,background:gap>0.3?`${RED}11`:gap<-0.3?`${GREEN}11`:'transparent',borderRadius:6,padding:'2px 7px'}}>
+                                {gap > 0 ? '+' : ''}{gap.toFixed(1)}
+                              </span>
+                            : <span style={{fontSize:12,color:DIM}}>—</span>
+                          }
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Összesített sor */}
+                {hasSelf && (() => {
+                  const totalSelf   = dims.reduce((s,d) => { const v=dimAvg(ss,d); return v>0?s+v:s; }, 0);
+                  const countSelf   = dims.filter(d => dimAvg(ss,d)>0).length;
+                  const avgSelf     = countSelf > 0 ? totalSelf/countSelf : 0;
+                  const totalOthers = hasOthers ? dims.reduce((s,d) => { const v=dimAvg(othersAvg,d); return v>0?s+v:s; }, 0) : 0;
+                  const countOthers = hasOthers ? dims.filter(d => dimAvg(othersAvg,d)>0).length : 0;
+                  const avgOthers   = countOthers > 0 ? totalOthers/countOthers : 0;
+                  const avgGap      = (avgSelf>0&&avgOthers>0) ? +(avgSelf-avgOthers).toFixed(2) : null;
+                  return (
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 110px'+(hasOthers?' 110px 80px':''),padding:'10px 16px',gap:8,borderTop:`2px solid ${BORD2}`,background:S3,alignItems:'center'}}>
+                      <div style={{fontSize:12,fontWeight:700,color:TEXT}}>Összesített átlag</div>
+                      <div style={{textAlign:'right',paddingRight:8}}>
+                        <span style={{fontSize:15,fontFamily:"'Instrument Serif',serif",color:GOLD,fontWeight:700}}>{avgSelf>0?avgSelf.toFixed(1):'—'}</span>
+                      </div>
+                      {hasOthers && (
+                        <div style={{textAlign:'right',paddingRight:8}}>
+                          <span style={{fontSize:15,fontFamily:"'Instrument Serif',serif",color:BLUE,fontWeight:700}}>{avgOthers>0?avgOthers.toFixed(1):'—'}</span>
+                        </div>
+                      )}
+                      {hasOthers && (
+                        <div style={{textAlign:'center'}}>
+                          {avgGap!==null
+                            ? <span style={{fontSize:12,fontWeight:700,color:avgGap>0.3?RED:avgGap<-0.3?GREEN:MUTED}}>{avgGap>0?'+':''}{avgGap.toFixed(1)}</span>
+                            : '—'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+              {hasOthers && (
+                <div style={{fontSize:11,color:MUTED,marginTop:6,paddingLeft:4}}>
+                  Δ Különbség: <span style={{color:RED}}>+ te magasabbra értékeled magad</span> · <span style={{color:GREEN}}>− mások magasabbra értékelnek téged</span>
+                </div>
+              )}
             </div>
 
             {/* Collapsible group breakdown */}
@@ -1410,25 +1523,59 @@ function SurveyView({ nav, goBack, ctx }) {
           <h2 style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,margin:'6px 0 0',fontWeight:400}}>{curDim.label}</h2>
         </div>
 
-        {curDim.items.map((item, idx) => (
-          <div key={item.id}
-            style={{background:SURF,border:`1px solid ${scores[item.id] ? curDim.color + '55' : BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:10,transition:'border-color .2s'}}>
-            <div style={{fontSize:14,color:TEXT,marginBottom:12,lineHeight:1.5}}>
-              <span style={{color:MUTED,fontSize:12,marginRight:8}}>{idx+1}.</span>
-              {item.text}
+        {curDim.items.map((item, idx) => {
+          const scored = (scores[item.id] || 0) > 0;
+          return (
+            <div key={item.id}
+              style={{background:SURF,border:`1px solid ${scored ? curDim.color + '55' : BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:10,transition:'border-color .2s'}}>
+              {/* Kérdés szövege */}
+              <div style={{fontSize:14,color:TEXT,marginBottom:14,lineHeight:1.5}}>
+                <span style={{color:MUTED,fontSize:12,marginRight:8}}>{idx+1}.</span>
+                {item.text}
+              </div>
+              {/* Értékelő skála — mindig egy sorban, grid layout */}
+              <div style={{display:'grid',gridTemplateColumns:`repeat(${scaleMax},1fr)`,gap:5}}>
+                {Array.from({length:scaleMax},(_,i)=>i+1).map(v => {
+                  const isSelected = scores[item.id] === v;
+                  const col = scaleCfg.colors[v] || GOLD;
+                  return (
+                    <button key={v}
+                      onClick={() => {
+                        const newScores = { ...scores, [item.id]: v };
+                        setScores(newScores);
+                        // Auto-advance: ha az összes item ki van töltve ebben a dimenzióban
+                        const dimFilled = curDim.items.every(i => (newScores[i.id] || 0) > 0);
+                        if (dimFilled && activeDim < safeDims.length - 1) {
+                          setTimeout(() => setActiveDim(a => a + 1), 380);
+                        }
+                      }}
+                      style={{
+                        padding:'7px 2px',
+                        border:`2px solid ${isSelected ? col : BORD2}`,
+                        borderRadius:8,
+                        background:isSelected ? `${col}22` : 'transparent',
+                        color:isSelected ? col : MUTED,
+                        cursor:'pointer',
+                        fontFamily:"'DM Sans',sans-serif",
+                        fontWeight:isSelected ? 700 : 400,
+                        transition:'all .12s',
+                        textAlign:'center',
+                        display:'flex',
+                        flexDirection:'column',
+                        alignItems:'center',
+                        gap:2,
+                      }}>
+                      <span style={{fontSize:scaleMax > 7 ? 12 : 15,lineHeight:1}}>{v}</span>
+                      <span style={{fontSize:scaleMax > 7 ? 7 : 9,lineHeight:1.2,color:isSelected?col:DIM,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:'100%',display:'block'}}>
+                        {scaleCfg.labels[v] || ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{display:'flex',gap:scaleMax > 7 ? 3 : 6}}>
-              {Array.from({length:scaleMax},(_,i)=>i+1).map(v => (
-                <button key={v}
-                  onClick={() => setScores(prev => ({ ...prev, [item.id]: v }))}
-                  style={{flex:'1 1 0',padding:scaleMax > 7 ? '6px 2px' : '8px 4px',border:`1px solid ${scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : BORD2}`,borderRadius:8,background:scores[item.id]===v ? `${scaleCfg.colors[v]||GOLD}22` : 'transparent',color:scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : MUTED,fontSize:scaleMax > 7 ? 10 : 11,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:scores[item.id]===v?700:400,transition:'all .15s',textAlign:'center',minWidth:0}}>
-                  <div style={{fontSize:scaleMax > 7 ? 12 : 15,marginBottom:2}}>{v}</div>
-                  <div style={{fontSize:scaleMax > 7 ? 7 : 9,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{scaleCfg.labels[v]||''}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Comment fields: only on last dimension */}
         {activeDim === safeDims.length - 1 && (
@@ -1460,14 +1607,18 @@ function SurveyView({ nav, goBack, ctx }) {
 
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20}}>
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
-            {'← Előző'}
+            {'← Előző dimenzió'}
           </Btn>
-          {activeDim < safeDims.length - 1
-            ? <Btn variant="ghost" onClick={() => setActiveDim(prev => prev+1)}>{'Következő →'}</Btn>
-            : <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
-                {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
-              </Btn>
-          }
+          {activeDim === safeDims.length - 1 && (
+            <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
+              {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés hiányzik` : 'Beküldés ✓'}
+            </Btn>
+          )}
+          {activeDim < safeDims.length - 1 && (
+            <span style={{fontSize:12,color:MUTED}}>
+              {dimDone(curDim) ? '✓ Kész — következő automatikusan' : `${curDim.items.filter(i=>(scores[i.id]||0)>0).length}/${curDim.items.length} kérdés megválaszolva`}
+            </span>
+          )}
         </div>
       </div>
     </div>
