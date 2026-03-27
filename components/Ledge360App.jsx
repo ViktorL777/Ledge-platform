@@ -3420,11 +3420,25 @@ function ProjectView({ nav, goBack, ctx }) {
 
   async function addPart() {
     if (!fn.trim()) return;
-    const id  = 'part:'+uid(10);
-    await db.set(id, { id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), created:Date.now() });
+    const partId  = 'part:'+uid(10);
+    const newPart = { id:partId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), created:Date.now() };
+    await db.set(partId, newPart);
     const sc  = uid(12);
     const rid = 'rat:'+uid(10);
-    await db.set(rid, { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), role:'self', code:sc, status:'pending' });
+    const newRater = { id:rid, participantId:partId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role:'self', code:sc, status:'pending' };
+    await db.set(rid, newRater);
+
+    // Ha a projekt már aktív → azonnal küldünk emailt az önértékelőnek
+    if (proj && proj.status === 'active' && em.trim()) {
+      try {
+        const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
+        await sendRaterInvite(newRater, newPart, proj.name, templates, false);
+        await db.set(rid, { ...newRater, emailSent: true, emailSentAt: Date.now() });
+      } catch(e) {
+        console.error('Auto-email error (addPart):', e.message);
+      }
+    }
+
     setFn(''); setLn(''); setEm('');
     setAddingP(false);
     load();
@@ -3810,6 +3824,7 @@ function RatersView({ nav, goBack, ctx }) {
   const [role,   setRole]   = useState('peer');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkError, setBulkError] = useState('');
+  const [autoEmailSent, setAutoEmailSent] = useState(false);
   const bulkRef = useRef(null);
 
   // Autocomplete state
@@ -3891,7 +3906,22 @@ function RatersView({ nav, goBack, ctx }) {
   async function add() {
     if (!fn.trim()) return;
     const id = 'rat:'+uid(10);
-    await db.set(id, { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' });
+    const newRater = { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' };
+    await db.set(id, newRater);
+
+    // Ha a projekt már aktív → azonnal küldünk emailt
+    if (proj && proj.status === 'active' && em.trim()) {
+      try {
+        const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
+        await sendRaterInvite(newRater, part, proj.name, templates, false);
+        await db.set(id, { ...newRater, emailSent: true, emailSentAt: Date.now() });
+        setAutoEmailSent(true);
+        setTimeout(() => setAutoEmailSent(false), 4000);
+      } catch(e) {
+        console.error('Auto-email error (add rater):', e.message);
+      }
+    }
+
     setFn(''); setLn(''); setEm(''); setRole('peer');
     setAcOpen(false); setAcHighlight(-1);
     load();
@@ -3968,6 +3998,18 @@ function RatersView({ nav, goBack, ctx }) {
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar title={(part ? part.firstName+' '+part.lastName : '') + ' — értékelők'} back onBack={goBack}/>
       <div style={{maxWidth:680,margin:'0 auto',padding:'22px 24px'}}>
+
+        {autoEmailSent && (
+          <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'12px 16px',marginBottom:14,fontSize:13,color:GREEN}}>
+            ✉ Meghívó email automatikusan elküldve az új értékelőnek.
+          </div>
+        )}
+
+        {proj && proj.status === 'active' && (
+          <div style={{background:`${BLUE}0D`,border:`1px solid ${BLUE}22`,borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:BLUE}}>
+            💡 A projekt aktív — új értékelő hozzáadásakor azonnal kimegy a meghívó email (ha van megadva email cím).
+          </div>
+        )}
         <Card style={{marginBottom:18}}>
           <div style={{fontSize:13,color:GOLD,fontWeight:600,marginBottom:12}}>Értékelő hozzáadása</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
