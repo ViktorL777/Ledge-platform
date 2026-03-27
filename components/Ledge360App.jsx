@@ -3812,23 +3812,88 @@ function RatersView({ nav, goBack, ctx }) {
   const [bulkError, setBulkError] = useState('');
   const bulkRef = useRef(null);
 
+  // Autocomplete state
+  const [allKnownRaters, setAllKnownRaters] = useState([]);
+  const [acOpen,         setAcOpen]         = useState(false);
+  const [acHighlight,    setAcHighlight]    = useState(-1);
+  const fnInputRef = useRef(null);
+  const acRef      = useRef(null);
+
   const load = useCallback(async () => {
     const p  = await db.get(projectId);
     const pa = await db.get(participantId);
     setProj(p); setPart(pa);
     const ks = await db.list('rat:');
     const rs = await Promise.all(ks.map(k => db.get(k)));
-    setRaters(rs.filter(r => r && r.participantId === participantId));
+    const mine = rs.filter(r => r && r.participantId === participantId);
+    setRaters(mine);
+    // Build unique known-persons list from ALL raters across ALL projects
+    const seen = new Set();
+    const known = [];
+    for (const r of rs) {
+      if (!r || !r.firstName) continue;
+      const key = (r.firstName + '|' + r.lastName + '|' + (r.email||'')).toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        known.push({ firstName: r.firstName, lastName: r.lastName || '', email: r.email || '', role: r.role || 'peer' });
+      }
+    }
+    setAllKnownRaters(known);
     setLoading(false);
   }, [projectId, participantId]);
 
   useEffect(() => { load(); }, [load]);
 
+  // Filtered suggestions based on what's typed in fn
+  const suggestions = fn.trim().length === 0 ? [] : allKnownRaters.filter(r => {
+    const full = (r.firstName + ' ' + r.lastName).toLowerCase();
+    return full.startsWith(fn.toLowerCase()) || r.firstName.toLowerCase().startsWith(fn.toLowerCase());
+  }).slice(0, 8);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (acRef.current && !acRef.current.contains(e.target) &&
+          fnInputRef.current && !fnInputRef.current.contains(e.target)) {
+        setAcOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function applySuggestion(s) {
+    setFn(s.firstName);
+    setLn(s.lastName);
+    setEm(s.email);
+    setRole(s.role === 'self' ? 'peer' : (s.role || 'peer'));
+    setAcOpen(false);
+    setAcHighlight(-1);
+  }
+
+  function handleFnKeyDown(e) {
+    if (!acOpen || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setAcHighlight(h => Math.min(h + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setAcHighlight(h => Math.max(h - 1, 0));
+    } else if (e.key === 'Enter' && acHighlight >= 0) {
+      e.preventDefault();
+      applySuggestion(suggestions[acHighlight]);
+    } else if (e.key === 'Escape') {
+      setAcOpen(false);
+      setAcHighlight(-1);
+    }
+  }
+
   async function add() {
     if (!fn.trim()) return;
     const id = 'rat:'+uid(10);
     await db.set(id, { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' });
-    setFn(''); setLn(''); setEm('');
+    setFn(''); setLn(''); setEm(''); setRole('peer');
+    setAcOpen(false); setAcHighlight(-1);
     load();
   }
 
@@ -3906,7 +3971,56 @@ function RatersView({ nav, goBack, ctx }) {
         <Card style={{marginBottom:18}}>
           <div style={{fontSize:13,color:GOLD,fontWeight:600,marginBottom:12}}>Értékelő hozzáadása</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <Input label="Keresztnév" value={fn} onChange={setFn} placeholder="Péter"/>
+            {/* ── Autocomplete keresztnév ── */}
+            <div style={{marginBottom:14,position:'relative'}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Keresztnév</div>
+              <input
+                ref={fnInputRef}
+                value={fn}
+                onChange={e => { setFn(e.target.value); setAcOpen(true); setAcHighlight(-1); }}
+                onFocus={() => { if (fn.trim()) setAcOpen(true); }}
+                onKeyDown={handleFnKeyDown}
+                placeholder="Péter"
+                autoComplete="off"
+                style={{width:'100%',background:S2,border:`1px solid ${acOpen && suggestions.length > 0 ? GOLD : BORD}`,borderRadius:8,padding:'10px 14px',fontSize:14,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .15s'}}
+              />
+              {/* Dropdown */}
+              {acOpen && suggestions.length > 0 && (
+                <div ref={acRef} style={{position:'absolute',top:'100%',left:0,right:0,zIndex:200,background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,.12)',marginTop:4,overflow:'hidden'}}>
+                  {suggestions.map((s, i) => (
+                    <div
+                      key={i}
+                      onMouseDown={e => { e.preventDefault(); applySuggestion(s); }}
+                      onMouseEnter={() => setAcHighlight(i)}
+                      style={{
+                        padding:'10px 14px',
+                        cursor:'pointer',
+                        background: i === acHighlight ? `${GOLD}15` : 'transparent',
+                        borderBottom: i < suggestions.length - 1 ? `1px solid ${BORD}` : 'none',
+                        display:'flex',alignItems:'center',gap:10,
+                      }}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,color:TEXT,fontWeight:500}}>
+                          {s.firstName} <span style={{color:MUTED}}>{s.lastName}</span>
+                        </div>
+                        {s.email && <div style={{fontSize:11,color:MUTED,marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.email}</div>}
+                      </div>
+                      {s.role && s.role !== 'self' && (
+                        <span style={{fontSize:10,color:GOLD,background:`${GOLD}15`,borderRadius:6,padding:'2px 7px',flexShrink:0}}>
+                          {DEFAULT_ROLES.find(r => r.id === s.role)?.label || s.role}
+                        </span>
+                      )}
+                      {i === acHighlight && (
+                        <span style={{fontSize:10,color:MUTED,flexShrink:0}}>↵</span>
+                      )}
+                    </div>
+                  ))}
+                  <div style={{padding:'6px 14px',fontSize:10,color:DIM,borderTop:`1px solid ${BORD}`,background:S2}}>
+                    ↑↓ navigálás · Enter kiválasztás · Esc bezárás
+                  </div>
+                </div>
+              )}
+            </div>
             <Input label="Vezetéknév" value={ln} onChange={setLn} placeholder="Nagy"/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
