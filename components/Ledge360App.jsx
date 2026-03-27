@@ -3519,7 +3519,8 @@ function RatersView({ nav, goBack, ctx }) {
       const participantName = part ? part.firstName + ' ' + part.lastName : '';
       const surveyTitle   = proj?.name || 'LEDGE 360° értékelés';
       const baseUrl       = window.location.origin;
-      const surveyUrl     = `${baseUrl}?code=${r.code}`;
+      const appPath       = window.location.pathname.replace(/\/$/, '') || '';
+      const surveyUrl     = `${baseUrl}${appPath}?code=${r.code}`;
       const subject       = isReminder
         ? `Emlékeztető: ${surveyTitle} — kérjük, töltsd ki`
         : `${surveyTitle} — kérjük, töltsd ki`;
