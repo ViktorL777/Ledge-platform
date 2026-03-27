@@ -3470,6 +3470,7 @@ function RatersView({ nav, goBack, ctx }) {
   const [editLn,      setEditLn]      = useState('');
   const [editEm,      setEditEm]      = useState('');
   const [editRole,    setEditRole]    = useState('peer');
+  const [sendingId,   setSendingId]   = useState(null);
 
   const load = useCallback(async () => {
     const p  = await db.get(projectId);
@@ -3509,6 +3510,39 @@ function RatersView({ nav, goBack, ctx }) {
   function cancelEdit() { setEditingId(null); }
 
   async function rem(id) { await db.del(id); load(); }
+
+  async function sendRaterEmail(r, isReminder = false) {
+    if (!r.email) return;
+    setSendingId(r.id);
+    try {
+      const resp = await fetch('/api/send-360-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to:              r.email,
+          raterName:       r.firstName + (r.lastName ? ' ' + r.lastName : ''),
+          code:            r.code,
+          surveyTitle:     proj?.name || 'LEDGE 360° értékelés',
+          participantName: part ? part.firstName + ' ' + part.lastName : '',
+          senderName:      'LEDGE 360°',
+        }),
+      });
+      if (resp.ok) {
+        const now = Date.now();
+        const updated = isReminder
+          ? { ...r, lastReminderSent: now }
+          : { ...r, emailSent: true, emailSentAt: now };
+        await db.set(r.id, updated);
+        load();
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        alert('Email küldési hiba: ' + (err.error || resp.status));
+      }
+    } catch (e) {
+      alert('Email küldési hiba: ' + e.message);
+    }
+    setSendingId(null);
+  }
 
   async function handleBulkImport(e) {
     const file = e.target.files && e.target.files[0];
@@ -3637,22 +3671,49 @@ function RatersView({ nav, goBack, ctx }) {
               </div>
             );
           }
+          const isSending = sendingId === r.id;
+          const sentTs = r.emailSentAt ? new Date(r.emailSentAt) : null;
+          const reminderTs = r.lastReminderSent ? new Date(r.lastReminderSent) : null;
+          const fmtDate = (d) => d ? `${d.getMonth()+1 < 10 ? '0'+(d.getMonth()+1) : d.getMonth()+1}. ${d.getDate()}. ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '';
           return (
-            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
-              <div style={{flex:1,minWidth:0}}>
+            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:180}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <span style={{fontSize:14,color:TEXT,fontWeight:500}}>{r.firstName} {r.lastName}</span>
                   <Badge color={ri.color||MUTED}>{ri.label}</Badge>
                 </div>
-                {r.email
-                  ? <div style={{fontSize:12,color:MUTED,marginTop:2}}>{r.email}</div>
-                  : <div style={{fontSize:12,color:ORAN,marginTop:2,fontStyle:'italic'}}>Nincs email cím</div>
-                }
+                {r.email ? (
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3,flexWrap:'wrap'}}>
+                    <span style={{fontSize:12,color:MUTED}}>{r.email}</span>
+                    {r.emailSent
+                      ? <span style={{fontSize:11,color:GREEN}}>✉✓ elküldve{sentTs ? ` · ${fmtDate(sentTs)}` : ''}</span>
+                      : <span style={{fontSize:11,color:MUTED}}>✉ nem elküldve</span>
+                    }
+                    {reminderTs && <span style={{fontSize:11,color:MUTED}}>· emlékeztető: {fmtDate(reminderTs)}</span>}
+                  </div>
+                ) : (
+                  <div style={{fontSize:12,color:ORAN,marginTop:2,fontStyle:'italic'}}>Nincs email cím — szerkesztéssel adható hozzá</div>
+                )}
               </div>
               <div style={{textAlign:'center',flexShrink:0}}>
                 <CopyCode code={r.code}/>
               </div>
               <StatusDot status={r.status}/>
+              {r.email && (
+                r.emailSent
+                  ? <button
+                      onClick={() => sendRaterEmail(r, true)}
+                      disabled={isSending}
+                      style={{background:'none',border:`1px solid ${BORD}`,borderRadius:6,color:MUTED,cursor:'pointer',fontSize:12,padding:'4px 8px',flexShrink:0,transition:'all .15s',opacity:isSending?0.5:1}}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor=BLUE; e.currentTarget.style.color=BLUE; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor=BORD; e.currentTarget.style.color=MUTED; }}
+                    >{isSending ? '...' : '↺ Emlékeztető'}</button>
+                  : <button
+                      onClick={() => sendRaterEmail(r, false)}
+                      disabled={isSending}
+                      style={{background:GOLD,border:'none',borderRadius:6,color:'#fff',cursor:'pointer',fontSize:12,padding:'5px 10px',flexShrink:0,fontWeight:600,opacity:isSending?0.5:1}}
+                    >{isSending ? 'Küldés...' : '✉ Meghívó küldése'}</button>
+              )}
               <button
                 onClick={() => startEdit(r)}
                 title="Szerkesztés"
