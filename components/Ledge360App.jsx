@@ -846,18 +846,31 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   const hasSelf      = Object.keys(ss).length > 0;
   const groupAvgs    = gs.map(g => ({ ...g, avg: mergeScoresets(g.scores || []) }));
 
-  const radarData = dims.map(d => {
-    const row = { dim:d.id, 'Önértékelés':dimAvg(ss,d) };
+  // Rövid kód: ha az id ≤5 kar és nincs benne szóköz → megtartjuk, egyébként D1, D2...
+  function shortCode(d, idx) {
+    const id = (d.id || '').toString().trim();
+    if (id.length <= 5 && !id.includes(' ')) return id;
+    return 'D' + (idx + 1);
+  }
+  // Rövid megjelenítési név: csonkítva 28 karakterre
+  function shortName(d) {
+    const n = (d.name || d.label || d.id || '').toString();
+    return n.length > 28 ? n.slice(0, 26) + '…' : n;
+  }
+  const dimsWithCode = dims.map((d, i) => ({ ...d, _code: shortCode(d, i), _name: shortName(d) }));
+
+  const radarData = dimsWithCode.map(d => {
+    const row = { dim: d._code, 'Önértékelés': dimAvg(ss, d) };
     if (hasOthers) row['Mások átlaga'] = dimAvg(othersAvg, d);
     return row;
   });
-  const barData = dims.map(d => ({
-    name:d.id, label:d.label, color:d.color,
+  const barData = dimsWithCode.map(d => ({
+    name: d._code, label: d._name, color: d.color,
     'Önértékelés': dimAvg(ss, d),
     ...(hasOthers ? {'Mások átlaga': dimAvg(othersAvg, d)} : {}),
   }));
 
-  const allItems   = dims.flatMap(d => d.items.map(i => ({...i, dimLabel:d.label})));
+  const allItems   = dims.flatMap(d => (d.items||[]).map(i => ({...i, dimLabel: (d.label||d.name||d.id||'')})));
   const selfArr    = allItems.map(i => ({...i, self:ss[i.id]||0, others:othersAvg[i.id]||0})).filter(i => i.self > 0);
   const top5       = [...selfArr].sort((a,b) => b.self - a.self).slice(0, 5);
   const bot5       = [...selfArr].sort((a,b) => a.self - b.self).slice(0, 5);
@@ -945,10 +958,21 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={barData} layout="vertical" margin={{left:10,right:24,top:4,bottom:4}}>
                     <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
-                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={36}/>
-                    <Tooltip content={<CT/>}/>
+                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11,fontWeight:600}} axisLine={false} tickLine={false} width={36}/>
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const entry = barData.find(b => b.name === label);
+                      return (
+                        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.08)',maxWidth:220}}>
+                          <div style={{fontWeight:600,color:TEXT,marginBottom:4,lineHeight:1.4}}>{entry ? entry.label : label}</div>
+                          {payload.map((p, i) => (
+                            <div key={i} style={{color:p.color||TEXT}}>{p.name}: <b>{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</b></div>
+                          ))}
+                        </div>
+                      );
+                    }}/>
                     <Bar dataKey="Önértékelés" radius={4}>
-                      {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
+                      {barData.map((b,i) => <Cell key={i} fill={b.color||GOLD} fillOpacity={0.85}/>)}
                     </Bar>
                     {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.45} radius={4}/>}
                   </BarChart>
@@ -956,18 +980,19 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
               </div>
             </div>
 
-            {/* ── Dimenzió átlagok táblázat — Spidergap stílusban ── */}
+            {/* ── Dimenzió átlagok táblázat ── */}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
               <div style={{background:S2,borderRadius:12,overflow:'hidden',border:`1px solid ${BORD}`}}>
                 {/* Fejléc */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 110px' + (hasOthers ? ' 110px 80px' : ''),background:S3,padding:'8px 16px',gap:8}}>
+                <div style={{display:'grid',gridTemplateColumns:'auto 1fr 110px' + (hasOthers ? ' 110px 80px' : ''),background:S3,padding:'8px 16px',gap:8,alignItems:'center'}}>
+                  <div style={{fontSize:11,color:MUTED,fontWeight:600,width:36}}>#</div>
                   <div style={{fontSize:11,color:MUTED,fontWeight:600}}>Kompetencia dimenzió</div>
                   <div style={{fontSize:11,color:GOLD,fontWeight:600,textAlign:'center'}}>Önértékelés</div>
                   {hasOthers && <div style={{fontSize:11,color:BLUE,fontWeight:600,textAlign:'center'}}>Mások átlaga</div>}
-                  {hasOthers && <div style={{fontSize:11,color:MUTED,fontWeight:600,textAlign:'center'}}>Δ Különbség</div>}
+                  {hasOthers && <div style={{fontSize:11,color:MUTED,fontWeight:600,textAlign:'center'}}>Δ</div>}
                 </div>
-                {dims.map((d, idx) => {
+                {dimsWithCode.map((d, idx) => {
                   const sv  = dimAvg(ss, d);
                   const ov  = hasOthers ? dimAvg(othersAvg, d) : null;
                   const gap = (ov !== null && sv > 0 && ov > 0) ? +(sv - ov).toFixed(2) : null;
@@ -975,18 +1000,21 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                   const pctOthers = ov !== null && ov > 0 ? (ov / sMax) * 100 : 0;
                   return (
                     <div key={d.id}
-                      style={{display:'grid',gridTemplateColumns:'1fr 110px' + (hasOthers ? ' 110px 80px' : ''),padding:'10px 16px',gap:8,borderTop:`1px solid ${BORD}`,background:idx%2===0?'transparent':S2+'66',alignItems:'center'}}>
-                      {/* Dimenzió neve */}
-                      <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <span style={{width:28,fontSize:10,fontWeight:700,color:d.color,flexShrink:0,letterSpacing:'.04em'}}>{d.id}</span>
-                        <span style={{fontSize:13,color:TEXT}}>{d.label}</span>
+                      style={{display:'grid',gridTemplateColumns:'auto 1fr 110px'+(hasOthers?' 110px 80px':''),padding:'9px 16px',gap:8,borderTop:`1px solid ${BORD}`,background:idx%2===0?'transparent':S2+'66',alignItems:'center'}}>
+                      {/* Kód badge */}
+                      <div style={{width:36,flexShrink:0}}>
+                        <span style={{fontSize:10,fontWeight:700,color:d.color||GOLD,background:`${d.color||GOLD}18`,borderRadius:6,padding:'2px 6px',display:'inline-block',whiteSpace:'nowrap'}}>{d._code}</span>
+                      </div>
+                      {/* Dimenzió neve — egy sorban, nem törik */}
+                      <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:13,color:TEXT}} title={d.label||d.name||d.id}>
+                        {d._name}
                       </div>
                       {/* Önértékelés */}
                       <div style={{display:'flex',alignItems:'center',gap:6}}>
                         <div style={{flex:1,height:6,background:BORD,borderRadius:3,overflow:'hidden'}}>
-                          <div style={{width:`${pctSelf}%`,height:'100%',background:d.color,borderRadius:3,transition:'width .4s'}}/>
+                          <div style={{width:`${pctSelf}%`,height:'100%',background:d.color||GOLD,borderRadius:3,transition:'width .4s'}}/>
                         </div>
-                        <span style={{fontSize:13,fontWeight:700,color:sv>0?d.color:DIM,width:28,textAlign:'right',flexShrink:0}}>
+                        <span style={{fontSize:13,fontWeight:700,color:sv>0?(d.color||GOLD):DIM,width:28,textAlign:'right',flexShrink:0}}>
                           {sv > 0 ? sv.toFixed(1) : '—'}
                         </span>
                       </div>
@@ -994,7 +1022,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       {hasOthers && (
                         <div style={{display:'flex',alignItems:'center',gap:6}}>
                           <div style={{flex:1,height:6,background:BORD,borderRadius:3,overflow:'hidden'}}>
-                            <div style={{width:`${pctOthers}%`,height:'100%',background:BLUE,borderRadius:3,transition:'width .4s'}}/>
+                            <div style={{width:`${pctOthers}%`,height:'100%',background:BLUE,borderRadius:3}}/>
                           </div>
                           <span style={{fontSize:13,fontWeight:700,color:ov&&ov>0?BLUE:DIM,width:28,textAlign:'right',flexShrink:0}}>
                             {ov !== null && ov > 0 ? ov.toFixed(1) : '—'}
@@ -1025,7 +1053,8 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                   const avgOthers   = countOthers > 0 ? totalOthers/countOthers : 0;
                   const avgGap      = (avgSelf>0&&avgOthers>0) ? +(avgSelf-avgOthers).toFixed(2) : null;
                   return (
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 110px'+(hasOthers?' 110px 80px':''),padding:'10px 16px',gap:8,borderTop:`2px solid ${BORD2}`,background:S3,alignItems:'center'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'auto 1fr 110px'+(hasOthers?' 110px 80px':''),padding:'10px 16px',gap:8,borderTop:`2px solid ${BORD2}`,background:S3,alignItems:'center'}}>
+                      <div style={{width:36}}/>
                       <div style={{fontSize:12,fontWeight:700,color:TEXT}}>Összesített átlag</div>
                       <div style={{textAlign:'right',paddingRight:8}}>
                         <span style={{fontSize:15,fontFamily:"'Instrument Serif',serif",color:GOLD,fontWeight:700}}>{avgSelf>0?avgSelf.toFixed(1):'—'}</span>
@@ -1037,18 +1066,30 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       )}
                       {hasOthers && (
                         <div style={{textAlign:'center'}}>
-                          {avgGap!==null
-                            ? <span style={{fontSize:12,fontWeight:700,color:avgGap>0.3?RED:avgGap<-0.3?GREEN:MUTED}}>{avgGap>0?'+':''}{avgGap.toFixed(1)}</span>
-                            : '—'}
+                          {avgGap!==null ? <span style={{fontSize:12,fontWeight:700,color:avgGap>0.3?RED:avgGap<-0.3?GREEN:MUTED}}>{avgGap>0?'+':''}{avgGap.toFixed(1)}</span> : '—'}
                         </div>
                       )}
                     </div>
                   );
                 })()}
               </div>
+
+              {/* Legenda: kódok → teljes nevek */}
+              <div style={{marginTop:10,background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px'}}>
+                <div style={{fontSize:10,color:MUTED,marginBottom:6,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió legenda</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:'4px 16px'}}>
+                  {dimsWithCode.map(d => (
+                    <div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:6,fontSize:11,color:MUTED,lineHeight:1.4}}>
+                      <span style={{fontWeight:700,color:d.color||GOLD,flexShrink:0,minWidth:28}}>{d._code}</span>
+                      <span style={{color:TEXT}}>{(d.name||d.label||d.id||'').toString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {hasOthers && (
                 <div style={{fontSize:11,color:MUTED,marginTop:6,paddingLeft:4}}>
-                  Δ Különbség: <span style={{color:RED}}>+ te magasabbra értékeled magad</span> · <span style={{color:GREEN}}>− mások magasabbra értékelnek téged</span>
+                  Δ: <span style={{color:RED}}>+ te magasabbra értékeled magad</span> · <span style={{color:GREEN}}>− mások magasabbra értékelnek</span>
                 </div>
               )}
             </div>
