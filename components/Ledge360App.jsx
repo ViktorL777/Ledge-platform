@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// LEDGE 360° — v3.4 CURRENT · 2026-03-27
+// LEDGE 360° — v3.3 CURRENT · 2026-03-19
 // ═══════════════════════════════════════════════════════════════
 // ⚠ EZ AZ AKTUÁLIS MASTER VERZIÓ — minden fejlesztés ebből induljon
 // ═══════════════════════════════════════════════════════════════
@@ -27,11 +27,6 @@
 //                  Kompetencia szín választó (LibraryManagerView, kattintható paletta)
 // v3.2  2026-03-19 Végleges kompetencia szövegek (4 preset, 78 behavioral anchor),
 //                  resolvePreset() helper, 7 bugfix, cross-dimension DnD
-// v3.4  2026-03-27 EMAIL RENDSZER: aktiváláskori auto-küldés (self + feedback),
-//                  email sablon szerkesztő ({{változók}}, projekt-szintű),
-//                  emlékeztető küldés (pending ratereknek), email státusz tracking,
-//                  lastReminderSent log, rater listában ✉ státusz ikon,
-//                  egyéni rater email újraküldés, /api/send-360-invite App Router
 // v3.3  2026-03-19 BUG: szöveges visszajelzés most már mentődik és megjelenik,
 //                  Tab átnevezés: "Visszajelzés" → "Szöveges visszajelzés",
 //                  Szerkeszthető Likert-skála (7 preset: 4/5/6/7/10-fokú, gyakoriság, egyetértés),
@@ -104,79 +99,6 @@ const GREEN = '#5B8A6A';
 const PURP  = '#7E5EA0';
 const ORAN  = '#A06A48';
 const RED   = '#B85548';
-
-// ─── DEFAULT EMAIL TEMPLATES ──────────────────────────────────
-// Változók: {{firstName}}, {{lastName}}, {{projectName}}, {{code}}, {{link}}, {{assessedPersonName}}
-const DEFAULT_EMAIL_TEMPLATES = {
-  self: {
-    subject: 'LEDGE 360° — {{projectName}}: önértékelés kitöltése',
-    body: `Kedves {{firstName}}!
-
-Meghívást kaptál, hogy töltsd ki a(z) {{projectName}} projekt keretében az önértékelő kérdőívet.
-
-Kérjük, kattints az alábbi linkre a kitöltés megkezdéséhez:
-{{link}}
-
-Ha a link nem működik, másold be az azonosítódat ({{code}}) a ledge.news/360 oldalon.
-
-A kitöltés kb. 10–15 percet vesz igénybe.
-
-Köszönjük,
-LEDGE 360° csapata`,
-  },
-  feedback: {
-    subject: 'LEDGE 360° — visszajelzés kérés: {{assessedPersonName}}',
-    body: `Kedves {{firstName}}!
-
-Meghívást kaptál, hogy visszajelzést adj {{assessedPersonName}} számára a(z) {{projectName}} 360 fokos értékelés keretében.
-
-Kérjük, kattints az alábbi linkre a kitöltés megkezdéséhez:
-{{link}}
-
-Ha a link nem működik, másold be az azonosítódat ({{code}}) a ledge.news/360 oldalon.
-
-A kitöltés anonim — az egyéni válaszokat nem adjuk tovább, csak összesített eredményt. A kitöltés kb. 10–15 percet vesz igénybe.
-
-Köszönjük,
-LEDGE 360° csapata`,
-  },
-};
-
-// Template variable substitution helper
-function fillTemplate(template, vars = {}) {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
-}
-
-// Send a single rater invite via the API
-async function sendRaterInvite(rater, assessedPerson, projectName, templates, isReminder = false) {
-  const baseUrl = window.location.origin;
-  const link    = `${baseUrl}/360?code=${rater.code}`;
-  const isSelf  = rater.role === 'self';
-  const tmpl    = isSelf ? (templates?.self || DEFAULT_EMAIL_TEMPLATES.self) : (templates?.feedback || DEFAULT_EMAIL_TEMPLATES.feedback);
-
-  const vars = {
-    firstName:          rater.firstName || '',
-    lastName:           rater.lastName  || '',
-    projectName:        projectName     || '',
-    code:               rater.code      || '',
-    link,
-    assessedPersonName: assessedPerson ? `${assessedPerson.firstName} ${assessedPerson.lastName}`.trim() : '',
-  };
-
-  const subject = fillTemplate(tmpl.subject, vars) + (isReminder ? ' (emlékeztető)' : '');
-  const bodyText = fillTemplate(tmpl.body, vars);
-
-  const resp = await fetch('/api/send-360-invite', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to: rater.email, subject, bodyText, raterName: rater.firstName }),
-  });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || 'Email küldési hiba');
-  }
-  return resp.json();
-}
 
 const SCALE = ['','Gyenge','Megfelelő','Jó','Nagyon jó','Kiváló'];
 const SCOL  = ['', '#B85548', '#A06A48', '#A68542', '#5B8A6A', '#4A7A9E'];
@@ -599,10 +521,8 @@ function resolvePreset(libraryId, storedDims) {
   const preset = PRESETS.find(p => p.id === libraryId);
   if (preset) return preset;
   if (storedDims && storedDims.length > 0) {
-    // Biztosítjuk hogy minden dimenziónak van items tömbje
-    const safeDims = storedDims.map(d => ({ ...d, items: Array.isArray(d.items) ? d.items : [] }));
-    const totalItems = safeDims.reduce((s,d) => s + d.items.length, 0);
-    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims: safeDims, itemCount: totalItems };
+    const totalItems = storedDims.reduce((s,d) => s + d.items.length, 0);
+    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims: storedDims, itemCount: totalItems };
   }
   return PRESETS[0];
 }
@@ -833,107 +753,6 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   );
 }
 
-// ─── DIM COMPARE LIST — sortable dimenzió összehasonlítás ──────
-function DimCompareList({ dimsWithCode, ss, othersAvg, hasOthers, sMax }) {
-  const [sortDir, setSortDir] = useState('desc'); // 'desc' = legnagyobb előre
-
-  // Dimenzió adatok kiszámítása
-  const rows = dimsWithCode.map(d => {
-    const sv = dimAvg(ss, d);
-    const ov = hasOthers ? dimAvg(othersAvg, d) : null;
-    const gap = (ov !== null && sv > 0 && ov > 0) ? +(sv - ov).toFixed(2) : null;
-    return { ...d, sv, ov, gap };
-  });
-
-  // Rendezés önértékelés szerint
-  const sorted = [...rows].sort((a, b) =>
-    sortDir === 'desc' ? (b.sv || 0) - (a.sv || 0) : (a.sv || 0) - (b.sv || 0)
-  );
-
-  return (
-    <div style={{marginBottom:28}}>
-      {/* Fejléc + sort gomb */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió összehasonlítás</div>
-        <button
-          onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
-          style={{display:'flex',alignItems:'center',gap:6,background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:12,color:TEXT,fontFamily:"'DM Sans',sans-serif",fontWeight:500,transition:'all .15s'}}>
-          <span>{sortDir === 'desc' ? '↓' : '↑'}</span>
-          <span>{sortDir === 'desc' ? 'Legnagyobb érték elöl' : 'Legkisebb érték elöl'}</span>
-        </button>
-      </div>
-
-      {/* Fejléc sor */}
-      <div style={{display:'grid',gridTemplateColumns:'120px 1fr' + (hasOthers ? ' 1fr' : '') + ' 52px',gap:8,padding:'6px 14px',background:S3,borderRadius:'10px 10px 0 0',border:`1px solid ${BORD}`,borderBottom:'none'}}>
-        <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>Dimenzió</div>
-        <div style={{fontSize:10,color:GOLD,fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>Önértékelés</div>
-        {hasOthers && <div style={{fontSize:10,color:BLUE,fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>Mások átlaga</div>}
-        <div style={{fontSize:10,color:MUTED,fontWeight:600,textAlign:'right',textTransform:'uppercase',letterSpacing:'.06em'}}>Érték</div>
-      </div>
-
-      {/* Sorok */}
-      <div style={{border:`1px solid ${BORD}`,borderRadius:'0 0 10px 10px',overflow:'hidden'}}>
-        {sorted.map((d, idx) => {
-          const pctSelf   = d.sv > 0 ? (d.sv / sMax) * 100 : 0;
-          const pctOthers = d.ov !== null && d.ov > 0 ? (d.ov / sMax) * 100 : 0;
-          const isLast    = idx === sorted.length - 1;
-          return (
-            <div key={d.id} style={{
-              display:'grid',
-              gridTemplateColumns:'120px 1fr' + (hasOthers ? ' 1fr' : '') + ' 52px',
-              gap:8,
-              padding:'11px 14px',
-              background:idx%2===0?SURF:S2+'88',
-              borderBottom:isLast?'none':`1px solid ${BORD}`,
-              alignItems:'center',
-              transition:'background .1s',
-            }}>
-              {/* Dimenzió neve 1-2 szóban */}
-              <div style={{minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:6}}>
-                  <span style={{width:8,height:8,borderRadius:'50%',background:d.color||GOLD,flexShrink:0,display:'inline-block'}}/>
-                  <span style={{fontSize:12,fontWeight:600,color:TEXT,lineHeight:1.3}}>
-                    {d._tiny1}
-                    {d._tiny2 && <><br/><span style={{fontWeight:400,color:MUTED}}>{d._tiny2}</span></>}
-                  </span>
-                </div>
-              </div>
-              {/* Önértékelés sáv */}
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <div style={{flex:1,height:8,background:BORD,borderRadius:4,overflow:'hidden'}}>
-                  <div style={{width:`${pctSelf}%`,height:'100%',background:d.color||GOLD,borderRadius:4,transition:'width .5s ease'}}/>
-                </div>
-              </div>
-              {/* Mások átlaga sáv */}
-              {hasOthers && (
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{flex:1,height:8,background:BORD,borderRadius:4,overflow:'hidden'}}>
-                    <div style={{width:`${pctOthers}%`,height:'100%',background:BLUE,borderRadius:4,transition:'width .5s ease'}}/>
-                  </div>
-                </div>
-              )}
-              {/* Értékek */}
-              <div style={{textAlign:'right'}}>
-                <span style={{fontSize:15,fontWeight:700,fontFamily:"'Instrument Serif',serif",color:d.sv>0?(d.color||GOLD):DIM}}>
-                  {d.sv > 0 ? d.sv.toFixed(1) : '—'}
-                </span>
-                {hasOthers && d.ov !== null && d.ov > 0 && (
-                  <div style={{fontSize:10,color:BLUE,marginTop:1}}>{d.ov.toFixed(1)}</div>
-                )}
-                {d.gap !== null && (
-                  <div style={{fontSize:10,color:d.gap>0.3?RED:d.gap<-0.3?GREEN:DIM,marginTop:1}}>
-                    {d.gap > 0 ? '+' : ''}{d.gap.toFixed(1)}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── REPORT VIEW ───────────────────────────────────────────────
 function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax }) {
   const sMax = propScaleMax || 5;
@@ -949,52 +768,18 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   const hasSelf      = Object.keys(ss).length > 0;
   const groupAvgs    = gs.map(g => ({ ...g, avg: mergeScoresets(g.scores || []) }));
 
-  // Rövid kód: ha az id ≤5 kar és nincs benne szóköz → megtartjuk, egyébként D1, D2...
-  function shortCode(d, idx) {
-    const id = (d.id || '').toString().trim();
-    if (id.length <= 5 && !id.includes(' ')) return id;
-    return 'D' + (idx + 1);
-  }
-  // Rövid megjelenítési név: csonkítva 28 karakterre
-  function shortName(d) {
-    const n = (d.name || d.label || d.id || '').toString();
-    return n.length > 28 ? n.slice(0, 26) + '…' : n;
-  }
-  // 1-2 szavas rövid leírás generálás a radar/bar labelekhez
-  function tinyLabel(d) {
-    // Prioritás: d.name → d.label → d.id
-    const src = (d.name || d.label || d.id || '').toString().trim();
-    // Stop szavak kiszűrése
-    const stop = new Set(['a','az','és','vagy','hogy','mint','is','nem','van','de','ez','az','egy','the','and','or','of','in','to','for','with','on','at']);
-    const words = src.split(/[\s\-\/,]+/).filter(w => w.length > 1 && !stop.has(w.toLowerCase()));
-    if (words.length === 0) return [src.slice(0,10), ''];
-    if (words.length === 1) return [words[0], ''];
-    // 2 szó: ha az első kettő összesen ≤14 kar → egy sorban
-    const combined = words[0] + ' ' + words[1];
-    if (combined.length <= 14) return [combined, ''];
-    // Különben külön sorokba
-    return [words[0], words[1]];
-  }
-
-  const dimsWithCode = dims.map((d, i) => {
-    const code = shortCode(d, i);
-    const name = shortName(d);
-    const [tiny1, tiny2] = tinyLabel(d);
-    return { ...d, _code: code, _name: name, _tiny1: tiny1, _tiny2: tiny2 };
-  });
-
-  const radarData = dimsWithCode.map(d => {
-    const row = { dim: d._code, 'Önértékelés': dimAvg(ss, d) };
+  const radarData = dims.map(d => {
+    const row = { dim:d.id, 'Önértékelés':dimAvg(ss,d) };
     if (hasOthers) row['Mások átlaga'] = dimAvg(othersAvg, d);
     return row;
   });
-  const barData = dimsWithCode.map(d => ({
-    name: d._code, label: d._name, color: d.color,
+  const barData = dims.map(d => ({
+    name:d.id, label:d.label, color:d.color,
     'Önértékelés': dimAvg(ss, d),
     ...(hasOthers ? {'Mások átlaga': dimAvg(othersAvg, d)} : {}),
   }));
 
-  const allItems   = dims.flatMap(d => (d.items||[]).map(i => ({...i, dimLabel: (d.label||d.name||d.id||'')})));
+  const allItems   = dims.flatMap(d => d.items.map(i => ({...i, dimLabel:d.label})));
   const selfArr    = allItems.map(i => ({...i, self:ss[i.id]||0, others:othersAvg[i.id]||0})).filter(i => i.self > 0);
   const top5       = [...selfArr].sort((a,b) => b.self - a.self).slice(0, 5);
   const bot5       = [...selfArr].sort((a,b) => a.self - b.self).slice(0, 5);
@@ -1047,163 +832,34 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-
-            {/* ── 1. KOMPETENCIA RADAR — teljes szélesség, 2× méret ── */}
-            <div style={{marginBottom:28}}>
-              <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Kompetencia radar</div>
-              <ResponsiveContainer width="100%" height={560}>
-                <RadarChart data={radarData} margin={{top:40,right:80,bottom:40,left:80}}>
-                  <PolarGrid stroke={BORD}/>
-                  <PolarAngleAxis
-                    dataKey="dim"
-                    tick={({ x, y, payload, cx, cy }) => {
-                      const dx = x - cx;
-                      const dy = y - cy;
-                      const anchor = Math.abs(dx) < 10 ? 'middle' : dx > 0 ? 'start' : 'end';
-                      const px = x + (dx > 10 ? 10 : dx < -10 ? -10 : 0);
-                      const py = y + (dy > 10 ? 16 : dy < -10 ? -6 : 0);
-                      // Megkeressük a teljes dimsWithCode bejegyzést a kód alapján
-                      const entry = dimsWithCode.find(d => d._code === payload.value);
-                      const line1 = entry ? entry._tiny1 : payload.value;
-                      const line2 = entry ? entry._tiny2 : '';
-                      return (
-                        <text x={px} y={py} textAnchor={anchor} fill={TEXT} fontSize={12}
-                          fontFamily="'DM Sans',sans-serif" fontWeight={600}>
-                          <tspan x={px} dy={0}>{line1}</tspan>
-                          {line2 && <tspan x={px} dy={15}>{line2}</tspan>}
-                        </text>
-                      );
-                    }}
-                  />
-                  <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                  <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.2} strokeWidth={2.5} dot={{fill:GOLD,r:4}}/>
-                  {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.12} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
-                  {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:12}}/>}
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* ── 2. DIMENZIÓ ÖSSZEHASONLÍTÁS — sortable lista ── */}
-            <DimCompareList
-              dimsWithCode={dimsWithCode}
-              ss={ss}
-              othersAvg={othersAvg}
-              hasOthers={hasOthers}
-              sMax={sMax}
-            />
-
-            {/* ── 3. DIMENZIÓ ÁTLAGOK TÁBLÁZAT ── */}
-            <div style={{marginBottom:24}}>
-              <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
-              <div style={{background:S2,borderRadius:12,overflow:'hidden',border:`1px solid ${BORD}`}}>
-                {/* Fejléc */}
-                <div style={{display:'grid',gridTemplateColumns:'auto 1fr 110px' + (hasOthers ? ' 110px 80px' : ''),background:S3,padding:'8px 16px',gap:8,alignItems:'center'}}>
-                  <div style={{fontSize:11,color:MUTED,fontWeight:600,width:36}}>#</div>
-                  <div style={{fontSize:11,color:MUTED,fontWeight:600}}>Kompetencia dimenzió</div>
-                  <div style={{fontSize:11,color:GOLD,fontWeight:600,textAlign:'center'}}>Önértékelés</div>
-                  {hasOthers && <div style={{fontSize:11,color:BLUE,fontWeight:600,textAlign:'center'}}>Mások átlaga</div>}
-                  {hasOthers && <div style={{fontSize:11,color:MUTED,fontWeight:600,textAlign:'center'}}>Δ</div>}
-                </div>
-                {dimsWithCode.map((d, idx) => {
-                  const sv  = dimAvg(ss, d);
-                  const ov  = hasOthers ? dimAvg(othersAvg, d) : null;
-                  const gap = (ov !== null && sv > 0 && ov > 0) ? +(sv - ov).toFixed(2) : null;
-                  const pctSelf   = sv > 0 ? (sv / sMax) * 100 : 0;
-                  const pctOthers = ov !== null && ov > 0 ? (ov / sMax) * 100 : 0;
-                  return (
-                    <div key={d.id}
-                      style={{display:'grid',gridTemplateColumns:'auto 1fr 110px'+(hasOthers?' 110px 80px':''),padding:'9px 16px',gap:8,borderTop:`1px solid ${BORD}`,background:idx%2===0?'transparent':S2+'66',alignItems:'center'}}>
-                      {/* Kód badge */}
-                      <div style={{width:36,flexShrink:0}}>
-                        <span style={{fontSize:10,fontWeight:700,color:d.color||GOLD,background:`${d.color||GOLD}18`,borderRadius:6,padding:'2px 6px',display:'inline-block',whiteSpace:'nowrap'}}>{d._code}</span>
-                      </div>
-                      {/* Dimenzió neve — egy sorban, nem törik */}
-                      <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:13,color:TEXT}} title={d.label||d.name||d.id}>
-                        {d._name}
-                      </div>
-                      {/* Önértékelés */}
-                      <div style={{display:'flex',alignItems:'center',gap:6}}>
-                        <div style={{flex:1,height:6,background:BORD,borderRadius:3,overflow:'hidden'}}>
-                          <div style={{width:`${pctSelf}%`,height:'100%',background:d.color||GOLD,borderRadius:3,transition:'width .4s'}}/>
-                        </div>
-                        <span style={{fontSize:13,fontWeight:700,color:sv>0?(d.color||GOLD):DIM,width:28,textAlign:'right',flexShrink:0}}>
-                          {sv > 0 ? sv.toFixed(1) : '—'}
-                        </span>
-                      </div>
-                      {/* Mások átlaga */}
-                      {hasOthers && (
-                        <div style={{display:'flex',alignItems:'center',gap:6}}>
-                          <div style={{flex:1,height:6,background:BORD,borderRadius:3,overflow:'hidden'}}>
-                            <div style={{width:`${pctOthers}%`,height:'100%',background:BLUE,borderRadius:3}}/>
-                          </div>
-                          <span style={{fontSize:13,fontWeight:700,color:ov&&ov>0?BLUE:DIM,width:28,textAlign:'right',flexShrink:0}}>
-                            {ov !== null && ov > 0 ? ov.toFixed(1) : '—'}
-                          </span>
-                        </div>
-                      )}
-                      {/* Gap */}
-                      {hasOthers && (
-                        <div style={{textAlign:'center'}}>
-                          {gap !== null
-                            ? <span style={{fontSize:12,fontWeight:700,color:gap>0.3?RED:gap<-0.3?GREEN:MUTED,background:gap>0.3?`${RED}11`:gap<-0.3?`${GREEN}11`:'transparent',borderRadius:6,padding:'2px 7px'}}>
-                                {gap > 0 ? '+' : ''}{gap.toFixed(1)}
-                              </span>
-                            : <span style={{fontSize:12,color:DIM}}>—</span>
-                          }
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {/* Összesített sor */}
-                {hasSelf && (() => {
-                  const totalSelf   = dims.reduce((s,d) => { const v=dimAvg(ss,d); return v>0?s+v:s; }, 0);
-                  const countSelf   = dims.filter(d => dimAvg(ss,d)>0).length;
-                  const avgSelf     = countSelf > 0 ? totalSelf/countSelf : 0;
-                  const totalOthers = hasOthers ? dims.reduce((s,d) => { const v=dimAvg(othersAvg,d); return v>0?s+v:s; }, 0) : 0;
-                  const countOthers = hasOthers ? dims.filter(d => dimAvg(othersAvg,d)>0).length : 0;
-                  const avgOthers   = countOthers > 0 ? totalOthers/countOthers : 0;
-                  const avgGap      = (avgSelf>0&&avgOthers>0) ? +(avgSelf-avgOthers).toFixed(2) : null;
-                  return (
-                    <div style={{display:'grid',gridTemplateColumns:'auto 1fr 110px'+(hasOthers?' 110px 80px':''),padding:'10px 16px',gap:8,borderTop:`2px solid ${BORD2}`,background:S3,alignItems:'center'}}>
-                      <div style={{width:36}}/>
-                      <div style={{fontSize:12,fontWeight:700,color:TEXT}}>Összesített átlag</div>
-                      <div style={{textAlign:'right',paddingRight:8}}>
-                        <span style={{fontSize:15,fontFamily:"'Instrument Serif',serif",color:GOLD,fontWeight:700}}>{avgSelf>0?avgSelf.toFixed(1):'—'}</span>
-                      </div>
-                      {hasOthers && (
-                        <div style={{textAlign:'right',paddingRight:8}}>
-                          <span style={{fontSize:15,fontFamily:"'Instrument Serif',serif",color:BLUE,fontWeight:700}}>{avgOthers>0?avgOthers.toFixed(1):'—'}</span>
-                        </div>
-                      )}
-                      {hasOthers && (
-                        <div style={{textAlign:'center'}}>
-                          {avgGap!==null ? <span style={{fontSize:12,fontWeight:700,color:avgGap>0.3?RED:avgGap<-0.3?GREEN:MUTED}}>{avgGap>0?'+':''}{avgGap.toFixed(1)}</span> : '—'}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:20}}>
+              <div>
+                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Radar</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <RadarChart data={radarData} margin={{top:10,right:30,bottom:10,left:30}}>
+                    <PolarGrid stroke={BORD}/>
+                    <PolarAngleAxis dataKey="dim" tick={{fill:MUTED,fontSize:11}}/>
+                    <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
+                    <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
+                    {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:3}}/>}
+                    {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED}}/>}
+                  </RadarChart>
+                </ResponsiveContainer>
               </div>
-
-              {/* Legenda: kódok → teljes nevek */}
-              <div style={{marginTop:10,background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px'}}>
-                <div style={{fontSize:10,color:MUTED,marginBottom:6,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió legenda</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:'4px 16px'}}>
-                  {dimsWithCode.map(d => (
-                    <div key={d.id} style={{display:'flex',alignItems:'flex-start',gap:6,fontSize:11,color:MUTED,lineHeight:1.4}}>
-                      <span style={{fontWeight:700,color:d.color||GOLD,flexShrink:0,minWidth:28}}>{d._code}</span>
-                      <span style={{color:TEXT}}>{(d.name||d.label||d.id||'').toString()}</span>
-                    </div>
-                  ))}
-                </div>
+              <div>
+                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={barData} layout="vertical" margin={{left:55}}>
+                    <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
+                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={48}/>
+                    <Tooltip content={<CT/>}/>
+                    <Bar dataKey="Önértékelés" radius={4}>
+                      {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
+                    </Bar>
+                    {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.45} radius={4}/>}
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-
-              {hasOthers && (
-                <div style={{fontSize:11,color:MUTED,marginTop:6,paddingLeft:4}}>
-                  Δ: <span style={{color:RED}}>+ te magasabbra értékeled magad</span> · <span style={{color:GREEN}}>− mások magasabbra értékelnek</span>
-                </div>
-              )}
             </div>
 
             {/* Collapsible group breakdown */}
@@ -1615,16 +1271,6 @@ function SurveyView({ nav, goBack, ctx }) {
   }
 
   const curDim = safeDims[activeDim];
-  const curItems = (curDim && curDim.items) ? curDim.items : [];
-
-  // Auto-skip dimenzió ha nincs item-je
-  useEffect(() => {
-    if (curItems.length === 0 && safeDims.length > 1) {
-      if (activeDim < safeDims.length - 1) {
-        setActiveDim(a => a + 1);
-      }
-    }
-  }, [activeDim, curItems.length, safeDims.length]);
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
@@ -1686,76 +1332,25 @@ function SurveyView({ nav, goBack, ctx }) {
           <h2 style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,margin:'6px 0 0',fontWeight:400}}>{curDim.label}</h2>
         </div>
 
-        {curItems.length === 0 && (
-          <div style={{background:`${ORAN}11`,border:`1px solid ${ORAN}33`,borderRadius:12,padding:'20px 18px',marginBottom:12,textAlign:'center'}}>
-            <div style={{fontSize:15,marginBottom:6}}>⚠</div>
-            <div style={{fontSize:13,color:ORAN,fontWeight:600,marginBottom:4}}>Ehhez a dimenzióhoz nincsenek kérdések</div>
-            <div style={{fontSize:12,color:MUTED}}>A sablon szerkesztőben add hozzá a kérdéseket, majd kérd meg az értékelőket az újrakitöltésre.</div>
-          </div>
-        )}
-
-        {curItems.map((item, idx) => {
-          const scored = (scores[item.id] || 0) > 0;
-          const scButtons = Array.from({length: scaleMax}, (_, i) => i + 1);
-          return (
-            <div key={item.id}
-              style={{background:SURF,border:`2px solid ${scored ? curDim.color + '66' : BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:12,transition:'border-color .2s',overflow:'visible'}}>
-              {/* Kérdés szövege */}
-              <div style={{fontSize:14,color:TEXT,marginBottom:16,lineHeight:1.6}}>
-                <span style={{color:MUTED,fontSize:12,marginRight:8,fontWeight:600}}>{idx+1}.</span>
-                {item.text}
-              </div>
-              {/* Értékelő skála */}
-              <div style={{display:'flex',flexWrap:'nowrap',gap:4,width:'100%',boxSizing:'border-box'}}>
-                {scButtons.map(v => {
-                  const isSelected = scores[item.id] === v;
-                  const col = scaleCfg.colors[v] || GOLD;
-                  return (
-                    <button key={v}
-                      onClick={() => {
-                        const newScores = { ...scores, [item.id]: v };
-                        setScores(newScores);
-                        const dimFilled = curItems.every(it => (newScores[it.id] || 0) > 0);
-                        if (dimFilled && activeDim < safeDims.length - 1) {
-                          setTimeout(() => setActiveDim(a => a + 1), 380);
-                        }
-                      }}
-                      style={{
-                        flex:'1 1 0',
-                        minWidth:0,
-                        minHeight:52,
-                        padding:'6px 2px',
-                        border:`2px solid ${isSelected ? col : BORD2}`,
-                        borderRadius:8,
-                        background:isSelected ? `${col}1A` : '#FFFFFF',
-                        color:isSelected ? col : MUTED,
-                        cursor:'pointer',
-                        fontFamily:"'DM Sans',sans-serif",
-                        fontWeight:isSelected ? 700 : 400,
-                        transition:'all .12s',
-                        textAlign:'center',
-                        display:'flex',
-                        flexDirection:'column',
-                        alignItems:'center',
-                        justifyContent:'center',
-                        gap:3,
-                        boxSizing:'border-box',
-                      }}>
-                      <span style={{fontSize:15,lineHeight:1,display:'block'}}>{v}</span>
-                      <span style={{
-                        fontSize:8,lineHeight:1.2,color:isSelected?col:DIM,display:'block',
-                        width:'100%',textAlign:'center',overflow:'hidden',
-                        whiteSpace:'nowrap',textOverflow:'ellipsis',padding:'0 2px',boxSizing:'border-box',
-                      }}>
-                        {scaleCfg.labels[v] || ''}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+        {curDim.items.map((item, idx) => (
+          <div key={item.id}
+            style={{background:SURF,border:`1px solid ${scores[item.id] ? curDim.color + '55' : BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:10,transition:'border-color .2s'}}>
+            <div style={{fontSize:14,color:TEXT,marginBottom:12,lineHeight:1.5}}>
+              <span style={{color:MUTED,fontSize:12,marginRight:8}}>{idx+1}.</span>
+              {item.text}
             </div>
-          );
-        })}
+            <div style={{display:'flex',gap:scaleMax > 7 ? 3 : 6}}>
+              {Array.from({length:scaleMax},(_,i)=>i+1).map(v => (
+                <button key={v}
+                  onClick={() => setScores(prev => ({ ...prev, [item.id]: v }))}
+                  style={{flex:'1 1 0',padding:scaleMax > 7 ? '6px 2px' : '8px 4px',border:`1px solid ${scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : BORD2}`,borderRadius:8,background:scores[item.id]===v ? `${scaleCfg.colors[v]||GOLD}22` : 'transparent',color:scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : MUTED,fontSize:scaleMax > 7 ? 10 : 11,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:scores[item.id]===v?700:400,transition:'all .15s',textAlign:'center',minWidth:0}}>
+                  <div style={{fontSize:scaleMax > 7 ? 12 : 15,marginBottom:2}}>{v}</div>
+                  <div style={{fontSize:scaleMax > 7 ? 7 : 9,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{scaleCfg.labels[v]||''}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
 
         {/* Comment fields: only on last dimension */}
         {activeDim === safeDims.length - 1 && (
@@ -1787,23 +1382,14 @@ function SurveyView({ nav, goBack, ctx }) {
 
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20}}>
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
-            {'← Előző dimenzió'}
+            {'← Előző'}
           </Btn>
-          {activeDim === safeDims.length - 1 && (
-            <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
-              {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés hiányzik` : 'Beküldés ✓'}
-            </Btn>
-          )}
-          {activeDim < safeDims.length - 1 && (
-            <span style={{fontSize:12,color:MUTED}}>
-              {curItems.length === 0
-                ? '— üres dimenzió, továbblép'
-                : curItems.every(i=>(scores[i.id]||0)>0)
-                  ? '✓ Kész — következő automatikusan'
-                  : `${curItems.filter(i=>(scores[i.id]||0)>0).length}/${curItems.length} kérdés megválaszolva`
-              }
-            </span>
-          )}
+          {activeDim < safeDims.length - 1
+            ? <Btn variant="ghost" onClick={() => setActiveDim(prev => prev+1)}>{'Következő →'}</Btn>
+            : <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
+                {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
+              </Btn>
+          }
         </div>
       </div>
     </div>
@@ -3568,147 +3154,6 @@ function NewProjectView({ nav, goBack }) {
   );
 }
 
-// ─── EMAIL EDITOR MODAL ────────────────────────────────────────
-function EmailEditorModal({ proj, onSave, onClose }) {
-  const existing = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-  const [selfSubject,  setSelfSubject]  = useState(existing.self.subject);
-  const [selfBody,     setSelfBody]     = useState(existing.self.body);
-  const [fbSubject,    setFbSubject]    = useState(existing.feedback.subject);
-  const [fbBody,       setFbBody]       = useState(existing.feedback.body);
-  const [activeTab,    setActiveTab]    = useState('self');
-  const [previewVars]                   = useState({
-    firstName: 'Péter', lastName: 'Nagy', projectName: proj.name || 'Projekt neve',
-    code: 'ABC123XYZ456', link: 'https://ledge.news/360?code=ABC123XYZ456',
-    assessedPersonName: 'Kiss Anna',
-  });
-
-  function resetToDefault() {
-    if (activeTab === 'self') {
-      setSelfSubject(DEFAULT_EMAIL_TEMPLATES.self.subject);
-      setSelfBody(DEFAULT_EMAIL_TEMPLATES.self.body);
-    } else {
-      setFbSubject(DEFAULT_EMAIL_TEMPLATES.feedback.subject);
-      setFbBody(DEFAULT_EMAIL_TEMPLATES.feedback.body);
-    }
-  }
-
-  const previewSubject = fillTemplate(activeTab === 'self' ? selfSubject : fbSubject, previewVars);
-  const previewBody    = fillTemplate(activeTab === 'self' ? selfBody    : fbBody,    previewVars);
-
-  const VARS_SELF     = ['{{firstName}}', '{{lastName}}', '{{projectName}}', '{{code}}', '{{link}}'];
-  const VARS_FEEDBACK = [...VARS_SELF, '{{assessedPersonName}}'];
-  const currentVars   = activeTab === 'self' ? VARS_SELF : VARS_FEEDBACK;
-
-  const textareaStyle = {
-    width:'100%', background:S2, border:`1px solid ${BORD}`, borderRadius:10,
-    padding:'12px 14px', fontSize:13, color:TEXT, fontFamily:"'DM Sans',sans-serif",
-    outline:'none', boxSizing:'border-box', resize:'vertical', lineHeight:1.6,
-  };
-
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.35)',backdropFilter:'blur(6px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflowY:'auto'}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:20,width:'100%',maxWidth:780,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 16px 48px rgba(0,0,0,.15)'}}>
-        {/* Header */}
-        <div style={{padding:'20px 28px',borderBottom:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:'#FFFFFF',zIndex:10,borderRadius:'20px 20px 0 0'}}>
-          <div>
-            <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT}}>Email sablonok szerkesztése</div>
-            <div style={{fontSize:12,color:MUTED,marginTop:2}}>A sablonok projekt-szinten tárolódnak. Változók: {'{{firstName}}'}, {'{{code}}'}, {'{{link}}'} stb.</div>
-          </div>
-          <button onClick={onClose} style={{background:'none',border:'none',color:MUTED,fontSize:20,cursor:'pointer',padding:4}}>✕</button>
-        </div>
-
-        {/* Tab switcher */}
-        <div style={{display:'flex',borderBottom:`1px solid ${BORD}`,background:S2}}>
-          {[
-            {id:'self',     label:'🪞 Önértékelő email'},
-            {id:'feedback', label:'👥 Értékelő email'},
-            {id:'preview',  label:'👁 Előnézet'},
-          ].map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
-              style={{flex:1,padding:'12px 8px',border:'none',background:'none',cursor:'pointer',fontSize:13,
-                fontFamily:"'DM Sans',sans-serif",color:activeTab===t.id?GOLD:MUTED,
-                borderBottom:activeTab===t.id?`2px solid ${GOLD}`:'2px solid transparent',
-                fontWeight:activeTab===t.id?600:400}}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{padding:'22px 28px'}}>
-          {/* Variables helper */}
-          {activeTab !== 'preview' && (
-            <div style={{background:`${GOLD}0D`,border:`1px solid ${GOLD}33`,borderRadius:10,padding:'10px 14px',marginBottom:16,display:'flex',flexWrap:'wrap',gap:6,alignItems:'center'}}>
-              <span style={{fontSize:11,color:MUTED,marginRight:4}}>Elérhető változók:</span>
-              {currentVars.map(v => (
-                <code key={v} style={{background:S2,border:`1px solid ${BORD}`,borderRadius:6,padding:'2px 8px',fontSize:11,color:GOLD,fontFamily:'monospace'}}>{v}</code>
-              ))}
-            </div>
-          )}
-
-          {/* Self template */}
-          {activeTab === 'self' && (
-            <div>
-              <div style={{fontSize:13,color:TEXT,fontWeight:600,marginBottom:8}}>Tárgy</div>
-              <input value={selfSubject} onChange={e => setSelfSubject(e.target.value)}
-                style={{...textareaStyle, resize:'none', height:44, fontFamily:"'DM Sans',sans-serif"}}/>
-              <div style={{fontSize:13,color:TEXT,fontWeight:600,margin:'14px 0 8px'}}>Üzenet törzse</div>
-              <textarea value={selfBody} onChange={e => setSelfBody(e.target.value)} rows={14} style={textareaStyle}/>
-            </div>
-          )}
-
-          {/* Feedback template */}
-          {activeTab === 'feedback' && (
-            <div>
-              <div style={{fontSize:13,color:TEXT,fontWeight:600,marginBottom:8}}>Tárgy</div>
-              <input value={fbSubject} onChange={e => setFbSubject(e.target.value)}
-                style={{...textareaStyle, resize:'none', height:44, fontFamily:"'DM Sans',sans-serif"}}/>
-              <div style={{fontSize:13,color:TEXT,fontWeight:600,margin:'14px 0 8px'}}>Üzenet törzse</div>
-              <textarea value={fbBody} onChange={e => setFbBody(e.target.value)} rows={14} style={textareaStyle}/>
-            </div>
-          )}
-
-          {/* Preview */}
-          {activeTab === 'preview' && (
-            <div>
-              <div style={{display:'flex',gap:10,marginBottom:16}}>
-                <Btn size="sm" variant={activeTab==='preview'?'default':'ghost'} onClick={() => setActiveTab('self')}>← Visszaváltás szerkesztésre</Btn>
-              </div>
-              <div style={{background:S2,border:`1px solid ${BORD}`,borderRadius:12,padding:20}}>
-                <div style={{fontSize:11,color:MUTED,marginBottom:4,textTransform:'uppercase',letterSpacing:'.08em'}}>
-                  {activeTab === 'preview' ? (selfSubject.includes('önértékelés') ? 'Önértékelő sablon előnézet' : 'Értékelő sablon előnézet') : ''}
-                  Előnézet — {activeTab === 'self' ? 'Önértékelő' : 'Értékelő'} sablon
-                </div>
-                <div style={{fontSize:13,color:MUTED,marginBottom:4}}>
-                  <b>Tárgy:</b> {previewSubject}
-                </div>
-                <div style={{fontSize:12,color:MUTED,marginBottom:12}}>
-                  <b>Minta adatok:</b> Péter Nagy · Kiss Anna · {proj.name}
-                </div>
-                <hr style={{border:'none',borderTop:`1px solid ${BORD}`,margin:'12px 0'}}/>
-                <div style={{whiteSpace:'pre-wrap',fontSize:13,color:TEXT,lineHeight:1.7}}>{previewBody}</div>
-              </div>
-              <div style={{marginTop:14,padding:'12px 16px',background:`${BLUE}0D`,border:`1px solid ${BLUE}22`,borderRadius:10,fontSize:12,color:MUTED}}>
-                💡 Az email egy LEDGE 360° fejléccel és „Értékelés kitöltése →" gombbal kerül kiküldésre HTML formátumban.
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{padding:'16px 28px',borderTop:`1px solid ${BORD}`,display:'flex',gap:10,justifyContent:'space-between',background:S2,borderRadius:'0 0 20px 20px'}}>
-          <Btn variant="ghost" size="sm" onClick={resetToDefault} style={{color:MUTED}}>↺ Visszaállítás alapértelmezettre</Btn>
-          <div style={{display:'flex',gap:10}}>
-            <Btn variant="ghost" onClick={onClose}>Mégse</Btn>
-            <Btn onClick={() => onSave({ self: { subject: selfSubject, body: selfBody }, feedback: { subject: fbSubject, body: fbBody } })}>
-              💾 Sablon mentése
-            </Btn>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── PROJECT VIEW ──────────────────────────────────────────────
 function ProjectView({ nav, goBack, ctx }) {
   const projectId = ctx.projectId;
@@ -3730,12 +3175,6 @@ function ProjectView({ nav, goBack, ctx }) {
   const [collabs, setCollabs] = useState([]);
   const [collabEmail, setCollabEmail] = useState('');
   const [collabPerm, setCollabPerm] = useState('view');
-  // Email state
-  const [sendingEmails,   setSendingEmails]   = useState(false);
-  const [emailResults,    setEmailResults]    = useState(null);  // {sent, failed}
-  const [reminderSending, setReminderSending] = useState(false);
-  const [reminderResults, setReminderResults] = useState(null);
-  const [showEmailEditor, setShowEmailEditor] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -3756,73 +3195,22 @@ function ProjectView({ nav, goBack, ctx }) {
 
   async function addPart() {
     if (!fn.trim()) return;
-    const partId  = 'part:'+uid(10);
-    const newPart = { id:partId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), created:Date.now() };
-    await db.set(partId, newPart);
+    const id  = 'part:'+uid(10);
+    await db.set(id, { id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), created:Date.now() });
     const sc  = uid(12);
     const rid = 'rat:'+uid(10);
-    const newRater = { id:rid, participantId:partId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role:'self', code:sc, status:'pending' };
-    await db.set(rid, newRater);
-
-    // Ha a projekt már aktív → azonnal küldünk emailt az önértékelőnek
-    if (proj && proj.status === 'active' && em.trim()) {
-      try {
-        const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-        await sendRaterInvite(newRater, newPart, proj.name, templates, false);
-        await db.set(rid, { ...newRater, emailSent: true, emailSentAt: Date.now() });
-      } catch(e) {
-        console.error('Auto-email error (addPart):', e.message);
-      }
-    }
-
+    await db.set(rid, { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role:'self', code:sc, status:'pending' });
     setFn(''); setLn(''); setEm('');
     setAddingP(false);
     load();
   }
 
   async function activate() {
-    // Ellenőrzés: vannak-e üres dimenziók a sablonban?
-    const preset = resolvePreset(proj.libraryId, proj.customDims);
-    const emptyDims = preset.dims.filter(d => !d.items || d.items.length === 0);
-    if (emptyDims.length > 0) {
-      const names = emptyDims.map(d => d.name || d.label || d.id).join(', ');
-      const ok = window.confirm(
-        `⚠ Figyelem: ${emptyDims.length} dimenzióhoz nincsenek kérdések definiálva:\n\n${names}\n\nEzek a dimenziók nem lesznek értékelhetők a kérdőívben, és a riportban üresek maradnak.\n\nFolytassuk az aktiválást?`
-      );
-      if (!ok) return;
-    }
-
-    const updated = { ...proj, status:'active', activatedAt: Date.now() };
+    const updated = { ...proj, status:'active' };
     await db.set(projectId, updated);
     setProj(updated);
-
-    // Send emails to all raters who have an email address
-    const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-    let sent = 0, failed = 0;
-    setSendingEmails(true);
-    setEmailResults(null);
-
-    for (const part of parts) {
-      const partRaters = raters.filter(r => r.participantId === part.id);
-      for (const rater of partRaters) {
-        if (!rater.email) continue;
-        try {
-          await sendRaterInvite(rater, part, proj.name, templates, false);
-          const updatedRater = { ...rater, emailSent: true, emailSentAt: Date.now() };
-          await db.set(rater.id, updatedRater);
-          sent++;
-        } catch(e) {
-          console.error('Email send error:', rater.email, e.message);
-          failed++;
-        }
-      }
-    }
-
-    setSendingEmails(false);
-    setEmailResults({ sent, failed });
     setActivatedMsg(true);
-    setTimeout(() => { setActivatedMsg(false); setEmailResults(null); }, 6000);
-    load();
+    setTimeout(() => setActivatedMsg(false), 3000);
   }
 
   async function saveEdit() {
@@ -3886,49 +3274,6 @@ function ProjectView({ nav, goBack, ctx }) {
     setCollabs(all);
   }
 
-  async function sendReminders() {
-    setReminderSending(true);
-    setReminderResults(null);
-    const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-    const pendingRaters = raters.filter(r => r.status === 'pending' && r.email);
-    let sent = 0, failed = 0;
-
-    for (const rater of pendingRaters) {
-      const part = parts.find(p => p.id === rater.participantId);
-      try {
-        await sendRaterInvite(rater, part, proj.name, templates, true);
-        const updatedRater = { ...rater, emailSent: true, emailSentAt: rater.emailSentAt || Date.now(), lastReminderSent: Date.now() };
-        await db.set(rater.id, updatedRater);
-        sent++;
-      } catch(e) {
-        console.error('Reminder error:', rater.email, e.message);
-        failed++;
-      }
-    }
-
-    // Log lastReminderSent on project
-    const updatedProj = { ...proj, lastReminderSent: Date.now() };
-    await db.set(projectId, updatedProj);
-    setProj(updatedProj);
-    setReminderSending(false);
-    setReminderResults({ sent, failed });
-    setTimeout(() => setReminderResults(null), 6000);
-    load();
-  }
-
-  async function sendSingleRaterEmail(rater) {
-    const part = parts.find(p => p.id === rater.participantId);
-    const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-    try {
-      await sendRaterInvite(rater, part, proj.name, templates, false);
-      const updatedRater = { ...rater, emailSent: true, emailSentAt: Date.now() };
-      await db.set(rater.id, updatedRater);
-      load();
-    } catch(e) {
-      alert('Email küldési hiba: ' + e.message);
-    }
-  }
-
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
   if (!proj)   return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Projekt nem található.</div>;
 
@@ -3950,25 +3295,7 @@ function ProjectView({ nav, goBack, ctx }) {
       <div style={{maxWidth:860,margin:'0 auto',padding:'22px 24px'}}>
         {activatedMsg && (
           <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:GREEN}}>
-            ✓ A projekt sikeresen aktiválva.
-            {emailResults && (
-              <span style={{marginLeft:8}}>
-                {emailResults.sent > 0 && <span> {emailResults.sent} meghívó elküldve. </span>}
-                {emailResults.failed > 0 && <span style={{color:ORAN}}> {emailResults.failed} küldés sikertelen (nincs email, vagy API hiba).</span>}
-                {emailResults.sent === 0 && emailResults.failed === 0 && <span style={{color:MUTED}}> (Nincs email cím megadva az értékelőknél.)</span>}
-              </span>
-            )}
-          </div>
-        )}
-        {sendingEmails && (
-          <div style={{background:`${BLUE}11`,border:`1px solid ${BLUE}33`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:BLUE}}>
-            ✉ Meghívók küldése folyamatban…
-          </div>
-        )}
-        {reminderResults && (
-          <div style={{background:`${GOLD}11`,border:`1px solid ${GOLD}33`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:TEXT}}>
-            ✓ Emlékeztetők elküldve: <b style={{color:GREEN}}>{reminderResults.sent}</b>
-            {reminderResults.failed > 0 && <span style={{color:ORAN}}> · {reminderResults.failed} sikertelen</span>}
+            ✓ A projekt sikeresen aktiválva. Az értékelők most már kitölthetik a kérdőívet.
           </div>
         )}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:22}}>
@@ -3985,22 +3312,8 @@ function ProjectView({ nav, goBack, ctx }) {
           ))}
         </div>
 
-        <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:10,marginBottom:18}}>
           <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', { projectId })}>📚 Könyvtár kezelése</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => setShowEmailEditor(true)}>✉ Email sablonok</Btn>
-          {proj.status === 'active' && (
-            <Btn variant="ghost" size="sm"
-              onClick={sendReminders}
-              disabled={reminderSending || raters.filter(r => r.status==='pending' && r.email).length === 0}
-              style={{color:BLUE,borderColor:BLUE+'44'}}>
-              {reminderSending ? '⏳ Küldés…' : `🔔 Emlékeztető küldése (${raters.filter(r=>r.status==='pending'&&r.email).length} pending)`}
-            </Btn>
-          )}
-          {proj.lastReminderSent && (
-            <span style={{fontSize:11,color:MUTED,alignSelf:'center'}}>
-              Utolsó emlékeztető: {new Date(proj.lastReminderSent).toLocaleString('hu-HU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
-            </span>
-          )}
         </div>
 
         {/* Tanácsadók a projektben */}
@@ -4077,13 +3390,6 @@ function ProjectView({ nav, goBack, ctx }) {
                       <div key={r.id} style={{display:'flex',alignItems:'center',gap:5,background:S2,borderRadius:20,padding:'3px 10px',border:`1px solid ${BORD}`}}>
                         <span style={{width:6,height:6,borderRadius:'50%',background:ri.color||MUTED,flexShrink:0}}/>
                         <span style={{fontSize:11,color:TEXT}}>{r.firstName}</span>
-                        {r.email && (
-                          <span title={r.emailSent ? `Email elküldve: ${r.emailSentAt ? new Date(r.emailSentAt).toLocaleString('hu-HU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}` : 'Email nem küldve'}
-                            style={{fontSize:10,color:r.emailSent?GREEN:DIM,cursor:'pointer'}}
-                            onClick={() => !r.emailSent && proj.status==='active' && sendSingleRaterEmail(r)}>
-                            {r.emailSent ? '✉✓' : '✉'}
-                          </span>
-                        )}
                         <StatusDot status={r.status}/>
                       </div>
                     );
@@ -4140,19 +3446,6 @@ function ProjectView({ nav, goBack, ctx }) {
           onCancel={() => setShowArchiveConfirm(false)}
         />
       )}
-
-      {showEmailEditor && (
-        <EmailEditorModal
-          proj={proj}
-          onSave={async (templates) => {
-            const updated = { ...proj, emailTemplates: templates };
-            await db.set(projectId, updated);
-            setProj(updated);
-            setShowEmailEditor(false);
-          }}
-          onClose={() => setShowEmailEditor(false)}
-        />
-      )}
     </div>
   );
 }
@@ -4171,15 +3464,12 @@ function RatersView({ nav, goBack, ctx }) {
   const [role,   setRole]   = useState('peer');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkError, setBulkError] = useState('');
-  const [autoEmailSent, setAutoEmailSent] = useState(false);
   const bulkRef = useRef(null);
-
-  // Autocomplete state
-  const [allKnownRaters, setAllKnownRaters] = useState([]);
-  const [acOpen,         setAcOpen]         = useState(false);
-  const [acHighlight,    setAcHighlight]    = useState(-1);
-  const fnInputRef = useRef(null);
-  const acRef      = useRef(null);
+  const [editingId,   setEditingId]   = useState(null);
+  const [editFn,      setEditFn]      = useState('');
+  const [editLn,      setEditLn]      = useState('');
+  const [editEm,      setEditEm]      = useState('');
+  const [editRole,    setEditRole]    = useState('peer');
 
   const load = useCallback(async () => {
     const p  = await db.get(projectId);
@@ -4187,92 +3477,36 @@ function RatersView({ nav, goBack, ctx }) {
     setProj(p); setPart(pa);
     const ks = await db.list('rat:');
     const rs = await Promise.all(ks.map(k => db.get(k)));
-    const mine = rs.filter(r => r && r.participantId === participantId);
-    setRaters(mine);
-    // Build unique known-persons list from ALL raters across ALL projects
-    const seen = new Set();
-    const known = [];
-    for (const r of rs) {
-      if (!r || !r.firstName) continue;
-      const key = (r.firstName + '|' + r.lastName + '|' + (r.email||'')).toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        known.push({ firstName: r.firstName, lastName: r.lastName || '', email: r.email || '', role: r.role || 'peer' });
-      }
-    }
-    setAllKnownRaters(known);
+    setRaters(rs.filter(r => r && r.participantId === participantId));
     setLoading(false);
   }, [projectId, participantId]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Filtered suggestions based on what's typed in fn
-  const suggestions = fn.trim().length === 0 ? [] : allKnownRaters.filter(r => {
-    const full = (r.firstName + ' ' + r.lastName).toLowerCase();
-    return full.startsWith(fn.toLowerCase()) || r.firstName.toLowerCase().startsWith(fn.toLowerCase());
-  }).slice(0, 8);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e) {
-      if (acRef.current && !acRef.current.contains(e.target) &&
-          fnInputRef.current && !fnInputRef.current.contains(e.target)) {
-        setAcOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  function applySuggestion(s) {
-    setFn(s.firstName);
-    setLn(s.lastName);
-    setEm(s.email);
-    setRole(s.role === 'self' ? 'peer' : (s.role || 'peer'));
-    setAcOpen(false);
-    setAcHighlight(-1);
-  }
-
-  function handleFnKeyDown(e) {
-    if (!acOpen || suggestions.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setAcHighlight(h => Math.min(h + 1, suggestions.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setAcHighlight(h => Math.max(h - 1, 0));
-    } else if (e.key === 'Enter' && acHighlight >= 0) {
-      e.preventDefault();
-      applySuggestion(suggestions[acHighlight]);
-    } else if (e.key === 'Escape') {
-      setAcOpen(false);
-      setAcHighlight(-1);
-    }
-  }
-
   async function add() {
     if (!fn.trim()) return;
     const id = 'rat:'+uid(10);
-    const newRater = { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' };
-    await db.set(id, newRater);
-
-    // Ha a projekt már aktív → azonnal küldünk emailt
-    if (proj && proj.status === 'active' && em.trim()) {
-      try {
-        const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-        await sendRaterInvite(newRater, part, proj.name, templates, false);
-        await db.set(id, { ...newRater, emailSent: true, emailSentAt: Date.now() });
-        setAutoEmailSent(true);
-        setTimeout(() => setAutoEmailSent(false), 4000);
-      } catch(e) {
-        console.error('Auto-email error (add rater):', e.message);
-      }
-    }
-
-    setFn(''); setLn(''); setEm(''); setRole('peer');
-    setAcOpen(false); setAcHighlight(-1);
+    await db.set(id, { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' });
+    setFn(''); setLn(''); setEm('');
     load();
   }
+
+  function startEdit(r) {
+    setEditingId(r.id);
+    setEditFn(r.firstName || '');
+    setEditLn(r.lastName  || '');
+    setEditEm(r.email     || '');
+    setEditRole(r.role    || 'peer');
+  }
+
+  async function saveEdit(r) {
+    const updated = { ...r, firstName:editFn.trim(), lastName:editLn.trim(), email:editEm.trim(), role:editRole };
+    await db.set(r.id, updated);
+    setEditingId(null);
+    load();
+  }
+
+  function cancelEdit() { setEditingId(null); }
 
   async function rem(id) { await db.del(id); load(); }
 
@@ -4345,71 +3579,10 @@ function RatersView({ nav, goBack, ctx }) {
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar title={(part ? part.firstName+' '+part.lastName : '') + ' — értékelők'} back onBack={goBack}/>
       <div style={{maxWidth:680,margin:'0 auto',padding:'22px 24px'}}>
-
-        {autoEmailSent && (
-          <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'12px 16px',marginBottom:14,fontSize:13,color:GREEN}}>
-            ✉ Meghívó email automatikusan elküldve az új értékelőnek.
-          </div>
-        )}
-
-        {proj && proj.status === 'active' && (
-          <div style={{background:`${BLUE}0D`,border:`1px solid ${BLUE}22`,borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:BLUE}}>
-            💡 A projekt aktív — új értékelő hozzáadásakor azonnal kimegy a meghívó email (ha van megadva email cím).
-          </div>
-        )}
         <Card style={{marginBottom:18}}>
           <div style={{fontSize:13,color:GOLD,fontWeight:600,marginBottom:12}}>Értékelő hozzáadása</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {/* ── Autocomplete keresztnév ── */}
-            <div style={{marginBottom:14,position:'relative'}}>
-              <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Keresztnév</div>
-              <input
-                ref={fnInputRef}
-                value={fn}
-                onChange={e => { setFn(e.target.value); setAcOpen(true); setAcHighlight(-1); }}
-                onFocus={() => { if (fn.trim()) setAcOpen(true); }}
-                onKeyDown={handleFnKeyDown}
-                placeholder="Péter"
-                autoComplete="off"
-                style={{width:'100%',background:S2,border:`1px solid ${acOpen && suggestions.length > 0 ? GOLD : BORD}`,borderRadius:8,padding:'10px 14px',fontSize:14,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .15s'}}
-              />
-              {/* Dropdown */}
-              {acOpen && suggestions.length > 0 && (
-                <div ref={acRef} style={{position:'absolute',top:'100%',left:0,right:0,zIndex:200,background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,.12)',marginTop:4,overflow:'hidden'}}>
-                  {suggestions.map((s, i) => (
-                    <div
-                      key={i}
-                      onMouseDown={e => { e.preventDefault(); applySuggestion(s); }}
-                      onMouseEnter={() => setAcHighlight(i)}
-                      style={{
-                        padding:'10px 14px',
-                        cursor:'pointer',
-                        background: i === acHighlight ? `${GOLD}15` : 'transparent',
-                        borderBottom: i < suggestions.length - 1 ? `1px solid ${BORD}` : 'none',
-                        display:'flex',alignItems:'center',gap:10,
-                      }}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:13,color:TEXT,fontWeight:500}}>
-                          {s.firstName} <span style={{color:MUTED}}>{s.lastName}</span>
-                        </div>
-                        {s.email && <div style={{fontSize:11,color:MUTED,marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.email}</div>}
-                      </div>
-                      {s.role && s.role !== 'self' && (
-                        <span style={{fontSize:10,color:GOLD,background:`${GOLD}15`,borderRadius:6,padding:'2px 7px',flexShrink:0}}>
-                          {DEFAULT_ROLES.find(r => r.id === s.role)?.label || s.role}
-                        </span>
-                      )}
-                      {i === acHighlight && (
-                        <span style={{fontSize:10,color:MUTED,flexShrink:0}}>↵</span>
-                      )}
-                    </div>
-                  ))}
-                  <div style={{padding:'6px 14px',fontSize:10,color:DIM,borderTop:`1px solid ${BORD}`,background:S2}}>
-                    ↑↓ navigálás · Enter kiválasztás · Esc bezárás
-                  </div>
-                </div>
-              )}
-            </div>
+            <Input label="Keresztnév" value={fn} onChange={setFn} placeholder="Péter"/>
             <Input label="Vezetéknév" value={ln} onChange={setLn} placeholder="Nagy"/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
@@ -4437,64 +3610,57 @@ function RatersView({ nav, goBack, ctx }) {
           <div style={{textAlign:'center',padding:'24px 0',color:MUTED,fontSize:14}}>Még nincs értékelő hozzáadva.</div>
         )}
 
-        {raters.length > 0 && (
-          <div style={{fontSize:11,color:MUTED,marginBottom:10,display:'flex',gap:16}}>
-            <span>✉✓ = email elküldve</span>
-            <span>✉ = email nem küldve (kattints a küldéshez)</span>
-          </div>
-        )}
-
         {raters.map(r => {
           const ri = roles.find(d => d.id === r.role) || roles[0];
-          const hasEmail = !!r.email;
-          const isActive = proj && proj.status === 'active';
-          return (
-            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10}}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <span style={{fontSize:14,color:TEXT,fontWeight:500}}>{r.firstName} {r.lastName}</span>
-                    <Badge color={ri.color||MUTED}>{ri.label}</Badge>
-                    {r.role === 'self' && <Badge color={GOLD}>Önértékelő</Badge>}
+          const isEditing = editingId === r.id;
+          if (isEditing) {
+            return (
+              <div key={r.id} style={{background:SURF,border:`1.5px solid ${GOLD}`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+                  <Input label="Keresztnév" value={editFn} onChange={setEditFn} placeholder="Péter"/>
+                  <Input label="Vezetéknév" value={editLn} onChange={setEditLn} placeholder="Nagy"/>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+                  <Input label="Email" value={editEm} onChange={setEditEm} placeholder="email@ceg.hu"/>
+                  <div>
+                    <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Szerep</div>
+                    <select value={editRole} onChange={e => setEditRole(e.target.value)}
+                      style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}>
+                      {roles.map(ro => <option key={ro.id} value={ro.id}>{ro.label}</option>)}
+                    </select>
                   </div>
-                  {r.email
-                    ? <div style={{fontSize:12,color:MUTED,marginTop:2,display:'flex',alignItems:'center',gap:8}}>
-                        <span>{r.email}</span>
-                        {r.emailSent
-                          ? <span style={{color:GREEN,fontSize:11}} title={`Elküldve: ${r.emailSentAt ? new Date(r.emailSentAt).toLocaleString('hu-HU',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}`}>✉✓ elküldve</span>
-                          : <span style={{color:DIM,fontSize:11}}>✉ még nem küldve</span>
-                        }
-                        {r.lastReminderSent && (
-                          <span style={{color:BLUE,fontSize:10}}>
-                            · emlékeztető: {new Date(r.lastReminderSent).toLocaleString('hu-HU',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
-                          </span>
-                        )}
-                      </div>
-                    : <div style={{fontSize:12,color:DIM,marginTop:2}}>Nincs email cím</div>
-                  }
                 </div>
-                <div style={{textAlign:'center',flexShrink:0}}>
-                  <CopyCode code={r.code}/>
+                <div style={{display:'flex',gap:8}}>
+                  <Btn size="sm" onClick={() => saveEdit(r)} disabled={!editFn.trim()}>✓ Mentés</Btn>
+                  <Btn size="sm" variant="ghost" onClick={cancelEdit}>Mégse</Btn>
                 </div>
-                <StatusDot status={r.status}/>
-                {hasEmail && isActive && r.status === 'pending' && (
-                  <button
-                    onClick={async () => {
-                      const templates = proj.emailTemplates || DEFAULT_EMAIL_TEMPLATES;
-                      try {
-                        await sendRaterInvite(r, part, proj.name, templates, !!r.emailSent);
-                        const upd = { ...r, emailSent: true, emailSentAt: r.emailSentAt || Date.now(), lastReminderSent: r.emailSent ? Date.now() : r.lastReminderSent };
-                        await db.set(r.id, upd);
-                        load();
-                      } catch(e) { alert('Hiba: ' + e.message); }
-                    }}
-                    title={r.emailSent ? 'Emlékeztető küldése' : 'Meghívó küldése'}
-                    style={{background:`${BLUE}11`,border:`1px solid ${BLUE}33`,borderRadius:8,padding:'6px 10px',cursor:'pointer',fontSize:11,color:BLUE,flexShrink:0,fontFamily:"'DM Sans',sans-serif"}}>
-                    {r.emailSent ? '↻ Emlékeztető' : '✉ Küldés'}
-                  </button>
-                )}
-                <button onClick={() => rem(r.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:16,padding:4,flexShrink:0}}>✕</button>
               </div>
+            );
+          }
+          return (
+            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <span style={{fontSize:14,color:TEXT,fontWeight:500}}>{r.firstName} {r.lastName}</span>
+                  <Badge color={ri.color||MUTED}>{ri.label}</Badge>
+                </div>
+                {r.email
+                  ? <div style={{fontSize:12,color:MUTED,marginTop:2}}>{r.email}</div>
+                  : <div style={{fontSize:12,color:ORAN,marginTop:2,fontStyle:'italic'}}>Nincs email cím</div>
+                }
+              </div>
+              <div style={{textAlign:'center',flexShrink:0}}>
+                <CopyCode code={r.code}/>
+              </div>
+              <StatusDot status={r.status}/>
+              <button
+                onClick={() => startEdit(r)}
+                title="Szerkesztés"
+                style={{background:'none',border:`1px solid ${BORD}`,borderRadius:6,color:MUTED,cursor:'pointer',fontSize:13,padding:'4px 8px',flexShrink:0,lineHeight:1,transition:'all .15s'}}
+                onMouseEnter={e => { e.currentTarget.style.borderColor=GOLD; e.currentTarget.style.color=GOLD; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor=BORD; e.currentTarget.style.color=MUTED; }}
+              >✎</button>
+              <button onClick={() => rem(r.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:16,padding:4,flexShrink:0}}>✕</button>
             </div>
           );
         })}
@@ -4662,20 +3828,8 @@ function AIBuilderView({ nav, goBack, ctx }) {
           max_tokens:2000,
           system: `Te egy vezetői kompetencia kérdőív tervező AI vagy. A felhasználóval közösen tervezel egyedi 360 fokos értékelési kérdőívet.
 A kimeneti formátum JSON kell legyen, ha a felhasználó véglegesíteni akarja a kérdőívet. Ebben az esetben KIZÁRÓLAG ilyen JSON-t adj vissza, semmi mást:
-{"type":"questionnaire","name":"...","dims":[{"id":"XX","name":"...","label":"...","color":"#hexcolor","items":[{"id":"XX1","text":"..."},{"id":"XX2","text":"..."},{"id":"XX3","text":"..."}]}]}
-
-KÖTELEZŐ SZABÁLYOK a JSON generálásnál:
-- Minden dimenzióhoz PONTOSAN 3-5 item kell. Ha kevesebbet generálnál, adj hozzá többet.
-- Az item szövege RÖVID viselkedéses állítás (max 80 karakter), NEM stratégiai leírás vagy OKR.
-- Az item azt írja le, mit TESZ a vezető a napi munkában — megfigyelhető viselkedés.
-- Jó item példa: "Visszajelzést proaktívan kér és beépíti a viselkedésébe"
-- Rossz item példa: "A vezető Q1 2026-ban franchise portált implementál..."
-- 4-8 dimenzió ideális, dimenziónként MINIMUM 3 item.
-- Dimenzió ID: 2-3 betűs nagybetűs kód (pl. PC, LS, AG)
-- Item ID: dimenzió ID + sorszám (pl. PC1, PC2, PC3)
-- Színek: #A68542, #4A7A9E, #5B8A6A, #7E5EA0, #A06A48, #B85548, #D4AA78, #7AAED0, #B89BC9
-
-Addig amíg nem véglegesítés a cél, beszélgess természetesen magyarul és segíts finomítani a kérdőívet.`,
+{"type":"questionnaire","name":"...","dims":[{"id":"XX","name":"...","label":"...","color":"#hexcolor","items":[{"id":"XX1","text":"..."}]}]}
+Addig amíg nem véglegesítés a cél, beszélgess természetesen magyarul és segíts finomítani a kérdőívet. 4-8 dimenzió, dimenziónként 3-5 item az ideális.`,
           messages: apiMessages,
         }),
       });
@@ -4882,15 +4036,6 @@ function LibraryManagerView({ nav, goBack, ctx }) {
     setSaved(true); setTimeout(() => setSaved(false), 1500);
   }
 
-  // Item-szám validálás
-  function validateDims(dims) {
-    const thin = dims.filter(d => !d.items || d.items.length < 2);
-    if (thin.length > 0) {
-      return `⚠ Figyelem: ${thin.length} dimenzióhoz kevesebb mint 2 kérdés tartozik (${thin.map(d=>d.name||d.id).join(', ')}). A kérdőív ezekhez a dimenziókhoz nem fog értékelést gyűjteni.`;
-    }
-    return null;
-  }
-
   // ── Inline editing ──
   function startEdit(type, dimIdx, itemIdx, field, currentVal) {
     setEditingField({ type, dimIdx, itemIdx, field });
@@ -5060,33 +4205,22 @@ function LibraryManagerView({ nav, goBack, ctx }) {
 
   function importRows(rows) {
     // Expected columns: Kompetencia | Rövid kód | Label | Alkompetencia ID | Értékelendő mondat
-    // A dimenzió neve csak az első sorban van kitöltve — a többi item sora üres A oszloppal jön
     const dimMap = {};
     const dimOrder = [];
-    let lastKey = null; // az utolsó aktív dimenzió kulcsa
-
     rows.forEach(r => {
-      const name  = (r[0] || '').toString().trim();
-      const id    = (r[1] || '').toString().trim();
-      const label = (r[2] || '').toString().trim();
-      const iid   = (r[3] || '').toString().trim();
-      const text  = (r[4] || '').toString().trim();
-
-      if (name) {
-        // Új dimenzió sor — rögzítjük
-        const key = id || name.replace(/\s+/g,'').substring(0,4).toUpperCase();
-        if (!dimMap[key]) {
-          dimMap[key] = { id:key, name, label:label||name, color:DIM_COLORS[dimOrder.length % DIM_COLORS.length], items:[] };
-          dimOrder.push(key);
-        }
-        lastKey = key;
-        // Ha van item ebben a sorban is, hozzáadjuk
-        if (text && lastKey) {
-          dimMap[lastKey].items.push({ id:iid || (lastKey + (dimMap[lastKey].items.length+1)), text });
-        }
-      } else if (lastKey && text) {
-        // Folytatósor: üres dimenzió név, de van item szöveg → az előző dimenzióhoz tartozik
-        dimMap[lastKey].items.push({ id:iid || (lastKey + (dimMap[lastKey].items.length+1)), text });
+      const name = (r[0] || '').toString().trim();
+      const id   = (r[1] || '').toString().trim();
+      const label= (r[2] || '').toString().trim();
+      const iid  = (r[3] || '').toString().trim();
+      const text = (r[4] || '').toString().trim();
+      if (!name) return;
+      const key = id || name.replace(/\s+/g,'').substring(0,3).toUpperCase();
+      if (!dimMap[key]) {
+        dimMap[key] = { id:key, name, label:label||name, color:DIM_COLORS[dimOrder.length % DIM_COLORS.length], items:[] };
+        dimOrder.push(key);
+      }
+      if (text) {
+        dimMap[key].items.push({ id:iid || (key + (dimMap[key].items.length+1)), text });
       }
     });
     if (dimOrder.length === 0) { setImportErr('Nem találtam kompetenciákat a fájlban.'); return; }
@@ -5150,18 +4284,6 @@ function LibraryManagerView({ nav, goBack, ctx }) {
           </div>
         </div>
         {importErr && <div style={{background:`${RED}18`,border:`1px solid ${RED}44`,borderRadius:8,padding:'8px 14px',marginBottom:14,fontSize:13,color:RED}}>{importErr}</div>}
-
-        {/* Figyelmeztetés: kevés item */}
-        {(() => {
-          const warn = validateDims(dims);
-          if (!warn) return null;
-          return (
-            <div style={{background:`${ORAN}12`,border:`1px solid ${ORAN}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:ORAN,lineHeight:1.6}}>
-              <b>⚠ Hiányos kérdőív:</b> {warn.replace('⚠ Figyelem: ', '')}<br/>
-              <span style={{fontSize:12,color:MUTED}}>Adj hozzá legalább 3 kérdést dimenziónként a + gombbal, különben az értékelők nem tudják kitölteni ezeket a dimenziókat.</span>
-            </div>
-          );
-        })()}
 
         {/* Info box */}
         <div style={{background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:13,color:MUTED,lineHeight:1.6}}>
