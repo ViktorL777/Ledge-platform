@@ -1462,6 +1462,16 @@ function SurveyView({ nav, goBack, ctx }) {
   }
 
   const curDim = safeDims[activeDim];
+  const curItems = (curDim && curDim.items) ? curDim.items : [];
+
+  // Auto-skip dimenzió ha nincs item-je
+  useEffect(() => {
+    if (curItems.length === 0 && safeDims.length > 1) {
+      if (activeDim < safeDims.length - 1) {
+        setActiveDim(a => a + 1);
+      }
+    }
+  }, [activeDim, curItems.length, safeDims.length]);
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
@@ -1523,7 +1533,13 @@ function SurveyView({ nav, goBack, ctx }) {
           <h2 style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,margin:'6px 0 0',fontWeight:400}}>{curDim.label}</h2>
         </div>
 
-        {curDim.items.map((item, idx) => {
+        {curItems.length === 0 && (
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'24px 18px',marginBottom:12,textAlign:'center',color:MUTED,fontSize:13}}>
+            Ehhez a dimenzióhoz nincs kérdés definiálva — automatikusan továbblép.
+          </div>
+        )}
+
+        {curItems.map((item, idx) => {
           const scored = (scores[item.id] || 0) > 0;
           const scButtons = Array.from({length: scaleMax}, (_, i) => i + 1);
           return (
@@ -1534,7 +1550,7 @@ function SurveyView({ nav, goBack, ctx }) {
                 <span style={{color:MUTED,fontSize:12,marginRight:8,fontWeight:600}}>{idx+1}.</span>
                 {item.text}
               </div>
-              {/* Értékelő skála — flex wrap防止截断 */}
+              {/* Értékelő skála */}
               <div style={{display:'flex',flexWrap:'nowrap',gap:4,width:'100%',boxSizing:'border-box'}}>
                 {scButtons.map(v => {
                   const isSelected = scores[item.id] === v;
@@ -1544,7 +1560,7 @@ function SurveyView({ nav, goBack, ctx }) {
                       onClick={() => {
                         const newScores = { ...scores, [item.id]: v };
                         setScores(newScores);
-                        const dimFilled = curDim.items.every(it => (newScores[it.id] || 0) > 0);
+                        const dimFilled = curItems.every(it => (newScores[it.id] || 0) > 0);
                         if (dimFilled && activeDim < safeDims.length - 1) {
                           setTimeout(() => setActiveDim(a => a + 1), 380);
                         }
@@ -1572,17 +1588,9 @@ function SurveyView({ nav, goBack, ctx }) {
                       }}>
                       <span style={{fontSize:15,lineHeight:1,display:'block'}}>{v}</span>
                       <span style={{
-                        fontSize:8,
-                        lineHeight:1.2,
-                        color:isSelected ? col : DIM,
-                        display:'block',
-                        width:'100%',
-                        textAlign:'center',
-                        overflow:'hidden',
-                        whiteSpace:'nowrap',
-                        textOverflow:'ellipsis',
-                        padding:'0 2px',
-                        boxSizing:'border-box',
+                        fontSize:8,lineHeight:1.2,color:isSelected?col:DIM,display:'block',
+                        width:'100%',textAlign:'center',overflow:'hidden',
+                        whiteSpace:'nowrap',textOverflow:'ellipsis',padding:'0 2px',boxSizing:'border-box',
                       }}>
                         {scaleCfg.labels[v] || ''}
                       </span>
@@ -1633,7 +1641,12 @@ function SurveyView({ nav, goBack, ctx }) {
           )}
           {activeDim < safeDims.length - 1 && (
             <span style={{fontSize:12,color:MUTED}}>
-              {dimDone(curDim) ? '✓ Kész — következő automatikusan' : `${curDim.items.filter(i=>(scores[i.id]||0)>0).length}/${curDim.items.length} kérdés megválaszolva`}
+              {curItems.length === 0
+                ? '— üres dimenzió, továbblép'
+                : curItems.every(i=>(scores[i.id]||0)>0)
+                  ? '✓ Kész — következő automatikusan'
+                  : `${curItems.filter(i=>(scores[i.id]||0)>0).length}/${curItems.length} kérdés megválaszolva`
+              }
             </span>
           )}
         </div>
