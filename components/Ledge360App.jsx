@@ -4662,8 +4662,20 @@ function AIBuilderView({ nav, goBack, ctx }) {
           max_tokens:2000,
           system: `Te egy vezetői kompetencia kérdőív tervező AI vagy. A felhasználóval közösen tervezel egyedi 360 fokos értékelési kérdőívet.
 A kimeneti formátum JSON kell legyen, ha a felhasználó véglegesíteni akarja a kérdőívet. Ebben az esetben KIZÁRÓLAG ilyen JSON-t adj vissza, semmi mást:
-{"type":"questionnaire","name":"...","dims":[{"id":"XX","name":"...","label":"...","color":"#hexcolor","items":[{"id":"XX1","text":"..."}]}]}
-Addig amíg nem véglegesítés a cél, beszélgess természetesen magyarul és segíts finomítani a kérdőívet. 4-8 dimenzió, dimenziónként 3-5 item az ideális.`,
+{"type":"questionnaire","name":"...","dims":[{"id":"XX","name":"...","label":"...","color":"#hexcolor","items":[{"id":"XX1","text":"..."},{"id":"XX2","text":"..."},{"id":"XX3","text":"..."}]}]}
+
+KÖTELEZŐ SZABÁLYOK a JSON generálásnál:
+- Minden dimenzióhoz PONTOSAN 3-5 item kell. Ha kevesebbet generálnál, adj hozzá többet.
+- Az item szövege RÖVID viselkedéses állítás (max 80 karakter), NEM stratégiai leírás vagy OKR.
+- Az item azt írja le, mit TESZ a vezető a napi munkában — megfigyelhető viselkedés.
+- Jó item példa: "Visszajelzést proaktívan kér és beépíti a viselkedésébe"
+- Rossz item példa: "A vezető Q1 2026-ban franchise portált implementál..."
+- 4-8 dimenzió ideális, dimenziónként MINIMUM 3 item.
+- Dimenzió ID: 2-3 betűs nagybetűs kód (pl. PC, LS, AG)
+- Item ID: dimenzió ID + sorszám (pl. PC1, PC2, PC3)
+- Színek: #A68542, #4A7A9E, #5B8A6A, #7E5EA0, #A06A48, #B85548, #D4AA78, #7AAED0, #B89BC9
+
+Addig amíg nem véglegesítés a cél, beszélgess természetesen magyarul és segíts finomítani a kérdőívet.`,
           messages: apiMessages,
         }),
       });
@@ -4870,6 +4882,15 @@ function LibraryManagerView({ nav, goBack, ctx }) {
     setSaved(true); setTimeout(() => setSaved(false), 1500);
   }
 
+  // Item-szám validálás
+  function validateDims(dims) {
+    const thin = dims.filter(d => !d.items || d.items.length < 2);
+    if (thin.length > 0) {
+      return `⚠ Figyelem: ${thin.length} dimenzióhoz kevesebb mint 2 kérdés tartozik (${thin.map(d=>d.name||d.id).join(', ')}). A kérdőív ezekhez a dimenziókhoz nem fog értékelést gyűjteni.`;
+    }
+    return null;
+  }
+
   // ── Inline editing ──
   function startEdit(type, dimIdx, itemIdx, field, currentVal) {
     setEditingField({ type, dimIdx, itemIdx, field });
@@ -5039,22 +5060,33 @@ function LibraryManagerView({ nav, goBack, ctx }) {
 
   function importRows(rows) {
     // Expected columns: Kompetencia | Rövid kód | Label | Alkompetencia ID | Értékelendő mondat
+    // A dimenzió neve csak az első sorban van kitöltve — a többi item sora üres A oszloppal jön
     const dimMap = {};
     const dimOrder = [];
+    let lastKey = null; // az utolsó aktív dimenzió kulcsa
+
     rows.forEach(r => {
-      const name = (r[0] || '').toString().trim();
-      const id   = (r[1] || '').toString().trim();
-      const label= (r[2] || '').toString().trim();
-      const iid  = (r[3] || '').toString().trim();
-      const text = (r[4] || '').toString().trim();
-      if (!name) return;
-      const key = id || name.replace(/\s+/g,'').substring(0,3).toUpperCase();
-      if (!dimMap[key]) {
-        dimMap[key] = { id:key, name, label:label||name, color:DIM_COLORS[dimOrder.length % DIM_COLORS.length], items:[] };
-        dimOrder.push(key);
-      }
-      if (text) {
-        dimMap[key].items.push({ id:iid || (key + (dimMap[key].items.length+1)), text });
+      const name  = (r[0] || '').toString().trim();
+      const id    = (r[1] || '').toString().trim();
+      const label = (r[2] || '').toString().trim();
+      const iid   = (r[3] || '').toString().trim();
+      const text  = (r[4] || '').toString().trim();
+
+      if (name) {
+        // Új dimenzió sor — rögzítjük
+        const key = id || name.replace(/\s+/g,'').substring(0,4).toUpperCase();
+        if (!dimMap[key]) {
+          dimMap[key] = { id:key, name, label:label||name, color:DIM_COLORS[dimOrder.length % DIM_COLORS.length], items:[] };
+          dimOrder.push(key);
+        }
+        lastKey = key;
+        // Ha van item ebben a sorban is, hozzáadjuk
+        if (text && lastKey) {
+          dimMap[lastKey].items.push({ id:iid || (lastKey + (dimMap[lastKey].items.length+1)), text });
+        }
+      } else if (lastKey && text) {
+        // Folytatósor: üres dimenzió név, de van item szöveg → az előző dimenzióhoz tartozik
+        dimMap[lastKey].items.push({ id:iid || (lastKey + (dimMap[lastKey].items.length+1)), text });
       }
     });
     if (dimOrder.length === 0) { setImportErr('Nem találtam kompetenciákat a fájlban.'); return; }
@@ -5118,6 +5150,18 @@ function LibraryManagerView({ nav, goBack, ctx }) {
           </div>
         </div>
         {importErr && <div style={{background:`${RED}18`,border:`1px solid ${RED}44`,borderRadius:8,padding:'8px 14px',marginBottom:14,fontSize:13,color:RED}}>{importErr}</div>}
+
+        {/* Figyelmeztetés: kevés item */}
+        {(() => {
+          const warn = validateDims(dims);
+          if (!warn) return null;
+          return (
+            <div style={{background:`${ORAN}12`,border:`1px solid ${ORAN}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:ORAN,lineHeight:1.6}}>
+              <b>⚠ Hiányos kérdőív:</b> {warn.replace('⚠ Figyelem: ', '')}<br/>
+              <span style={{fontSize:12,color:MUTED}}>Adj hozzá legalább 3 kérdést dimenziónként a + gombbal, különben az értékelők nem tudják kitölteni ezeket a dimenziókat.</span>
+            </div>
+          );
+        })()}
 
         {/* Info box */}
         <div style={{background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:13,color:MUTED,lineHeight:1.6}}>
