@@ -3515,17 +3515,21 @@ function RatersView({ nav, goBack, ctx }) {
     if (!r.email) return;
     setSendingId(r.id);
     try {
+      const raterName     = r.firstName + (r.lastName ? ' ' + r.lastName : '');
+      const participantName = part ? part.firstName + ' ' + part.lastName : '';
+      const surveyTitle   = proj?.name || 'LEDGE 360° értékelés';
+      const baseUrl       = window.location.origin;
+      const surveyUrl     = `${baseUrl}?code=${r.code}`;
+      const subject       = isReminder
+        ? `Emlékeztető: ${surveyTitle} — kérjük, töltsd ki`
+        : `${surveyTitle} — kérjük, töltsd ki`;
+      const bodyText      = isReminder
+        ? `Kedves ${raterName}!\n\nEmlékeztetünk, hogy még nem töltötted ki a(z) ${participantName} értékeléséhez kapcsolódó kérdőívet.\n\nAzonosítód: ${r.code}\nLink: ${surveyUrl}\n\nKöszönjük!\nLEDGE 360°`
+        : `Kedves ${raterName}!\n\nMeghívást kaptál, hogy értékeld ${participantName} vezető kollégádat egy 360 fokos értékelésben.\n\nAzonosítód: ${r.code}\nLink: ${surveyUrl}\n\nA kitöltés kb. 5-10 percet vesz igénybe.\n\nKöszönjük!\nLEDGE 360°`;
       const resp = await fetch('/api/send-360-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to:              r.email,
-          raterName:       r.firstName + (r.lastName ? ' ' + r.lastName : ''),
-          code:            r.code,
-          surveyTitle:     proj?.name || 'LEDGE 360° értékelés',
-          participantName: part ? part.firstName + ' ' + part.lastName : '',
-          senderName:      'LEDGE 360°',
-        }),
+        body: JSON.stringify({ to: r.email, subject, bodyText }),
       });
       if (resp.ok) {
         const now = Date.now();
