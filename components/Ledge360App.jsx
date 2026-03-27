@@ -83,22 +83,22 @@ import { db } from '../lib/supabase-360';
 import * as XLSX from 'xlsx';
 
 // ─── TOKENS ────────────────────────────────────────────────────
-const BG    = '#FAFAF8';
-const SURF  = '#FFFFFF';
-const S2    = '#F5F3EF';
+const BG    = '#0A0A09';
+const SURF  = '#161614';
+const S2    = '#1E1E1C';
 const S3    = '#EDEAE4';
-const BORD  = '#E2DED6';
-const BORD2 = '#D5D0C7';
-const GOLD  = '#A68542';
+const BORD  = '#2C2C29';
+const BORD2 = '#3A3A36';
+const GOLD  = '#C49A52';
 const GDIM  = '#C4AD78';
-const TEXT  = '#1A1A18';
-const MUTED = '#8A8478';
-const DIM   = '#C5C0B8';
-const BLUE  = '#4A7A9E';
-const GREEN = '#5B8A6A';
-const PURP  = '#7E5EA0';
-const ORAN  = '#A06A48';
-const RED   = '#B85548';
+const TEXT  = '#EDECEA';
+const MUTED = '#7A7870';
+const DIM   = '#4A4945';
+const BLUE  = '#5E90B8';
+const GREEN = '#6EA07C';
+const PURP  = '#9B78C0';
+const ORAN  = '#C07E58';
+const RED   = '#D06860';
 
 const SCALE = ['','Gyenge','Megfelelő','Jó','Nagyon jó','Kiváló'];
 const SCOL  = ['', '#B85548', '#A06A48', '#A68542', '#5B8A6A', '#4A7A9E'];
@@ -611,7 +611,7 @@ function Btn(props) {
     lg:{ padding:'13px 28px', fontSize:15, borderRadius:10 },
   };
   const variants = {
-    primary:      { background:GOLD, color:'#FFFFFF', boxShadow:'0 1px 3px rgba(0,0,0,.08)' },
+    primary:      { background:GOLD, color:'#FFFFFF', boxShadow:'0 1px 3px rgba(0,0,0,.4)' },
     ghost:        { background:'transparent', border:`1px solid ${BORD}`, color:TEXT },
     danger:       { background:`${RED}10`, border:`1px solid ${RED}30`, color:RED },
     subtle:       { background:'transparent', color:MUTED },
@@ -638,7 +638,7 @@ function Input({ label, value, onChange, placeholder, type, style }) {
         type={t} value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        style={Object.assign({width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .2s'}, st)}
+        style={Object.assign({width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .2s'}, st)}
       />
     </div>
   );
@@ -657,7 +657,7 @@ function Badge({ children, color, style }) {
 function Card({ children, style, onClick }) {
   const st = style || {};
   return (
-    <div onClick={onClick} style={Object.assign({background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:22,boxShadow:'0 1px 3px rgba(0,0,0,.04)'}, st)}>
+    <div onClick={onClick} style={Object.assign({background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:22,boxShadow:'0 1px 3px rgba(0,0,0,.3)'}, st)}>
       {children}
     </div>
   );
@@ -665,7 +665,7 @@ function Card({ children, style, onClick }) {
 
 function TopBar({ title, subtitle, back, onBack, right }) {
   return (
-    <div style={{background:'#FFFFFF',borderBottom:`1px solid ${BORD}`,padding:'0 28px',height:60,display:'flex',alignItems:'center',gap:16,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,.03)'}}>
+    <div style={{background:'#111110',borderBottom:`1px solid ${BORD}`,padding:'0 28px',height:60,display:'flex',alignItems:'center',gap:16,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,.03)'}}>
       {back && (
         <button onClick={onBack} style={{background:S2,border:`1px solid ${BORD}`,color:TEXT,cursor:'pointer',fontSize:16,width:34,height:34,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>
           {'←'}
@@ -677,7 +677,7 @@ function TopBar({ title, subtitle, back, onBack, right }) {
       </div>
       {right && <div style={{flexShrink:0}}>{right}</div>}
       <div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0,marginLeft:8}}>
-        <div style={{width:28,height:28,borderRadius:8,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:14}}>L</div>
+        <div style={{width:28,height:28,borderRadius:8,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:14}}>L</div>
         <span style={{fontFamily:"'Instrument Serif',serif",fontSize:13,color:MUTED,marginLeft:4}}>360°</span>
       </div>
     </div>
@@ -741,7 +741,7 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   const lbl = confirmLabel || 'Igen';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:380}}>
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:380}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:10}}>{title}</div>
         <div style={{fontSize:14,color:MUTED,lineHeight:1.6,marginBottom:24}}>{message}</div>
         <div style={{display:'flex',gap:10}}>
@@ -789,7 +789,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   function CT({ active, payload }) {
     if (!active || !payload || !payload.length) return null;
     return (
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.08)'}}>
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.4)'}}>
         {payload.map((p, i) => (
           <div key={i} style={{color:p.color||TEXT}}>{p.name}: <b>{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</b></div>
         ))}
@@ -1274,7 +1274,7 @@ function SurveyView({ nav, goBack, ctx }) {
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
-      <div style={{position:'sticky',top:0,zIndex:100,background:SURF,borderBottom:`1px solid ${BORD}`}}>
+      <div style={{position:'sticky',top:0,zIndex:100,background:'#111110',borderBottom:`1px solid ${BORD}`}}>
         <div style={{padding:'0 20px',height:52,display:'flex',alignItems:'center',gap:12}}>
           <button onClick={goBack} style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:18,padding:'0 4px',display:'flex',alignItems:'center',flexShrink:0}}>{'‹'}</button>
           <div style={{flex:1,fontSize:13,color:TEXT,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -1285,7 +1285,7 @@ function SurveyView({ nav, goBack, ctx }) {
           {draftLoaded && Object.keys(scores).length > 0 && pct < 100 && <span style={{fontSize:10,color:GREEN,flexShrink:0}}>💾</span>}
           <button onClick={() => setShowScaleSettings(p => !p)} title="Skála beállítások"
             style={{background:showScaleSettings?`${GOLD}22`:'none',border:`1px solid ${showScaleSettings?GOLD:BORD}`,borderRadius:6,cursor:'pointer',width:24,height:24,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:13,color:showScaleSettings?GOLD:MUTED,transition:'all .15s'}}>⚙</button>
-          <div style={{width:22,height:22,borderRadius:6,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:10,flexShrink:0}}>L</div>
+          <div style={{width:22,height:22,borderRadius:6,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:10,flexShrink:0}}>L</div>
         </div>
         <div style={{height:3,background:BORD}}>
           <div style={{height:'100%',width:`${pct}%`,background:GOLD,transition:'width .3s',borderRadius:2}}/>
@@ -1363,7 +1363,7 @@ function SurveyView({ nav, goBack, ctx }) {
                 onChange={e => setCommentGrowth(e.target.value)}
                 placeholder="Fejlesztendő területek, javaslatok..."
                 rows={3}
-                style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
+                style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
               />
             </div>
             <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'16px 18px'}}>
@@ -1374,7 +1374,7 @@ function SurveyView({ nav, goBack, ctx }) {
                 onChange={e => setCommentStrength(e.target.value)}
                 placeholder="Erősségek, pozitív tulajdonságok..."
                 rows={3}
-                style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
+                style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
               />
             </div>
           </div>
@@ -1410,10 +1410,10 @@ function LoginView({ onLogin }) {
     setTimeout(() => onLogin(user), 600);
   }
   return (
-    <div style={{minHeight:'100vh',background:'#FAFAF8',display:'flex',flexDirection:'column'}}>
+    <div style={{minHeight:'100vh',background:BG,display:'flex',flexDirection:'column'}}>
       <div style={{padding:'18px 40px',display:'flex',alignItems:'center',borderBottom:`1px solid ${BORD}`}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
+          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
           <span style={{fontFamily:"'Instrument Serif',serif",fontSize:22}}>Ledge 360°</span>
         </div>
       </div>
@@ -1430,7 +1430,7 @@ function LoginView({ onLogin }) {
               <div style={{fontSize:13,color:MUTED,marginTop:4}}>Átirányítás...</div>
             </div>
           ) : (
-            <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:16,padding:'24px',boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
+            <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:'24px',boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}>
               <Input label="Email cím" value={email} onChange={setEmail} placeholder="nev@ceg.hu" type="email"/>
               <Btn onClick={handleLogin} disabled={!email.trim()||sending} size="lg" style={{width:'100%',marginTop:4}}>
                 {sending ? 'Küldés...' : 'Bejelentkezési link küldése'}
@@ -1470,7 +1470,7 @@ function PaywallView({ nav, goBack, onUpgrade }) {
         <div style={{fontSize:40,marginBottom:16}}>◈</div>
         <h2 style={{fontFamily:"'Instrument Serif',serif",fontSize:28,color:TEXT,fontWeight:400,marginBottom:8}}>Szervezett 360°</h2>
         <p style={{color:MUTED,fontSize:15,lineHeight:1.6,marginBottom:28}}>Projektek, résztvevők, értékelők kezelése — professzionális tanácsadói eszköztár.</p>
-        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:'28px',boxShadow:'0 2px 8px rgba(0,0,0,.04)',marginBottom:24}}>
+        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:'28px',boxShadow:'0 2px 8px rgba(0,0,0,.3)',marginBottom:24}}>
           <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:8}}>Tanácsadói csomag</div>
           <div style={{fontFamily:"'Instrument Serif',serif",fontSize:42,color:GOLD,marginBottom:4}}>29<span style={{fontSize:18,color:MUTED}}> EUR/hó</span></div>
           <div style={{fontSize:13,color:MUTED,marginBottom:20}}>Korlátlan projekt és értékelő</div>
@@ -1518,7 +1518,7 @@ function SuperAdminPanel({ nav, goBack }) {
       <div style={{maxWidth:960,margin:'0 auto',padding:'24px'}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
           {[{label:'Felhasználók',val:stats.total,color:GOLD},{label:'Tanácsadók',val:stats.consultants,color:PURP},{label:'Vezetők',val:stats.leaders,color:BLUE},{label:'Tiltott',val:stats.banned,color:RED}].map(s => (
-            <div key={s.label} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:'16px 20px',boxShadow:'0 1px 3px rgba(0,0,0,.04)'}}>
+            <div key={s.label} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'16px 20px',boxShadow:'0 1px 3px rgba(0,0,0,.3)'}}>
               <div style={{fontSize:28,fontFamily:"'Instrument Serif',serif",color:s.color}}>{s.val}</div>
               <div style={{fontSize:11,color:MUTED,marginTop:4}}>{s.label}</div>
             </div>
@@ -1526,17 +1526,17 @@ function SuperAdminPanel({ nav, goBack }) {
         </div>
         <div style={{display:'flex',gap:2,marginBottom:20,background:S2,borderRadius:12,padding:3,border:`1px solid ${BORD}`}}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{flex:1,padding:'10px 8px',border:'none',borderRadius:10,background:tab===t.id?'#FFFFFF':'transparent',cursor:'pointer',fontSize:13,fontFamily:"'DM Sans',sans-serif",color:tab===t.id?GOLD:MUTED,fontWeight:tab===t.id?600:400,transition:'all .15s',boxShadow:tab===t.id?'0 1px 2px rgba(0,0,0,.04)':'none'}}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{flex:1,padding:'10px 8px',border:'none',borderRadius:10,background:tab===t.id?S2:'transparent',cursor:'pointer',fontSize:13,fontFamily:"'DM Sans',sans-serif",color:tab===t.id?GOLD:MUTED,fontWeight:tab===t.id?600:400,transition:'all .15s',boxShadow:tab===t.id?'0 1px 2px rgba(0,0,0,.04)':'none'}}>{t.label}</button>
           ))}
         </div>
         {tab === 'users' && users.map(u => (
-          <div key={u.id} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:12,padding:'14px 18px',marginBottom:8,display:'flex',alignItems:'center',gap:12,boxShadow:'0 1px 2px rgba(0,0,0,.03)'}}>
+          <div key={u.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'14px 18px',marginBottom:8,display:'flex',alignItems:'center',gap:12,boxShadow:'0 1px 2px rgba(0,0,0,.25)'}}>
             <div style={{width:36,height:36,borderRadius:'50%',background:`${GOLD}14`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:GOLD,flexShrink:0}}>{(u.displayName||u.email||'?')[0].toUpperCase()}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:14,color:TEXT,fontWeight:600}}>{u.displayName||u.email}{u.banned?' — TILTVA':''}</div>
               <div style={{fontSize:12,color:MUTED}}>{u.email}</div>
             </div>
-            <select value={u.role} onChange={e => changeRole(u.id, e.target.value)} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:8,padding:'6px 10px',fontSize:12,color:TEXT,cursor:'pointer'}}>
+            <select value={u.role} onChange={e => changeRole(u.id, e.target.value)} style={{background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'6px 10px',fontSize:12,color:TEXT,cursor:'pointer'}}>
               <option value="leader">Vezető</option><option value="consultant">Tanácsadó</option><option value="super_admin">SuperAdmin</option>
             </select>
             <Btn variant={u.banned?"ghost":"danger"} size="sm" onClick={() => toggleBan(u.id)}>{u.banned?'Feloldás':'Tiltás'}</Btn>
@@ -1556,7 +1556,7 @@ function SuperAdminPanel({ nav, goBack }) {
         {tab === 'invites' && (invites.length === 0
           ? <div style={{textAlign:'center',color:MUTED,padding:40}}>Nincs kiadott meghívó.</div>
           : invites.map((inv,i) => (
-              <div key={i} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:6,display:'flex',alignItems:'center',gap:12}}>
+              <div key={i} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:6,display:'flex',alignItems:'center',gap:12}}>
                 <Badge color={inv.status==='accepted'?GREEN:inv.status==='expired'?RED:GOLD}>{inv.status}</Badge>
                 <div style={{flex:1,fontSize:13,color:TEXT}}>{inv.email}</div>
                 <div style={{fontSize:11,color:MUTED}}>{new Date(inv.created).toLocaleDateString('hu-HU')}</div>
@@ -1614,7 +1614,7 @@ function ConsultantInviteView({ nav, goBack }) {
           <Badge color={GREEN}>{invites.filter(i=>i.status==='accepted').length} elfogadva</Badge>
         </div>
         {invites.map((inv,i) => (
-          <div key={i} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+          <div key={i} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
             <Badge color={inv.status==='accepted'?GREEN:GOLD}>{inv.status==='accepted'?'Elfogadva':'Függőben'}</Badge>
             <div style={{flex:1}}>
               <div style={{fontSize:14,color:TEXT}}>{inv.email}</div>
@@ -1631,10 +1631,10 @@ function ConsultantInviteView({ nav, goBack }) {
 // ─── HOME VIEW ─────────────────────────────────────────────────
 function HomeView({ nav, goBack, ctx, onLogout }) {
   return (
-    <div style={{minHeight:'100vh',background:'#FAFAF8',display:'flex',flexDirection:'column'}}>
+    <div style={{minHeight:'100vh',background:BG,display:'flex',flexDirection:'column'}}>
       <div style={{padding:'18px 40px',display:'flex',alignItems:'center',borderBottom:`1px solid ${BORD}`}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
+          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
           <span style={{fontFamily:"'Instrument Serif',serif",fontSize:22}}>Ledge 360°</span>
         </div>
         <span style={{marginLeft:14,fontSize:11,color:MUTED,letterSpacing:'.1em',textTransform:'uppercase'}}>by ZEL Group</span>
@@ -2006,7 +2006,7 @@ function GroupModal({ onClose, onSave, selves }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:480}}>
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:480}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>Új csoport</div>
         <div style={{marginBottom:16}}>
           <div style={{fontSize:11,color:MUTED,marginBottom:8,textTransform:'uppercase',letterSpacing:'.08em'}}>Javaslatok</div>
@@ -2079,7 +2079,7 @@ function PresetPickerModal({ onClose, onPick, hasExisting }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:520}}>
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:520}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:hasExisting?8:20}}>Sablon választás</div>
         {hasExisting && (
           <div style={{background:`${ORAN}18`,border:`1px solid ${ORAN}44`,borderRadius:8,padding:'8px 14px',marginBottom:16,fontSize:13,color:ORAN}}>
@@ -2244,7 +2244,7 @@ Szabályok:
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:640,maxHeight:'85vh',overflow:'auto'}}>
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:640,maxHeight:'85vh',overflow:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
           <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT}}>📊 Excel importálás</div>
           <Btn variant="ghost" size="sm" onClick={onClose}>✕</Btn>
@@ -2752,7 +2752,7 @@ function GroupManageView({ nav, goBack, ctx }) {
         const dims = preset.dims;
         return (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-            <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:560,maxHeight:'80vh',overflow:'auto',boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
+            <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:560,maxHeight:'80vh',overflow:'auto',boxShadow:'0 8px 30px rgba(0,0,0,.5)'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
                 <div>
                   <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT}}>{viewingMember.firstName} {viewingMember.lastName}</div>
@@ -3317,16 +3317,16 @@ function ProjectView({ nav, goBack, ctx }) {
         </div>
 
         {/* Tanácsadók a projektben */}
-        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22,boxShadow:'0 1px 3px rgba(0,0,0,.04)'}}>
+        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22,boxShadow:'0 1px 3px rgba(0,0,0,.3)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
             <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Tanácsadók a projektben</div>
             <Badge color={MUTED}>{collabs.length} fő</Badge>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:10}}>
             <div style={{flex:1}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="kollega@ceg.hu"
-              style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
+              style={{width:'100%',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
             <select value={collabPerm} onChange={e=>setCollabPerm(e.target.value)}
-              style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
+              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
               <option value="view">Olvasás</option>
               <option value="edit">Szerkesztés</option>
             </select>
@@ -3423,7 +3423,7 @@ function ProjectView({ nav, goBack, ctx }) {
 
       {editingProj && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.5)'}}>
             <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>Projekt szerkesztése</div>
             <Input label="Projekt neve" value={editName} onChange={setEditName} placeholder="Projekt neve"/>
             <Input label="Ügyfél / Szervezet" value={editClient} onChange={setEditClient} placeholder="Ügyfél neve"/>
@@ -3825,7 +3825,7 @@ function ShareModal({ onClose, libraryId, dims, customName }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:420}}>
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:420}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>🔗 Megosztás</div>
         {code ? (
           <div style={{marginBottom:24}}>
@@ -4543,7 +4543,7 @@ export default function App() {
     if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
   }, []);
 
-  if (view === 'loading') return <div style={{background:'#FAFAF8',minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:MUTED}}>Betöltés...</div>;
+  if (view === 'loading') return <div style={{background:BG,minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:MUTED}}>Betöltés...</div>;
   if (view === 'login') return <LoginView onLogin={handleLogin}/>;
 
   const views = {
@@ -4569,7 +4569,7 @@ export default function App() {
   };
 
   return (
-    <div style={{background:'#FAFAF8',minHeight:'100vh',color:TEXT,fontFamily:"'DM Sans',-apple-system,sans-serif",WebkitFontSmoothing:'antialiased'}}>
+    <div style={{background:BG,minHeight:'100vh',color:TEXT,fontFamily:"'DM Sans',-apple-system,sans-serif",WebkitFontSmoothing:'antialiased'}}>
       {views[view] || views['home']}
     </div>
   );
