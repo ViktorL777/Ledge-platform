@@ -599,8 +599,10 @@ function resolvePreset(libraryId, storedDims) {
   const preset = PRESETS.find(p => p.id === libraryId);
   if (preset) return preset;
   if (storedDims && storedDims.length > 0) {
-    const totalItems = storedDims.reduce((s,d) => s + d.items.length, 0);
-    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims: storedDims, itemCount: totalItems };
+    // Biztosítjuk hogy minden dimenziónak van items tömbje
+    const safeDims = storedDims.map(d => ({ ...d, items: Array.isArray(d.items) ? d.items : [] }));
+    const totalItems = safeDims.reduce((s,d) => s + d.items.length, 0);
+    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims: safeDims, itemCount: totalItems };
   }
   return PRESETS[0];
 }
@@ -1685,8 +1687,10 @@ function SurveyView({ nav, goBack, ctx }) {
         </div>
 
         {curItems.length === 0 && (
-          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'24px 18px',marginBottom:12,textAlign:'center',color:MUTED,fontSize:13}}>
-            Ehhez a dimenzióhoz nincs kérdés definiálva — automatikusan továbblép.
+          <div style={{background:`${ORAN}11`,border:`1px solid ${ORAN}33`,borderRadius:12,padding:'20px 18px',marginBottom:12,textAlign:'center'}}>
+            <div style={{fontSize:15,marginBottom:6}}>⚠</div>
+            <div style={{fontSize:13,color:ORAN,fontWeight:600,marginBottom:4}}>Ehhez a dimenzióhoz nincsenek kérdések</div>
+            <div style={{fontSize:12,color:MUTED}}>A sablon szerkesztőben add hozzá a kérdéseket, majd kérd meg az értékelőket az újrakitöltésre.</div>
           </div>
         )}
 
@@ -3777,6 +3781,17 @@ function ProjectView({ nav, goBack, ctx }) {
   }
 
   async function activate() {
+    // Ellenőrzés: vannak-e üres dimenziók a sablonban?
+    const preset = resolvePreset(proj.libraryId, proj.customDims);
+    const emptyDims = preset.dims.filter(d => !d.items || d.items.length === 0);
+    if (emptyDims.length > 0) {
+      const names = emptyDims.map(d => d.name || d.label || d.id).join(', ');
+      const ok = window.confirm(
+        `⚠ Figyelem: ${emptyDims.length} dimenzióhoz nincsenek kérdések definiálva:\n\n${names}\n\nEzek a dimenziók nem lesznek értékelhetők a kérdőívben, és a riportban üresek maradnak.\n\nFolytassuk az aktiválást?`
+      );
+      if (!ok) return;
+    }
+
     const updated = { ...proj, status:'active', activatedAt: Date.now() };
     await db.set(projectId, updated);
     setProj(updated);
