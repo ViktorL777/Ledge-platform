@@ -831,6 +831,107 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   );
 }
 
+// ─── DIM COMPARE LIST — sortable dimenzió összehasonlítás ──────
+function DimCompareList({ dimsWithCode, ss, othersAvg, hasOthers, sMax }) {
+  const [sortDir, setSortDir] = useState('desc'); // 'desc' = legnagyobb előre
+
+  // Dimenzió adatok kiszámítása
+  const rows = dimsWithCode.map(d => {
+    const sv = dimAvg(ss, d);
+    const ov = hasOthers ? dimAvg(othersAvg, d) : null;
+    const gap = (ov !== null && sv > 0 && ov > 0) ? +(sv - ov).toFixed(2) : null;
+    return { ...d, sv, ov, gap };
+  });
+
+  // Rendezés önértékelés szerint
+  const sorted = [...rows].sort((a, b) =>
+    sortDir === 'desc' ? (b.sv || 0) - (a.sv || 0) : (a.sv || 0) - (b.sv || 0)
+  );
+
+  return (
+    <div style={{marginBottom:28}}>
+      {/* Fejléc + sort gomb */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió összehasonlítás</div>
+        <button
+          onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+          style={{display:'flex',alignItems:'center',gap:6,background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:12,color:TEXT,fontFamily:"'DM Sans',sans-serif",fontWeight:500,transition:'all .15s'}}>
+          <span>{sortDir === 'desc' ? '↓' : '↑'}</span>
+          <span>{sortDir === 'desc' ? 'Legnagyobb érték elöl' : 'Legkisebb érték elöl'}</span>
+        </button>
+      </div>
+
+      {/* Fejléc sor */}
+      <div style={{display:'grid',gridTemplateColumns:'120px 1fr' + (hasOthers ? ' 1fr' : '') + ' 52px',gap:8,padding:'6px 14px',background:S3,borderRadius:'10px 10px 0 0',border:`1px solid ${BORD}`,borderBottom:'none'}}>
+        <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>Dimenzió</div>
+        <div style={{fontSize:10,color:GOLD,fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>Önértékelés</div>
+        {hasOthers && <div style={{fontSize:10,color:BLUE,fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>Mások átlaga</div>}
+        <div style={{fontSize:10,color:MUTED,fontWeight:600,textAlign:'right',textTransform:'uppercase',letterSpacing:'.06em'}}>Érték</div>
+      </div>
+
+      {/* Sorok */}
+      <div style={{border:`1px solid ${BORD}`,borderRadius:'0 0 10px 10px',overflow:'hidden'}}>
+        {sorted.map((d, idx) => {
+          const pctSelf   = d.sv > 0 ? (d.sv / sMax) * 100 : 0;
+          const pctOthers = d.ov !== null && d.ov > 0 ? (d.ov / sMax) * 100 : 0;
+          const isLast    = idx === sorted.length - 1;
+          return (
+            <div key={d.id} style={{
+              display:'grid',
+              gridTemplateColumns:'120px 1fr' + (hasOthers ? ' 1fr' : '') + ' 52px',
+              gap:8,
+              padding:'11px 14px',
+              background:idx%2===0?SURF:S2+'88',
+              borderBottom:isLast?'none':`1px solid ${BORD}`,
+              alignItems:'center',
+              transition:'background .1s',
+            }}>
+              {/* Dimenzió neve 1-2 szóban */}
+              <div style={{minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{width:8,height:8,borderRadius:'50%',background:d.color||GOLD,flexShrink:0,display:'inline-block'}}/>
+                  <span style={{fontSize:12,fontWeight:600,color:TEXT,lineHeight:1.3}}>
+                    {d._tiny1}
+                    {d._tiny2 && <><br/><span style={{fontWeight:400,color:MUTED}}>{d._tiny2}</span></>}
+                  </span>
+                </div>
+              </div>
+              {/* Önértékelés sáv */}
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{flex:1,height:8,background:BORD,borderRadius:4,overflow:'hidden'}}>
+                  <div style={{width:`${pctSelf}%`,height:'100%',background:d.color||GOLD,borderRadius:4,transition:'width .5s ease'}}/>
+                </div>
+              </div>
+              {/* Mások átlaga sáv */}
+              {hasOthers && (
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{flex:1,height:8,background:BORD,borderRadius:4,overflow:'hidden'}}>
+                    <div style={{width:`${pctOthers}%`,height:'100%',background:BLUE,borderRadius:4,transition:'width .5s ease'}}/>
+                  </div>
+                </div>
+              )}
+              {/* Értékek */}
+              <div style={{textAlign:'right'}}>
+                <span style={{fontSize:15,fontWeight:700,fontFamily:"'Instrument Serif',serif",color:d.sv>0?(d.color||GOLD):DIM}}>
+                  {d.sv > 0 ? d.sv.toFixed(1) : '—'}
+                </span>
+                {hasOthers && d.ov !== null && d.ov > 0 && (
+                  <div style={{fontSize:10,color:BLUE,marginTop:1}}>{d.ov.toFixed(1)}</div>
+                )}
+                {d.gap !== null && (
+                  <div style={{fontSize:10,color:d.gap>0.3?RED:d.gap<-0.3?GREEN:DIM,marginTop:1}}>
+                    {d.gap > 0 ? '+' : ''}{d.gap.toFixed(1)}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── REPORT VIEW ───────────────────────────────────────────────
 function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax }) {
   const sMax = propScaleMax || 5;
@@ -857,7 +958,28 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
     const n = (d.name || d.label || d.id || '').toString();
     return n.length > 28 ? n.slice(0, 26) + '…' : n;
   }
-  const dimsWithCode = dims.map((d, i) => ({ ...d, _code: shortCode(d, i), _name: shortName(d) }));
+  // 1-2 szavas rövid leírás generálás a radar/bar labelekhez
+  function tinyLabel(d) {
+    // Prioritás: d.name → d.label → d.id
+    const src = (d.name || d.label || d.id || '').toString().trim();
+    // Stop szavak kiszűrése
+    const stop = new Set(['a','az','és','vagy','hogy','mint','is','nem','van','de','ez','az','egy','the','and','or','of','in','to','for','with','on','at']);
+    const words = src.split(/[\s\-\/,]+/).filter(w => w.length > 1 && !stop.has(w.toLowerCase()));
+    if (words.length === 0) return [src.slice(0,10), ''];
+    if (words.length === 1) return [words[0], ''];
+    // 2 szó: ha az első kettő összesen ≤14 kar → egy sorban
+    const combined = words[0] + ' ' + words[1];
+    if (combined.length <= 14) return [combined, ''];
+    // Különben külön sorokba
+    return [words[0], words[1]];
+  }
+
+  const dimsWithCode = dims.map((d, i) => {
+    const code = shortCode(d, i);
+    const name = shortName(d);
+    const [tiny1, tiny2] = tinyLabel(d);
+    return { ...d, _code: code, _name: name, _tiny1: tiny1, _tiny2: tiny2 };
+  });
 
   const radarData = dimsWithCode.map(d => {
     const row = { dim: d._code, 'Önértékelés': dimAvg(ss, d) };
@@ -923,64 +1045,52 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            {/* ── Radar + Bar charts ── */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:8}}>
-              <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Kompetencia radar</div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={radarData} margin={{top:22,right:44,bottom:22,left:44}}>
-                    <PolarGrid stroke={BORD}/>
-                    <PolarAngleAxis
-                      dataKey="dim"
-                      tick={({ x, y, payload, cx, cy }) => {
-                        const dx = x - cx;
-                        const dy = y - cy;
-                        const anchor = dx > 5 ? 'start' : dx < -5 ? 'end' : 'middle';
-                        const offsetX = dx > 5 ? 6 : dx < -5 ? -6 : 0;
-                        const offsetY = dy > 5 ? 14 : dy < -5 ? -4 : 0;
-                        return (
-                          <text x={x + offsetX} y={y + offsetY} textAnchor={anchor}
-                            fill={MUTED} fontSize={11} fontFamily="'DM Sans',sans-serif" fontWeight={600}>
-                            {payload.value}
-                          </text>
-                        );
-                      }}
-                    />
-                    <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                    <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
-                    {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:3}}/>}
-                    {hasOthers && <Legend wrapperStyle={{fontSize:11,color:MUTED,paddingTop:8}}/>}
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió összehasonlítás</div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={barData} layout="vertical" margin={{left:10,right:24,top:4,bottom:4}}>
-                    <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
-                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11,fontWeight:600}} axisLine={false} tickLine={false} width={36}/>
-                    <Tooltip content={({ active, payload, label }) => {
-                      if (!active || !payload || !payload.length) return null;
-                      const entry = barData.find(b => b.name === label);
+
+            {/* ── 1. KOMPETENCIA RADAR — teljes szélesség, 2× méret ── */}
+            <div style={{marginBottom:28}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Kompetencia radar</div>
+              <ResponsiveContainer width="100%" height={560}>
+                <RadarChart data={radarData} margin={{top:40,right:80,bottom:40,left:80}}>
+                  <PolarGrid stroke={BORD}/>
+                  <PolarAngleAxis
+                    dataKey="dim"
+                    tick={({ x, y, payload, cx, cy }) => {
+                      const dx = x - cx;
+                      const dy = y - cy;
+                      const anchor = Math.abs(dx) < 10 ? 'middle' : dx > 0 ? 'start' : 'end';
+                      const px = x + (dx > 10 ? 10 : dx < -10 ? -10 : 0);
+                      const py = y + (dy > 10 ? 16 : dy < -10 ? -6 : 0);
+                      // Megkeressük a teljes dimsWithCode bejegyzést a kód alapján
+                      const entry = dimsWithCode.find(d => d._code === payload.value);
+                      const line1 = entry ? entry._tiny1 : payload.value;
+                      const line2 = entry ? entry._tiny2 : '';
                       return (
-                        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.08)',maxWidth:220}}>
-                          <div style={{fontWeight:600,color:TEXT,marginBottom:4,lineHeight:1.4}}>{entry ? entry.label : label}</div>
-                          {payload.map((p, i) => (
-                            <div key={i} style={{color:p.color||TEXT}}>{p.name}: <b>{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</b></div>
-                          ))}
-                        </div>
+                        <text x={px} y={py} textAnchor={anchor} fill={TEXT} fontSize={12}
+                          fontFamily="'DM Sans',sans-serif" fontWeight={600}>
+                          <tspan x={px} dy={0}>{line1}</tspan>
+                          {line2 && <tspan x={px} dy={15}>{line2}</tspan>}
+                        </text>
                       );
-                    }}/>
-                    <Bar dataKey="Önértékelés" radius={4}>
-                      {barData.map((b,i) => <Cell key={i} fill={b.color||GOLD} fillOpacity={0.85}/>)}
-                    </Bar>
-                    {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.45} radius={4}/>}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                    }}
+                  />
+                  <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
+                  <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.2} strokeWidth={2.5} dot={{fill:GOLD,r:4}}/>
+                  {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.12} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
+                  {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:12}}/>}
+                </RadarChart>
+              </ResponsiveContainer>
             </div>
 
-            {/* ── Dimenzió átlagok táblázat ── */}
+            {/* ── 2. DIMENZIÓ ÖSSZEHASONLÍTÁS — sortable lista ── */}
+            <DimCompareList
+              dimsWithCode={dimsWithCode}
+              ss={ss}
+              othersAvg={othersAvg}
+              hasOthers={hasOthers}
+              sMax={sMax}
+            />
+
+            {/* ── 3. DIMENZIÓ ÁTLAGOK TÁBLÁZAT ── */}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
               <div style={{background:S2,borderRadius:12,overflow:'hidden',border:`1px solid ${BORD}`}}>
