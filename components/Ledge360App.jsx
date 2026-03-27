@@ -1525,17 +1525,18 @@ function SurveyView({ nav, goBack, ctx }) {
 
         {curDim.items.map((item, idx) => {
           const scored = (scores[item.id] || 0) > 0;
+          const scButtons = Array.from({length: scaleMax}, (_, i) => i + 1);
           return (
             <div key={item.id}
-              style={{background:SURF,border:`1px solid ${scored ? curDim.color + '55' : BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:10,transition:'border-color .2s'}}>
+              style={{background:SURF,border:`2px solid ${scored ? curDim.color + '66' : BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:12,transition:'border-color .2s',overflow:'visible'}}>
               {/* Kérdés szövege */}
-              <div style={{fontSize:14,color:TEXT,marginBottom:14,lineHeight:1.5}}>
-                <span style={{color:MUTED,fontSize:12,marginRight:8}}>{idx+1}.</span>
+              <div style={{fontSize:14,color:TEXT,marginBottom:16,lineHeight:1.6}}>
+                <span style={{color:MUTED,fontSize:12,marginRight:8,fontWeight:600}}>{idx+1}.</span>
                 {item.text}
               </div>
-              {/* Értékelő skála — mindig egy sorban, grid layout */}
-              <div style={{display:'grid',gridTemplateColumns:`repeat(${scaleMax},1fr)`,gap:5}}>
-                {Array.from({length:scaleMax},(_,i)=>i+1).map(v => {
+              {/* Értékelő skála — flex wrap防止截断 */}
+              <div style={{display:'flex',flexWrap:'nowrap',gap:4,width:'100%',boxSizing:'border-box'}}>
+                {scButtons.map(v => {
                   const isSelected = scores[item.id] === v;
                   const col = scaleCfg.colors[v] || GOLD;
                   return (
@@ -1543,17 +1544,19 @@ function SurveyView({ nav, goBack, ctx }) {
                       onClick={() => {
                         const newScores = { ...scores, [item.id]: v };
                         setScores(newScores);
-                        // Auto-advance: ha az összes item ki van töltve ebben a dimenzióban
-                        const dimFilled = curDim.items.every(i => (newScores[i.id] || 0) > 0);
+                        const dimFilled = curDim.items.every(it => (newScores[it.id] || 0) > 0);
                         if (dimFilled && activeDim < safeDims.length - 1) {
                           setTimeout(() => setActiveDim(a => a + 1), 380);
                         }
                       }}
                       style={{
-                        padding:'7px 2px',
+                        flex:'1 1 0',
+                        minWidth:0,
+                        minHeight:52,
+                        padding:'6px 2px',
                         border:`2px solid ${isSelected ? col : BORD2}`,
                         borderRadius:8,
-                        background:isSelected ? `${col}22` : 'transparent',
+                        background:isSelected ? `${col}1A` : '#FFFFFF',
                         color:isSelected ? col : MUTED,
                         cursor:'pointer',
                         fontFamily:"'DM Sans',sans-serif",
@@ -1563,10 +1566,24 @@ function SurveyView({ nav, goBack, ctx }) {
                         display:'flex',
                         flexDirection:'column',
                         alignItems:'center',
-                        gap:2,
+                        justifyContent:'center',
+                        gap:3,
+                        boxSizing:'border-box',
                       }}>
-                      <span style={{fontSize:scaleMax > 7 ? 12 : 15,lineHeight:1}}>{v}</span>
-                      <span style={{fontSize:scaleMax > 7 ? 7 : 9,lineHeight:1.2,color:isSelected?col:DIM,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:'100%',display:'block'}}>
+                      <span style={{fontSize:15,lineHeight:1,display:'block'}}>{v}</span>
+                      <span style={{
+                        fontSize:8,
+                        lineHeight:1.2,
+                        color:isSelected ? col : DIM,
+                        display:'block',
+                        width:'100%',
+                        textAlign:'center',
+                        overflow:'hidden',
+                        whiteSpace:'nowrap',
+                        textOverflow:'ellipsis',
+                        padding:'0 2px',
+                        boxSizing:'border-box',
+                      }}>
                         {scaleCfg.labels[v] || ''}
                       </span>
                     </button>
