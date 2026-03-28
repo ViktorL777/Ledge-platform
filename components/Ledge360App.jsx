@@ -86,7 +86,7 @@ import * as XLSX from 'xlsx';
 const BG    = '#0A0A09';
 const SURF  = '#161614';
 const S2    = '#1E1E1C';
-const S3    = '#EDEAE4';
+const S3    = '#252523';
 const BORD  = '#2C2C29';
 const BORD2 = '#3A3A36';
 const GOLD  = '#C49A52';
