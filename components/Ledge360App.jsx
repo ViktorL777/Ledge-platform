@@ -1342,7 +1342,15 @@ function SurveyView({ nav, goBack, ctx }) {
             <div style={{display:'flex',gap:scaleMax > 7 ? 3 : 6}}>
               {Array.from({length:scaleMax},(_,i)=>i+1).map(v => (
                 <button key={v}
-                  onClick={() => setScores(prev => ({ ...prev, [item.id]: v }))}
+                  onClick={() => {
+                    const newScores = { ...scores, [item.id]: v };
+                    setScores(newScores);
+                    // Auto-advance: ha az összes item ki van töltve ebben a dimenzióban
+                    const allDone = curDim.items.every(it => (newScores[it.id] || 0) > 0);
+                    if (allDone && activeDim < safeDims.length - 1) {
+                      setTimeout(() => setActiveDim(prev => prev + 1), 220);
+                    }
+                  }}
                   style={{flex:'1 1 0',padding:scaleMax > 7 ? '6px 2px' : '8px 4px',border:`1px solid ${scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : BORD2}`,borderRadius:8,background:scores[item.id]===v ? `${scaleCfg.colors[v]||GOLD}22` : 'transparent',color:scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : MUTED,fontSize:scaleMax > 7 ? 10 : 11,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:scores[item.id]===v?700:400,transition:'all .15s',textAlign:'center',minWidth:0}}>
                   <div style={{fontSize:scaleMax > 7 ? 12 : 15,marginBottom:2}}>{v}</div>
                   <div style={{fontSize:scaleMax > 7 ? 7 : 9,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{scaleCfg.labels[v]||''}</div>
@@ -1384,12 +1392,11 @@ function SurveyView({ nav, goBack, ctx }) {
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
             {'← Előző'}
           </Btn>
-          {activeDim < safeDims.length - 1
-            ? <Btn variant="ghost" onClick={() => setActiveDim(prev => prev+1)}>{'Következő →'}</Btn>
-            : <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
-                {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
-              </Btn>
-          }
+          {activeDim === safeDims.length - 1 && (
+            <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
+              {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
+            </Btn>
+          )}
         </div>
       </div>
     </div>
