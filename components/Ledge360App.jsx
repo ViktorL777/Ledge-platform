@@ -753,27 +753,203 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   );
 }
 
-// ─── CUSTOM RADAR TICK ─────────────────────────────────────────
-// Renders colored dim name (bold, outer) + shortLabel (inner) on radar axes
-function makeRadarTick(dims) {
-  return function RadarTick({ x, y, cx, cy, payload }) {
-    const label = payload.value;
-    const dim = dims.find(d => (d.shortLabel || d.name.split(' ')[0]) === label);
-    if (!dim) return <text x={x} y={y} fill="#7A7870" fontSize={11} textAnchor="middle" dominantBaseline="middle">{label}</text>;
-    const dx = x - cx;
-    const dy = y - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const scale = dist > 0 ? 1 / dist : 0;
-    const outerX = cx + dx + dx * scale * 30;
-    const outerY = cy + dy + dy * scale * 30;
-    const anchor = dx > 8 ? 'start' : dx < -8 ? 'end' : 'middle';
-    return (
-      <g>
-        <text x={x} y={y} fill={dim.color} fontSize={12} fontWeight={500} textAnchor={anchor} dominantBaseline="middle">{label}</text>
-        <text x={outerX} y={outerY} fill={dim.color} fontSize={11} fontWeight={700} textAnchor={anchor} dominantBaseline="middle">{dim.name}</text>
-      </g>
-    );
-  };
+// ─── CUSTOM RADAR SVG ─────────────────────────────────────────
+function CustomRadarSVG({ dims, series, sMax, size }) {
+  const [hovered, setHovered] = useState(null);
+  const S       = size || 540;
+  const cx      = S / 2, cy = S / 2;
+  const innerR  = S * 0.295;   // radar polygon area
+  const itemR   = S * 0.365;   // alkompetencia label ring
+  const dimR    = S * 0.440;   // kompetencia label ring
+
+  // Build flat axis list: dims in order, items within each dim in order
+  const axes = [];
+  dims.forEach(dim => dim.items.forEach(item => axes.push({ dim, item })));
+  const N = axes.length;
+
+  function ang(i)    { return (2 * Math.PI / N) * i - Math.PI / 2; }
+  function ptX(a, r) { return cx + r * Math.cos(a); }
+  function ptY(a, r) { return cy + r * Math.sin(a); }
+  function anchor(a) {
+    const c = Math.cos(a);
+    return c > 0.12 ? 'start' : c < -0.12 ? 'end' : 'middle';
+  }
+  function baseln(a) {
+    const s = Math.sin(a);
+    return s < -0.25 ? 'auto' : s > 0.25 ? 'hanging' : 'middle';
+  }
+
+  // Concentric grid polygons
+  const gridPolys = Array.from({length: sMax}, (_, i) => {
+    const l = i + 1;
+    const r = (l / sMax) * innerR;
+    const pts = axes.map((_, idx) => `${ptX(ang(idx),r).toFixed(1)},${ptY(ang(idx),r).toFixed(1)}`).join(' ');
+    return <polygon key={l} points={pts} fill="none" stroke={BORD} strokeWidth={l === sMax ? 1 : 0.5} strokeOpacity={0.55}/>;
+  });
+
+  // Data polygon for one series
+  function dataPoly(scores, color, fillOp, dashArr, idx) {
+    const pts = axes.map((a, i) => {
+      const v = scores[a.item.id] || 0;
+      const r = (v / sMax) * innerR;
+      return `${ptX(ang(i),r).toFixed(1)},${ptY(ang(i),r).toFixed(1)}`;
+    }).join(' ');
+    return <polygon key={idx} points={pts} fill={color} fillOpacity={fillOp} stroke={color} strokeWidth={2} strokeOpacity={0.85} strokeDasharray={dashArr || 'none'}/>;
+  }
+
+  // Dots for one series
+  function dataDots(scores, color, seriesIdx) {
+    return axes.map((a, i) => {
+      const v = scores[a.item.id] || 0;
+      if (!v) return null;
+      const r = (v / sMax) * innerR;
+      return <circle key={`${seriesIdx}-${i}`} cx={ptX(ang(i),r)} cy={ptY(ang(i),r)} r={3.5} fill={color} opacity={0.9}/>;
+    });
+  }
+
+  // Dim sectors: midAngle of each dim's span
+  let axisStart = 0;
+  const dimSectors = dims.map(dim => {
+    const n = dim.items.length;
+    const midFrac = axisStart + (n - 1) / 2;
+    const midAngle = (2 * Math.PI / N) * midFrac - Math.PI / 2;
+    axisStart += n;
+    return { dim, midAngle };
+  });
+
+  const hovCol = hovered ? hovered.dim.color : GOLD;
+
+  return (
+    <div style={{display:'flex', gap:20, alignItems:'flex-start', flexWrap:'wrap'}}>
+      {/* SVG radar */}
+      <svg width={S} height={S} style={{flexShrink:0, overflow:'visible'}}>
+        {/* Grid rings */}
+        {gridPolys}
+
+        {/* Scale numbers on top axis */}
+        {Array.from({length: sMax}, (_, i) => {
+          const l = i + 1;
+          const r = (l / sMax) * innerR;
+          return <text key={l} x={cx + 4} y={cy - r + 3} fill={DIM} fontSize={8} textAnchor="start">{l}</text>;
+        })}
+
+        {/* Axis lines — colored by dim */}
+        {axes.map((a, i) => (
+          <line key={i}
+            x1={cx} y1={cy}
+            x2={ptX(ang(i), innerR)} y2={ptY(ang(i), innerR)}
+            stroke={a.dim.color} strokeWidth={0.6} strokeOpacity={0.35}/>
+        ))}
+
+        {/* Data polygons + dots */}
+        {series.map((s, si) => dataPoly(s.scores, s.color, series.length > 1 ? 0.08 : 0.14, s.dash, si))}
+        {series.map((s, si) => dataDots(s.scores, s.color, si))}
+
+        {/* ── Alkompetencia labels (inner ring) ── */}
+        {axes.map((a, i) => {
+          const a_ang = ang(i);
+          const x = ptX(a_ang, itemR);
+          const y = ptY(a_ang, itemR);
+          const label = a.item.shortLabel || a.item.text.split(' ')[0];
+          const isHov = hovered && hovered.type === 'item' && hovered.item.id === a.item.id;
+          return (
+            <text key={i} x={x} y={y}
+              fill={a.dim.color}
+              fontSize={isHov ? 11.5 : 10}
+              fontWeight={isHov ? 700 : 400}
+              textAnchor={anchor(a_ang)}
+              dominantBaseline={baseln(a_ang)}
+              style={{cursor:'pointer', userSelect:'none'}}
+              onMouseEnter={() => setHovered({type:'item', dim:a.dim, item:a.item})}
+              onMouseLeave={() => setHovered(null)}>
+              {label}
+            </text>
+          );
+        })}
+
+        {/* ── Kompetencia labels (outer ring, bold, once per dim) ── */}
+        {dimSectors.map(({dim, midAngle}, i) => {
+          const x = ptX(midAngle, dimR);
+          const y = ptY(midAngle, dimR);
+          const label = dim.shortLabel || dim.name.split(' ')[0];
+          const isHov = hovered && hovered.type === 'dim' && hovered.dim.id === dim.id;
+          return (
+            <text key={i} x={x} y={y}
+              fill={dim.color}
+              fontSize={isHov ? 13 : 12}
+              fontWeight={700}
+              textAnchor={anchor(midAngle)}
+              dominantBaseline={baseln(midAngle)}
+              style={{cursor:'pointer', userSelect:'none'}}
+              onMouseEnter={() => setHovered({type:'dim', dim})}
+              onMouseLeave={() => setHovered(null)}>
+              {label}
+            </text>
+          );
+        })}
+
+        {/* Series legend (if multiple) */}
+        {series.length > 1 && series.map((s, si) => (
+          <g key={si} transform={`translate(${12}, ${12 + si * 18})`}>
+            <line x1={0} y1={7} x2={18} y2={7} stroke={s.color} strokeWidth={2} strokeDasharray={s.dash || 'none'}/>
+            <circle cx={9} cy={7} r={3} fill={s.color}/>
+            <text x={22} y={11} fill={MUTED} fontSize={11} fontFamily="DM Sans, sans-serif">{s.name}</text>
+          </g>
+        ))}
+      </svg>
+
+      {/* ── Hover info panel ── */}
+      <div style={{width:230, flexShrink:0, minHeight:60}}>
+        {hovered ? (
+          <div style={{
+            background:S2, borderRadius:12,
+            border:`1px solid ${hovCol}44`,
+            borderLeft:`3px solid ${hovCol}`,
+            padding:'14px 16px',
+            animation:'fadeIn .12s ease',
+          }}>
+            {hovered.type === 'dim' ? (
+              <>
+                <div style={{fontSize:10,color:hovered.dim.color,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:5}}>
+                  Kompetencia
+                </div>
+                <div style={{fontSize:15,color:TEXT,fontWeight:700,marginBottom:hovered.dim.label!==hovered.dim.name?6:0}}>
+                  {hovered.dim.name}
+                </div>
+                {hovered.dim.label !== hovered.dim.name && (
+                  <div style={{fontSize:12,color:MUTED,lineHeight:1.55}}>{hovered.dim.label}</div>
+                )}
+                <div style={{marginTop:8,display:'flex',flexWrap:'wrap',gap:4}}>
+                  {hovered.dim.items.map(it => (
+                    <span key={it.id} style={{fontSize:10,background:`${hovered.dim.color}18`,color:hovered.dim.color,borderRadius:5,padding:'2px 6px'}}>
+                      {it.shortLabel || it.text.split(' ')[0]}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{fontSize:10,color:hovered.dim.color,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>
+                  {hovered.dim.name}
+                </div>
+                <div style={{fontSize:13,color:hovered.dim.color,fontWeight:600,marginBottom:7}}>
+                  {hovered.item.shortLabel || hovered.item.text.split(' ')[0]}
+                </div>
+                <div style={{fontSize:13,color:TEXT,lineHeight:1.6}}>
+                  {hovered.item.text}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div style={{fontSize:12,color:DIM,lineHeight:1.6,paddingTop:4}}>
+            Vigye az egeret egy kompetenciára vagy alkompetenciára a leírás megtekintéséhez.
+          </div>
+        )}
+      </div>
+      <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }`}</style>
+    </div>
+  );
 }
 
 // ─── REPORT VIEW ───────────────────────────────────────────────
@@ -857,19 +1033,18 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            {/* Radar — teljes szélesség, kétszeres magasság */}
+            {/* Radar — custom SVG, 3 réteg */}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Kompetencia radar</div>
-              <ResponsiveContainer width="100%" height={560}>
-                <RadarChart data={radarData} margin={{top:56,right:110,bottom:56,left:110}}>
-                  <PolarGrid stroke={BORD}/>
-                  <PolarAngleAxis dataKey="dim" tick={makeRadarTick(dims)}/>
-                  <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                  <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} dot={{fill:GOLD,r:4}}/>
-                  {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:4}}/>}
-                  {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:10}}/>}
-                </RadarChart>
-              </ResponsiveContainer>
+              <CustomRadarSVG
+                dims={dims}
+                series={[
+                  {name:'Önértékelés', scores:ss, color:GOLD},
+                  ...(hasOthers ? [{name:'Mások átlaga', scores:othersAvg, color:BLUE, dash:'5 3'}] : []),
+                ]}
+                sMax={sMax}
+                size={540}
+              />
             </div>
 
             {/* Dimenzió átlag sávok — radar alatt */}
@@ -3972,42 +4147,39 @@ function ProjectCompareView({ nav, goBack, ctx }) {
             <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:16}}>
               Kompetencia térkép — {visibleData.length} résztvevő
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,alignItems:'start'}}>
-              {/* Radar */}
-              <div>
-                <ResponsiveContainer width="100%" height={340}>
-                  <RadarChart data={radarData} margin={{top:56,right:110,bottom:56,left:110}}>
-                    <PolarGrid stroke={BORD}/>
-                    <PolarAngleAxis dataKey="dim" tick={makeRadarTick(dims)}/>
-                    <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                    {visibleData.map((pd, i) => (
-                      <Radar
-                        key={pd.part.id}
-                        name={pd.part.firstName+' '+pd.part.lastName}
-                        dataKey={pd.part.firstName}
-                        stroke={partColor(partData.indexOf(pd))}
-                        fill={partColor(partData.indexOf(pd))}
-                        fillOpacity={0.08}
-                        strokeWidth={2}
-                        dot={{fill:partColor(partData.indexOf(pd)),r:3}}
-                      />
-                    ))}
-                    <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
+            {/* Custom SVG radar — összes résztvevő */}
+            <CustomRadarSVG
+              dims={dims}
+              series={visibleData.map((pd, i) => {
+                // Build flat item-level scores for this participant + scoreMode
+                const flatScores = {};
+                dims.forEach(d => d.items.forEach(it => {
+                  const sv = pd.selfScores[it.id] || 0;
+                  const ov = pd.othersAvg[it.id] || 0;
+                  if (scoreMode === 'self') flatScores[it.id] = sv;
+                  else if (scoreMode === 'others') flatScores[it.id] = ov;
+                  else flatScores[it.id] = (sv > 0 && ov > 0) ? (sv + ov) / 2 : sv || ov;
+                }));
+                return {
+                  name: pd.part.firstName + ' ' + pd.part.lastName,
+                  scores: flatScores,
+                  color: partColor(partData.indexOf(pd)),
+                };
+              })}
+              sMax={sMax}
+              size={540}
+            />
 
-              {/* Csapat átlag dimenzió sávok */}
-              <div>
-                <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12}}>Csapat átlag dimenzióként</div>
-                {teamDimAvgs.map(({ dim: d, avg }) => (
-                  <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                    <span style={{fontSize:10,color:d.color,fontWeight:700,width:26,flexShrink:0,textAlign:'right'}}>{d.id}</span>
-                    <MiniBar val={avg} max={sMax} color={d.color}/>
-                    <span style={{fontSize:13,fontWeight:600,color:avg > 0 ? scoreColor(avg,sMax) : MUTED,width:28,textAlign:'right'}}>{avg > 0 ? avg.toFixed(1) : '—'}</span>
-                  </div>
-                ))}
-              </div>
+            {/* Csapat átlag dimenzió sávok */}
+            <div style={{marginTop:20}}>
+              <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12}}>Csapat átlag dimenzióként</div>
+              {teamDimAvgs.map(({ dim: d, avg }) => (
+                <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                  <span style={{fontSize:10,color:d.color,fontWeight:700,width:26,flexShrink:0,textAlign:'right'}}>{d.id}</span>
+                  <MiniBar val={avg} max={sMax} color={d.color}/>
+                  <span style={{fontSize:13,fontWeight:600,color:avg > 0 ? scoreColor(avg,sMax) : MUTED,width:28,textAlign:'right'}}>{avg > 0 ? avg.toFixed(1) : '—'}</span>
+                </div>
+              ))}
             </div>
 
             {/* Csapat top3 / bottom3 */}
@@ -4511,11 +4683,20 @@ function LibraryManagerView({ nav, goBack, ctx }) {
   function commitEdit() {
     if (!editingField || !dims) return;
     const { type, dimIdx, itemIdx, field } = editingField;
+    // shortLabel can be cleared (empty = auto from first word); other fields fall back to current value
+    const val = (field === 'shortLabel') ? editVal.trim() : (editVal.trim() || null);
     const arr = dims.map((d, di) => {
       if (di !== dimIdx) return d;
-      if (type === 'dim') return { ...d, [field]: editVal.trim() || d[field] };
+      if (type === 'dim') {
+        if (field === 'shortLabel') return { ...d, shortLabel: val || undefined };
+        return { ...d, [field]: val || d[field] };
+      }
       if (type === 'item') {
-        const items = d.items.map((it, ii) => ii === itemIdx ? { ...it, [field]: editVal.trim() || it[field] } : it);
+        const items = d.items.map((it, ii) => {
+          if (ii !== itemIdx) return it;
+          if (field === 'shortLabel') return { ...it, shortLabel: val || undefined };
+          return { ...it, [field]: val || it[field] };
+        });
         return { ...d, items };
       }
       return d;
@@ -4849,6 +5030,21 @@ function LibraryManagerView({ nav, goBack, ctx }) {
                           {item.text}
                         </span>
                       )}
+                      {/* Radar shortLabel badge for item */}
+                      <div style={{flexShrink:0,marginTop:2}} title="Radar felirat (1-2 szó a pókháló alkompetencia körén)">
+                        {isEditing('item', di, ii, 'shortLabel') ? (
+                          <input value={editVal} onChange={e => setEditVal(e.target.value)} autoFocus
+                            onBlur={commitEdit} onKeyDown={e => { if (e.key==='Enter') commitEdit(); if (e.key==='Escape') setEditingField(null); }}
+                            placeholder={item.text.split(' ')[0]}
+                            style={{background:S3,border:`1px solid ${d.color}`,borderRadius:5,padding:'2px 6px',color:d.color,fontSize:10,fontFamily:"'DM Sans',sans-serif",outline:'none',width:72,boxSizing:'border-box'}}/>
+                        ) : (
+                          <span onClick={() => startEdit('item', di, ii, 'shortLabel', item.shortLabel || '')}
+                            style={{display:'inline-block',fontSize:10,color:d.color,fontWeight:600,cursor:'text',background:`${d.color}18`,borderRadius:5,padding:'2px 6px',border:`1px solid ${d.color}28`,minWidth:36,textAlign:'center',maxWidth:72,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+                            title="Kattints a radar felirat szerkesztéséhez">
+                            {item.shortLabel || <span style={{color:DIM,fontWeight:400,fontStyle:'italic'}}>◦ radar</span>}
+                          </span>
+                        )}
+                      </div>
                       <button onClick={() => removeItem(di, ii)} style={{background:'none',border:'none',color:RED+'66',cursor:'pointer',fontSize:11,padding:'2px 4px',flexShrink:0,marginTop:2}} title="Törlés">✕</button>
                     </div>
                   );
