@@ -754,18 +754,32 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
 }
 
 // ─── CUSTOM RADAR SVG ─────────────────────────────────────────
-function CustomRadarSVG({ dims, series, sMax, size }) {
+function CustomRadarSVG({ dims, series, sMax }) {
   const [hovered, setHovered] = useState(null);
-  const S       = size || 540;
-  const cx      = S / 2, cy = S / 2;
-  const innerR  = S * 0.295;   // radar polygon area
-  const itemR   = S * 0.365;   // alkompetencia label ring
-  const dimR    = S * 0.440;   // kompetencia label ring
 
   // Build flat axis list: dims in order, items within each dim in order
   const axes = [];
   dims.forEach(dim => dim.items.forEach(item => axes.push({ dim, item })));
   const N = axes.length;
+  if (N === 0) return null;
+
+  // Dynamic sizing: ensure ≥38px arc gap between item labels to prevent overlap
+  const MIN_ARC   = 38;
+  const minItemR  = (N * MIN_ARC) / (2 * Math.PI);
+  const ITEM_FRAC = 0.365; // itemR / S
+  const minS      = Math.ceil((minItemR / ITEM_FRAC) / 10) * 10;
+  const S         = Math.max(480, minS);
+  const cx = S / 2, cy = S / 2;
+
+  // Radii derived from S
+  const innerR = S * 0.295;
+  const itemR  = S * ITEM_FRAC;
+  const dimR   = S * 0.442;
+
+  // Per-item font size: scale down slightly for crowded charts
+  const arcPx    = (2 * Math.PI * itemR) / N;
+  const itemFS   = arcPx < 42 ? 9 : 10;
+  const itemFSHov= itemFS + 1.5;
 
   function ang(i)    { return (2 * Math.PI / N) * i - Math.PI / 2; }
   function ptX(a, r) { return cx + r * Math.cos(a); }
@@ -778,6 +792,8 @@ function CustomRadarSVG({ dims, series, sMax, size }) {
     const s = Math.sin(a);
     return s < -0.25 ? 'auto' : s > 0.25 ? 'hanging' : 'middle';
   }
+  // Truncate label to 9 chars to prevent runaway widths
+  function truncL(str) { return str && str.length > 9 ? str.slice(0, 8) + '…' : str; }
 
   // Concentric grid polygons
   const gridPolys = Array.from({length: sMax}, (_, i) => {
@@ -803,15 +819,15 @@ function CustomRadarSVG({ dims, series, sMax, size }) {
       const v = scores[a.item.id] || 0;
       if (!v) return null;
       const r = (v / sMax) * innerR;
-      return <circle key={`${seriesIdx}-${i}`} cx={ptX(ang(i),r)} cy={ptY(ang(i),r)} r={3.5} fill={color} opacity={0.9}/>;
+      return <circle key={`${seriesIdx}-${i}`} cx={ptX(ang(i),r)} cy={ptY(ang(i),r)} r={3} fill={color} opacity={0.9}/>;
     });
   }
 
-  // Dim sectors: midAngle of each dim's span
+  // Dim sectors: midAngle centred on each dim's angular span
   let axisStart = 0;
   const dimSectors = dims.map(dim => {
     const n = dim.items.length;
-    const midFrac = axisStart + (n - 1) / 2;
+    const midFrac  = axisStart + (n - 1) / 2;
     const midAngle = (2 * Math.PI / N) * midFrac - Math.PI / 2;
     axisStart += n;
     return { dim, midAngle };
@@ -820,46 +836,50 @@ function CustomRadarSVG({ dims, series, sMax, size }) {
   const hovCol = hovered ? hovered.dim.color : GOLD;
 
   return (
-    <div style={{display:'flex', gap:20, alignItems:'flex-start', flexWrap:'wrap'}}>
-      {/* SVG radar */}
-      <svg width={S} height={S} style={{flexShrink:0, overflow:'visible'}}>
+    <div style={{position:'relative', textAlign:'center', lineHeight:0}}>
+      <style>{`@keyframes radarFade { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }`}</style>
+
+      {/* SVG — centred via inline-block + textAlign center on parent */}
+      <svg width={S} height={S} style={{display:'inline-block', overflow:'visible'}}>
         {/* Grid rings */}
         {gridPolys}
 
-        {/* Scale numbers on top axis */}
+        {/* Scale numbers along the top axis */}
         {Array.from({length: sMax}, (_, i) => {
           const l = i + 1;
           const r = (l / sMax) * innerR;
-          return <text key={l} x={cx + 4} y={cy - r + 3} fill={DIM} fontSize={8} textAnchor="start">{l}</text>;
+          return <text key={l} x={cx + 4} y={cy - r + 3} fill={DIM} fontSize={7} textAnchor="start">{l}</text>;
         })}
 
-        {/* Axis lines — colored by dim */}
+        {/* Axis lines — each coloured by its parent dim */}
         {axes.map((a, i) => (
           <line key={i}
             x1={cx} y1={cy}
             x2={ptX(ang(i), innerR)} y2={ptY(ang(i), innerR)}
-            stroke={a.dim.color} strokeWidth={0.6} strokeOpacity={0.35}/>
+            stroke={a.dim.color} strokeWidth={0.6} strokeOpacity={0.3}/>
         ))}
 
-        {/* Data polygons + dots */}
-        {series.map((s, si) => dataPoly(s.scores, s.color, series.length > 1 ? 0.08 : 0.14, s.dash, si))}
+        {/* Data polygons */}
+        {series.map((s, si) => dataPoly(s.scores, s.color, series.length > 1 ? 0.08 : 0.13, s.dash, si))}
+        {/* Dots */}
         {series.map((s, si) => dataDots(s.scores, s.color, si))}
 
-        {/* ── Alkompetencia labels (inner ring) ── */}
+        {/* ── Item labels — inner ring, each dim's colour ── */}
         {axes.map((a, i) => {
           const a_ang = ang(i);
           const x = ptX(a_ang, itemR);
           const y = ptY(a_ang, itemR);
-          const label = a.item.shortLabel || a.item.text.split(' ')[0];
+          const raw   = a.item.shortLabel || a.item.text.split(' ')[0];
+          const label = truncL(raw);
           const isHov = hovered && hovered.type === 'item' && hovered.item.id === a.item.id;
           return (
             <text key={i} x={x} y={y}
               fill={a.dim.color}
-              fontSize={isHov ? 11.5 : 10}
+              fontSize={isHov ? itemFSHov : itemFS}
               fontWeight={isHov ? 700 : 400}
               textAnchor={anchor(a_ang)}
               dominantBaseline={baseln(a_ang)}
-              style={{cursor:'pointer', userSelect:'none'}}
+              style={{cursor:'pointer', userSelect:'none', transition:'font-size .1s'}}
               onMouseEnter={() => setHovered({type:'item', dim:a.dim, item:a.item})}
               onMouseLeave={() => setHovered(null)}>
               {label}
@@ -867,20 +887,21 @@ function CustomRadarSVG({ dims, series, sMax, size }) {
           );
         })}
 
-        {/* ── Kompetencia labels (outer ring, bold, once per dim) ── */}
+        {/* ── Dim labels — outer ring, bold, once per dim ── */}
         {dimSectors.map(({dim, midAngle}, i) => {
           const x = ptX(midAngle, dimR);
           const y = ptY(midAngle, dimR);
-          const label = dim.shortLabel || dim.name.split(' ')[0];
+          const raw   = dim.shortLabel || dim.name.split(' ')[0];
+          const label = truncL(raw);
           const isHov = hovered && hovered.type === 'dim' && hovered.dim.id === dim.id;
           return (
             <text key={i} x={x} y={y}
               fill={dim.color}
-              fontSize={isHov ? 13 : 12}
+              fontSize={isHov ? 12 : 11}
               fontWeight={700}
               textAnchor={anchor(midAngle)}
               dominantBaseline={baseln(midAngle)}
-              style={{cursor:'pointer', userSelect:'none'}}
+              style={{cursor:'pointer', userSelect:'none', transition:'font-size .1s'}}
               onMouseEnter={() => setHovered({type:'dim', dim})}
               onMouseLeave={() => setHovered(null)}>
               {label}
@@ -888,66 +909,58 @@ function CustomRadarSVG({ dims, series, sMax, size }) {
           );
         })}
 
-        {/* Series legend (if multiple) */}
+        {/* Series legend (multi-participant) */}
         {series.length > 1 && series.map((s, si) => (
-          <g key={si} transform={`translate(${12}, ${12 + si * 18})`}>
-            <line x1={0} y1={7} x2={18} y2={7} stroke={s.color} strokeWidth={2} strokeDasharray={s.dash || 'none'}/>
-            <circle cx={9} cy={7} r={3} fill={s.color}/>
-            <text x={22} y={11} fill={MUTED} fontSize={11} fontFamily="DM Sans, sans-serif">{s.name}</text>
+          <g key={si} transform={`translate(12,${12 + si * 17})`}>
+            <line x1={0} y1={6} x2={16} y2={6} stroke={s.color} strokeWidth={2} strokeDasharray={s.dash||'none'}/>
+            <circle cx={8} cy={6} r={2.5} fill={s.color}/>
+            <text x={20} y={10} fill={MUTED} fontSize={10} fontFamily="DM Sans,sans-serif">{s.name}</text>
           </g>
         ))}
       </svg>
 
-      {/* ── Hover info panel ── */}
-      <div style={{width:230, flexShrink:0, minHeight:60}}>
-        {hovered ? (
-          <div style={{
-            background:S2, borderRadius:12,
-            border:`1px solid ${hovCol}44`,
-            borderLeft:`3px solid ${hovCol}`,
-            padding:'14px 16px',
-            animation:'fadeIn .12s ease',
-          }}>
-            {hovered.type === 'dim' ? (
-              <>
-                <div style={{fontSize:10,color:hovered.dim.color,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:5}}>
-                  Kompetencia
-                </div>
-                <div style={{fontSize:15,color:TEXT,fontWeight:700,marginBottom:hovered.dim.label!==hovered.dim.name?6:0}}>
-                  {hovered.dim.name}
-                </div>
-                {hovered.dim.label !== hovered.dim.name && (
-                  <div style={{fontSize:12,color:MUTED,lineHeight:1.55}}>{hovered.dim.label}</div>
-                )}
-                <div style={{marginTop:8,display:'flex',flexWrap:'wrap',gap:4}}>
-                  {hovered.dim.items.map(it => (
-                    <span key={it.id} style={{fontSize:10,background:`${hovered.dim.color}18`,color:hovered.dim.color,borderRadius:5,padding:'2px 6px'}}>
-                      {it.shortLabel || it.text.split(' ')[0]}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{fontSize:10,color:hovered.dim.color,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>
-                  {hovered.dim.name}
-                </div>
-                <div style={{fontSize:13,color:hovered.dim.color,fontWeight:600,marginBottom:7}}>
-                  {hovered.item.shortLabel || hovered.item.text.split(' ')[0]}
-                </div>
-                <div style={{fontSize:13,color:TEXT,lineHeight:1.6}}>
-                  {hovered.item.text}
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div style={{fontSize:12,color:DIM,lineHeight:1.6,paddingTop:4}}>
-            Vigye az egeret egy kompetenciára vagy alkompetenciára a leírás megtekintéséhez.
-          </div>
-        )}
-      </div>
-      <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }`}</style>
+      {/* ── Hover info card — absolute, top-right corner of container ── */}
+      {hovered && (
+        <div style={{
+          position:'absolute', top:0, right:0,
+          width:220, textAlign:'left', lineHeight:'normal',
+          background:S2, borderRadius:12,
+          border:`1px solid ${hovCol}33`,
+          borderLeft:`3px solid ${hovCol}`,
+          padding:'13px 15px',
+          boxShadow:'0 4px 16px rgba(0,0,0,.18)',
+          zIndex:10,
+          animation:'radarFade .12s ease',
+          pointerEvents:'none',
+        }}>
+          {hovered.type === 'dim' ? (
+            <>
+              <div style={{fontSize:9,color:hovCol,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>Kompetencia</div>
+              <div style={{fontSize:14,color:TEXT,fontWeight:700,marginBottom:hovered.dim.label!==hovered.dim.name?5:0,lineHeight:1.3}}>
+                {hovered.dim.name}
+              </div>
+              {hovered.dim.label !== hovered.dim.name && (
+                <div style={{fontSize:12,color:MUTED,lineHeight:1.5,marginBottom:6}}>{hovered.dim.label}</div>
+              )}
+              <div style={{display:'flex',flexWrap:'wrap',gap:3,marginTop:6}}>
+                {hovered.dim.items.map(it => (
+                  <span key={it.id} style={{fontSize:10,background:`${hovCol}18`,color:hovCol,borderRadius:4,padding:'2px 5px'}}>
+                    {truncL(it.shortLabel || it.text.split(' ')[0])}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:9,color:hovCol,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:3}}>{hovered.dim.name}</div>
+              <div style={{fontSize:12,color:hovCol,fontWeight:600,marginBottom:6}}>
+                {hovered.item.shortLabel || hovered.item.text.split(' ')[0]}
+              </div>
+              <div style={{fontSize:12,color:TEXT,lineHeight:1.6}}>{hovered.item.text}</div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
