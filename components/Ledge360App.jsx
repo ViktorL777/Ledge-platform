@@ -754,32 +754,23 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
 }
 
 // ─── CUSTOM RADAR SVG ─────────────────────────────────────────
+// Dim-level radar: 8 axes (one per competency dimension).
+// Items / alkompetenciák → hover panel + hőtérkép tab.
 function CustomRadarSVG({ dims, series, sMax }) {
   const [hovered, setHovered] = useState(null);
-
-  // Build flat axis list: dims in order, items within each dim in order
-  const axes = [];
-  dims.forEach(dim => dim.items.forEach(item => axes.push({ dim, item })));
-  const N = axes.length;
+  const N = dims.length;
   if (N === 0) return null;
 
-  // Dynamic sizing: ensure ≥38px arc gap between item labels to prevent overlap
-  const MIN_ARC   = 38;
-  const minItemR  = (N * MIN_ARC) / (2 * Math.PI);
-  const ITEM_FRAC = 0.365; // itemR / S
-  const minS      = Math.ceil((minItemR / ITEM_FRAC) / 10) * 10;
-  const S         = Math.max(480, minS);
-  const cx = S / 2, cy = S / 2;
+  const S       = 480;
+  const cx      = S / 2, cy = S / 2;
+  const innerR  = S * 0.315;   // radar area radius
+  const labelR  = S * 0.420;   // dim label ring radius
 
-  // Radii derived from S
-  const innerR = S * 0.295;
-  const itemR  = S * ITEM_FRAC;
-  const dimR   = S * 0.442;
-
-  // Per-item font size: scale down slightly for crowded charts
-  const arcPx    = (2 * Math.PI * itemR) / N;
-  const itemFS   = arcPx < 42 ? 9 : 10;
-  const itemFSHov= itemFS + 1.5;
+  // Dim-level average from flat item scores
+  function dimAvgLocal(scores, dim) {
+    const vals = dim.items.map(i => scores[i.id] || 0).filter(v => v > 0);
+    return vals.length ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) : 0;
+  }
 
   function ang(i)    { return (2 * Math.PI / N) * i - Math.PI / 2; }
   function ptX(a, r) { return cx + r * Math.cos(a); }
@@ -792,117 +783,101 @@ function CustomRadarSVG({ dims, series, sMax }) {
     const s = Math.sin(a);
     return s < -0.25 ? 'auto' : s > 0.25 ? 'hanging' : 'middle';
   }
-  // Truncate label to 9 chars to prevent runaway widths
-  function truncL(str) { return str && str.length > 9 ? str.slice(0, 8) + '…' : str; }
 
-  // Concentric grid polygons
-  const gridPolys = Array.from({length: sMax}, (_, i) => {
+  // Concentric grid polygons (one per scale level)
+  const gridPolys = Array.from({ length: sMax }, (_, i) => {
     const l = i + 1;
     const r = (l / sMax) * innerR;
-    const pts = axes.map((_, idx) => `${ptX(ang(idx),r).toFixed(1)},${ptY(ang(idx),r).toFixed(1)}`).join(' ');
-    return <polygon key={l} points={pts} fill="none" stroke={BORD} strokeWidth={l === sMax ? 1 : 0.5} strokeOpacity={0.55}/>;
+    const pts = dims.map((_, idx) =>
+      `${ptX(ang(idx), r).toFixed(1)},${ptY(ang(idx), r).toFixed(1)}`
+    ).join(' ');
+    return (
+      <polygon key={l} points={pts} fill="none"
+        stroke={BORD} strokeWidth={l === sMax ? 1 : 0.5} strokeOpacity={0.55}/>
+    );
   });
 
-  // Data polygon for one series
+  // Data polygon for one series (dim-averaged)
   function dataPoly(scores, color, fillOp, dashArr, idx) {
-    const pts = axes.map((a, i) => {
-      const v = scores[a.item.id] || 0;
+    const pts = dims.map((d, i) => {
+      const v = dimAvgLocal(scores, d);
       const r = (v / sMax) * innerR;
-      return `${ptX(ang(i),r).toFixed(1)},${ptY(ang(i),r).toFixed(1)}`;
+      return `${ptX(ang(i), r).toFixed(1)},${ptY(ang(i), r).toFixed(1)}`;
     }).join(' ');
-    return <polygon key={idx} points={pts} fill={color} fillOpacity={fillOp} stroke={color} strokeWidth={2} strokeOpacity={0.85} strokeDasharray={dashArr || 'none'}/>;
+    return (
+      <polygon key={idx} points={pts}
+        fill={color} fillOpacity={fillOp}
+        stroke={color} strokeWidth={2} strokeOpacity={0.9}
+        strokeDasharray={dashArr || 'none'}/>
+    );
   }
 
   // Dots for one series
-  function dataDots(scores, color, seriesIdx) {
-    return axes.map((a, i) => {
-      const v = scores[a.item.id] || 0;
+  function dataDots(scores, color, si) {
+    return dims.map((d, i) => {
+      const v = dimAvgLocal(scores, d);
       if (!v) return null;
       const r = (v / sMax) * innerR;
-      return <circle key={`${seriesIdx}-${i}`} cx={ptX(ang(i),r)} cy={ptY(ang(i),r)} r={3} fill={color} opacity={0.9}/>;
+      return (
+        <circle key={`${si}-${i}`}
+          cx={ptX(ang(i), r)} cy={ptY(ang(i), r)}
+          r={4} fill={color} opacity={0.92}/>
+      );
     });
   }
-
-  // Dim sectors: midAngle centred on each dim's angular span
-  let axisStart = 0;
-  const dimSectors = dims.map(dim => {
-    const n = dim.items.length;
-    const midFrac  = axisStart + (n - 1) / 2;
-    const midAngle = (2 * Math.PI / N) * midFrac - Math.PI / 2;
-    axisStart += n;
-    return { dim, midAngle };
-  });
 
   const hovCol = hovered ? hovered.dim.color : GOLD;
 
   return (
-    <div style={{position:'relative', textAlign:'center', lineHeight:0}}>
-      <style>{`@keyframes radarFade { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }`}</style>
+    <div style={{ position: 'relative', textAlign: 'center', lineHeight: 0 }}>
+      <style>{`@keyframes radarFade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }`}</style>
 
-      {/* SVG — centred via inline-block + textAlign center on parent */}
-      <svg width={S} height={S} style={{display:'inline-block', overflow:'visible'}}>
-        {/* Grid rings */}
+      <svg width={S} height={S} style={{ display: 'inline-block', overflow: 'visible' }}>
+
+        {/* Concentric grid rings */}
         {gridPolys}
 
         {/* Scale numbers along the top axis */}
-        {Array.from({length: sMax}, (_, i) => {
+        {Array.from({ length: sMax }, (_, i) => {
           const l = i + 1;
           const r = (l / sMax) * innerR;
-          return <text key={l} x={cx + 4} y={cy - r + 3} fill={DIM} fontSize={7} textAnchor="start">{l}</text>;
-        })}
-
-        {/* Axis lines — each coloured by its parent dim */}
-        {axes.map((a, i) => (
-          <line key={i}
-            x1={cx} y1={cy}
-            x2={ptX(ang(i), innerR)} y2={ptY(ang(i), innerR)}
-            stroke={a.dim.color} strokeWidth={0.6} strokeOpacity={0.3}/>
-        ))}
-
-        {/* Data polygons */}
-        {series.map((s, si) => dataPoly(s.scores, s.color, series.length > 1 ? 0.08 : 0.13, s.dash, si))}
-        {/* Dots */}
-        {series.map((s, si) => dataDots(s.scores, s.color, si))}
-
-        {/* ── Item labels — inner ring, each dim's colour ── */}
-        {axes.map((a, i) => {
-          const a_ang = ang(i);
-          const x = ptX(a_ang, itemR);
-          const y = ptY(a_ang, itemR);
-          const raw   = a.item.shortLabel || a.item.text.split(' ')[0];
-          const label = truncL(raw);
-          const isHov = hovered && hovered.type === 'item' && hovered.item.id === a.item.id;
           return (
-            <text key={i} x={x} y={y}
-              fill={a.dim.color}
-              fontSize={isHov ? itemFSHov : itemFS}
-              fontWeight={isHov ? 700 : 400}
-              textAnchor={anchor(a_ang)}
-              dominantBaseline={baseln(a_ang)}
-              style={{cursor:'pointer', userSelect:'none', transition:'font-size .1s'}}
-              onMouseEnter={() => setHovered({type:'item', dim:a.dim, item:a.item})}
-              onMouseLeave={() => setHovered(null)}>
-              {label}
-            </text>
+            <text key={l} x={cx + 4} y={cy - r + 3}
+              fill={DIM} fontSize={7} textAnchor="start">{l}</text>
           );
         })}
 
-        {/* ── Dim labels — outer ring, bold, once per dim ── */}
-        {dimSectors.map(({dim, midAngle}, i) => {
-          const x = ptX(midAngle, dimR);
-          const y = ptY(midAngle, dimR);
-          const raw   = dim.shortLabel || dim.name.split(' ')[0];
-          const label = truncL(raw);
-          const isHov = hovered && hovered.type === 'dim' && hovered.dim.id === dim.id;
+        {/* Axis lines — each coloured by its dim */}
+        {dims.map((d, i) => (
+          <line key={i}
+            x1={cx} y1={cy}
+            x2={ptX(ang(i), innerR)} y2={ptY(ang(i), innerR)}
+            stroke={d.color} strokeWidth={1} strokeOpacity={0.35}/>
+        ))}
+
+        {/* Data polygons */}
+        {series.map((s, si) =>
+          dataPoly(s.scores, s.color, series.length > 1 ? 0.08 : 0.15, s.dash, si)
+        )}
+        {/* Data dots */}
+        {series.map((s, si) => dataDots(s.scores, s.color, si))}
+
+        {/* Dim labels — single ring, bold, dim colour */}
+        {dims.map((d, i) => {
+          const a     = ang(i);
+          const x     = ptX(a, labelR);
+          const y     = ptY(a, labelR);
+          const label = d.shortLabel || d.name.split(' ')[0];
+          const isHov = hovered && hovered.dim.id === d.id;
           return (
             <text key={i} x={x} y={y}
-              fill={dim.color}
-              fontSize={isHov ? 12 : 11}
+              fill={d.color}
+              fontSize={isHov ? 13 : 11}
               fontWeight={700}
-              textAnchor={anchor(midAngle)}
-              dominantBaseline={baseln(midAngle)}
-              style={{cursor:'pointer', userSelect:'none', transition:'font-size .1s'}}
-              onMouseEnter={() => setHovered({type:'dim', dim})}
+              textAnchor={anchor(a)}
+              dominantBaseline={baseln(a)}
+              style={{ cursor: 'pointer', userSelect: 'none', transition: 'font-size .1s' }}
+              onMouseEnter={() => setHovered({ dim: d })}
               onMouseLeave={() => setHovered(null)}>
               {label}
             </text>
@@ -912,59 +887,85 @@ function CustomRadarSVG({ dims, series, sMax }) {
         {/* Series legend (multi-participant) */}
         {series.length > 1 && series.map((s, si) => (
           <g key={si} transform={`translate(12,${12 + si * 17})`}>
-            <line x1={0} y1={6} x2={16} y2={6} stroke={s.color} strokeWidth={2} strokeDasharray={s.dash||'none'}/>
+            <line x1={0} y1={6} x2={16} y2={6}
+              stroke={s.color} strokeWidth={2} strokeDasharray={s.dash || 'none'}/>
             <circle cx={8} cy={6} r={2.5} fill={s.color}/>
-            <text x={20} y={10} fill={MUTED} fontSize={10} fontFamily="DM Sans,sans-serif">{s.name}</text>
+            <text x={20} y={10} fill={MUTED} fontSize={10}
+              fontFamily="DM Sans,sans-serif">{s.name}</text>
           </g>
         ))}
       </svg>
 
-      {/* ── Hover info card — absolute, top-right corner of container ── */}
+      {/* ── Hover info panel — absolute top-right, no layout shift ── */}
       {hovered && (
         <div style={{
-          position:'absolute', top:0, right:0,
-          width:220, textAlign:'left', lineHeight:'normal',
-          background:S2, borderRadius:12,
-          border:`1px solid ${hovCol}33`,
-          borderLeft:`3px solid ${hovCol}`,
-          padding:'13px 15px',
-          boxShadow:'0 4px 16px rgba(0,0,0,.18)',
-          zIndex:10,
-          animation:'radarFade .12s ease',
-          pointerEvents:'none',
+          position: 'absolute', top: 0, right: 0,
+          width: 230, textAlign: 'left', lineHeight: 'normal',
+          background: S2,
+          borderRadius: 12,
+          border: `1px solid ${hovCol}33`,
+          borderLeft: `3px solid ${hovCol}`,
+          padding: '13px 16px',
+          boxShadow: '0 4px 20px rgba(0,0,0,.25)',
+          zIndex: 10,
+          animation: 'radarFade .12s ease',
+          pointerEvents: 'none',
         }}>
-          {hovered.type === 'dim' ? (
-            <>
-              <div style={{fontSize:9,color:hovCol,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:4}}>Kompetencia</div>
-              <div style={{fontSize:14,color:TEXT,fontWeight:700,marginBottom:hovered.dim.label!==hovered.dim.name?5:0,lineHeight:1.3}}>
-                {hovered.dim.name}
-              </div>
-              {hovered.dim.label !== hovered.dim.name && (
-                <div style={{fontSize:12,color:MUTED,lineHeight:1.5,marginBottom:6}}>{hovered.dim.label}</div>
-              )}
-              <div style={{display:'flex',flexWrap:'wrap',gap:3,marginTop:6}}>
-                {hovered.dim.items.map(it => (
-                  <span key={it.id} style={{fontSize:10,background:`${hovCol}18`,color:hovCol,borderRadius:4,padding:'2px 5px'}}>
-                    {truncL(it.shortLabel || it.text.split(' ')[0])}
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{fontSize:9,color:hovCol,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:3}}>{hovered.dim.name}</div>
-              <div style={{fontSize:12,color:hovCol,fontWeight:600,marginBottom:6}}>
-                {hovered.item.shortLabel || hovered.item.text.split(' ')[0]}
-              </div>
-              <div style={{fontSize:12,color:TEXT,lineHeight:1.6}}>{hovered.item.text}</div>
-            </>
+          <div style={{ fontSize: 9, color: hovCol, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4 }}>
+            Kompetencia
+          </div>
+          <div style={{ fontSize: 14, color: TEXT, fontWeight: 700, lineHeight: 1.3, marginBottom: 3 }}>
+            {hovered.dim.name}
+          </div>
+          {hovered.dim.label !== hovered.dim.name && (
+            <div style={{ fontSize: 11, color: MUTED, lineHeight: 1.5, marginBottom: 8 }}>
+              {hovered.dim.label}
+            </div>
           )}
+          {/* Dim average badge per series */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            {series.map((s, si) => {
+              const avg = dimAvgLocal(s.scores, hovered.dim);
+              return avg > 0 ? (
+                <span key={si} style={{
+                  fontSize: 13, fontWeight: 700, color: s.color,
+                  background: `${s.color}18`, borderRadius: 6, padding: '2px 8px',
+                }}>
+                  {avg.toFixed(1)}
+                  {series.length > 1 && <span style={{ fontSize: 9, marginLeft: 3, opacity: 0.7 }}>{s.name.split(' ')[0]}</span>}
+                </span>
+              ) : null;
+            })}
+          </div>
+          {/* Item list with individual scores */}
+          <div style={{ borderTop: `1px solid ${BORD}`, paddingTop: 7 }}>
+            {hovered.dim.items.map(it => (
+              <div key={it.id} style={{
+                display: 'flex', gap: 6, alignItems: 'flex-start',
+                padding: '5px 0', borderBottom: `1px solid ${BORD}22`,
+              }}>
+                <span style={{ fontSize: 11, color: TEXT, flex: 1, lineHeight: 1.4 }}>{it.text}</span>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0, paddingTop: 1 }}>
+                  {series.map((s, si) => {
+                    const v = s.scores[it.id] || 0;
+                    return (
+                      <span key={si} style={{
+                        fontSize: 11, fontWeight: 700, minWidth: 14, textAlign: 'right',
+                        color: v > 0 ? scoreColor(v, sMax) : DIM,
+                      }}>
+                        {v > 0 ? v : '—'}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
-
 // ─── REPORT VIEW ───────────────────────────────────────────────
 function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax }) {
   const sMax = propScaleMax || 5;
