@@ -83,22 +83,22 @@ import { db } from '../lib/supabase-360';
 import * as XLSX from 'xlsx';
 
 // ─── TOKENS ────────────────────────────────────────────────────
-const BG    = '#0A0A09';
-const SURF  = '#161614';
-const S2    = '#1E1E1C';
-const S3    = '#252523';
-const BORD  = '#2C2C29';
-const BORD2 = '#3A3A36';
-const GOLD  = '#C49A52';
+const BG    = '#FAFAF8';
+const SURF  = '#FFFFFF';
+const S2    = '#F5F3EF';
+const S3    = '#EDEAE4';
+const BORD  = '#E2DED6';
+const BORD2 = '#D5D0C7';
+const GOLD  = '#A68542';
 const GDIM  = '#C4AD78';
-const TEXT  = '#EDECEA';
-const MUTED = '#7A7870';
-const DIM   = '#4A4945';
-const BLUE  = '#5E90B8';
-const GREEN = '#6EA07C';
-const PURP  = '#9B78C0';
-const ORAN  = '#C07E58';
-const RED   = '#D06860';
+const TEXT  = '#1A1A18';
+const MUTED = '#8A8478';
+const DIM   = '#C5C0B8';
+const BLUE  = '#4A7A9E';
+const GREEN = '#5B8A6A';
+const PURP  = '#7E5EA0';
+const ORAN  = '#A06A48';
+const RED   = '#B85548';
 
 const SCALE = ['','Gyenge','Megfelelő','Jó','Nagyon jó','Kiváló'];
 const SCOL  = ['', '#B85548', '#A06A48', '#A68542', '#5B8A6A', '#4A7A9E'];
@@ -611,7 +611,7 @@ function Btn(props) {
     lg:{ padding:'13px 28px', fontSize:15, borderRadius:10 },
   };
   const variants = {
-    primary:      { background:GOLD, color:'#FFFFFF', boxShadow:'0 1px 3px rgba(0,0,0,.4)' },
+    primary:      { background:GOLD, color:'#FFFFFF', boxShadow:'0 1px 3px rgba(0,0,0,.08)' },
     ghost:        { background:'transparent', border:`1px solid ${BORD}`, color:TEXT },
     danger:       { background:`${RED}10`, border:`1px solid ${RED}30`, color:RED },
     subtle:       { background:'transparent', color:MUTED },
@@ -638,7 +638,7 @@ function Input({ label, value, onChange, placeholder, type, style }) {
         type={t} value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        style={Object.assign({width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .2s'}, st)}
+        style={Object.assign({width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .2s'}, st)}
       />
     </div>
   );
@@ -657,7 +657,7 @@ function Badge({ children, color, style }) {
 function Card({ children, style, onClick }) {
   const st = style || {};
   return (
-    <div onClick={onClick} style={Object.assign({background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:22,boxShadow:'0 1px 3px rgba(0,0,0,.3)'}, st)}>
+    <div onClick={onClick} style={Object.assign({background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:22,boxShadow:'0 1px 3px rgba(0,0,0,.04)'}, st)}>
       {children}
     </div>
   );
@@ -665,7 +665,7 @@ function Card({ children, style, onClick }) {
 
 function TopBar({ title, subtitle, back, onBack, right }) {
   return (
-    <div style={{background:'#111110',borderBottom:`1px solid ${BORD}`,padding:'0 28px',height:60,display:'flex',alignItems:'center',gap:16,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,.03)'}}>
+    <div style={{background:'#FFFFFF',borderBottom:`1px solid ${BORD}`,padding:'0 28px',height:60,display:'flex',alignItems:'center',gap:16,position:'sticky',top:0,zIndex:100,boxShadow:'0 1px 3px rgba(0,0,0,.03)'}}>
       {back && (
         <button onClick={onBack} style={{background:S2,border:`1px solid ${BORD}`,color:TEXT,cursor:'pointer',fontSize:16,width:34,height:34,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>
           {'←'}
@@ -677,7 +677,7 @@ function TopBar({ title, subtitle, back, onBack, right }) {
       </div>
       {right && <div style={{flexShrink:0}}>{right}</div>}
       <div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0,marginLeft:8}}>
-        <div style={{width:28,height:28,borderRadius:8,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:14}}>L</div>
+        <div style={{width:28,height:28,borderRadius:8,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:14}}>L</div>
         <span style={{fontFamily:"'Instrument Serif',serif",fontSize:13,color:MUTED,marginLeft:4}}>360°</span>
       </div>
     </div>
@@ -741,7 +741,7 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   const lbl = confirmLabel || 'Igen';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:380}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:380}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:10}}>{title}</div>
         <div style={{fontSize:14,color:MUTED,lineHeight:1.6,marginBottom:24}}>{message}</div>
         <div style={{display:'flex',gap:10}}>
@@ -769,27 +769,29 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   const groupAvgs    = gs.map(g => ({ ...g, avg: mergeScoresets(g.scores || []) }));
 
   const radarData = dims.map(d => {
-    const row = { dim:d.id, 'Önértékelés':dimAvg(ss,d) };
+    const row = { dim: d.name.split(' ')[0], 'Önértékelés':dimAvg(ss,d) };
     if (hasOthers) row['Mások átlaga'] = dimAvg(othersAvg, d);
     return row;
   });
   const barData = dims.map(d => ({
-    name:d.id, label:d.label, color:d.color,
+    name: d.name.split(' ')[0], label:d.label, color:d.color,
     'Önértékelés': dimAvg(ss, d),
     ...(hasOthers ? {'Mások átlaga': dimAvg(othersAvg, d)} : {}),
   }));
 
-  const allItems   = dims.flatMap(d => d.items.map(i => ({...i, dimLabel:d.label})));
+  const allItems   = dims.flatMap(d => d.items.map(i => ({...i, dimLabel:d.label, dimName:d.name, dimColor:d.color, dimId:d.id})));
   const selfArr    = allItems.map(i => ({...i, self:ss[i.id]||0, others:othersAvg[i.id]||0})).filter(i => i.self > 0);
   const top5       = [...selfArr].sort((a,b) => b.self - a.self).slice(0, 5);
   const bot5       = [...selfArr].sort((a,b) => a.self - b.self).slice(0, 5);
+  const restTop    = [...selfArr].sort((a,b) => b.self - a.self).slice(5);
+  const restBot    = [...selfArr].sort((a,b) => a.self - b.self).slice(5);
   const blindSpots = selfArr.filter(i => i.others > 0 && i.self - i.others >= 1.0);
   const hiddenStr  = selfArr.filter(i => i.others > 0 && i.others - i.self >= 1.0);
 
   function CT({ active, payload }) {
     if (!active || !payload || !payload.length) return null;
     return (
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.4)'}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.08)'}}>
         {payload.map((p, i) => (
           <div key={i} style={{color:p.color||TEXT}}>{p.name}: <b>{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</b></div>
         ))}
@@ -832,34 +834,35 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:20}}>
-              <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Radar</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <RadarChart data={radarData} margin={{top:10,right:30,bottom:10,left:30}}>
-                    <PolarGrid stroke={BORD}/>
-                    <PolarAngleAxis dataKey="dim" tick={{fill:MUTED,fontSize:11}}/>
-                    <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                    <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
-                    {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:3}}/>}
-                    {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED}}/>}
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={barData} layout="vertical" margin={{left:55}}>
-                    <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
-                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={48}/>
-                    <Tooltip content={<CT/>}/>
-                    <Bar dataKey="Önértékelés" radius={4}>
-                      {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
-                    </Bar>
-                    {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.45} radius={4}/>}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            {/* Radar — teljes szélesség, kétszeres magasság */}
+            <div style={{marginBottom:24}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Kompetencia radar</div>
+              <ResponsiveContainer width="100%" height={560}>
+                <RadarChart data={radarData} margin={{top:28,right:64,bottom:28,left:64}}>
+                  <PolarGrid stroke={BORD}/>
+                  <PolarAngleAxis dataKey="dim" tick={{fill:MUTED,fontSize:13,fontFamily:"'DM Sans',sans-serif"}}/>
+                  <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
+                  <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} dot={{fill:GOLD,r:4}}/>
+                  {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:4}}/>}
+                  {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:10}}/>}
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Dimenzió átlag sávok — radar alatt */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
+              <ResponsiveContainer width="100%" height={Math.max(220, dims.length * 34)}>
+                <BarChart data={barData} layout="vertical" margin={{left:72,right:16}}>
+                  <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
+                  <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:12}} axisLine={false} tickLine={false} width={68}/>
+                  <Tooltip content={<CT/>}/>
+                  <Bar dataKey="Önértékelés" radius={4}>
+                    {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
+                  </Bar>
+                  {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.45} radius={4}/>}
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
             {/* Collapsible group breakdown */}
@@ -935,6 +938,35 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                   </div>
                 );
               })}
+            </div>
+
+            {/* ── Kompetencia-térkép: szín-kódolt dimenziók + alkompetenciák ── */}
+            <div style={{marginTop:28}}>
+              <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:14}}>Kompetencia-térkép</div>
+              {dims.map(d => (
+                <div key={d.id} style={{marginBottom:10,borderRadius:12,overflow:'hidden',border:`1px solid ${d.color}33`}}>
+                  {/* Dimenzió fejléc */}
+                  <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',background:`${d.color}18`,borderBottom:`1px solid ${d.color}22`}}>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:d.color,flexShrink:0}}/>
+                    <span style={{fontSize:13,color:d.color,fontWeight:700,flex:1}}>{d.name}</span>
+                    {d.label !== d.name && <span style={{fontSize:11,color:d.color,opacity:.65}}>{d.label}</span>}
+                    {dimAvg(ss,d) > 0 && (
+                      <span style={{fontFamily:"'Instrument Serif',serif",fontSize:17,color:d.color,fontWeight:600,marginLeft:8}}>{dimAvg(ss,d).toFixed(1)}</span>
+                    )}
+                  </div>
+                  {/* Alkompetenciák */}
+                  {d.items.map((item, ii) => {
+                    const v = ss[item.id] || 0;
+                    return (
+                      <div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 16px',background:ii%2===0?`${d.color}06`:`${d.color}03`,borderBottom:ii < d.items.length-1?`1px solid ${d.color}14`:'none'}}>
+                        <span style={{fontSize:10,color:d.color,opacity:.55,width:16,flexShrink:0,textAlign:'right'}}>{ii+1}.</span>
+                        <span style={{fontSize:13,color:TEXT,flex:1,lineHeight:1.4}}>{item.text}</span>
+                        {v > 0 && <span style={{background:`${d.color}22`,color:d.color,borderRadius:6,padding:'2px 8px',fontSize:12,fontWeight:700,flexShrink:0}}>{v}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1031,11 +1063,25 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <span style={{fontSize:16,fontFamily:"'Instrument Serif',serif",color:GREEN,width:22,flexShrink:0}}>{idx+1}</span>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,color:TEXT}}>{item.text}</div>
-                        <div style={{fontSize:11,color:MUTED,marginTop:2}}>{item.dimLabel}</div>
+                        <div style={{fontSize:11,color:item.dimColor||MUTED,marginTop:2,fontWeight:500}}>{item.dimName}</div>
                       </div>
                       <span style={{background:`${GREEN}22`,color:GREEN,borderRadius:6,padding:'2px 10px',fontSize:13,fontWeight:700}}>{item.self}</span>
                     </div>
                   ))}
+                  {restTop.length > 0 && (
+                    <div style={{marginTop:4}}>
+                      {restTop.map((item, idx) => (
+                        <div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${BORD}44`}}>
+                          <span style={{fontSize:14,fontFamily:"'Instrument Serif',serif",color:DIM,width:22,flexShrink:0}}>{idx+6}</span>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:12,color:MUTED}}>{item.text}</div>
+                            <div style={{fontSize:10,color:DIM,marginTop:1}}>{item.dimName}</div>
+                          </div>
+                          <span style={{color:DIM,fontSize:12,fontWeight:600}}>{item.self}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{fontSize:12,color:ORAN,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12}}>Top 5 fejlesztési terület</div>
@@ -1044,11 +1090,25 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <span style={{fontSize:16,fontFamily:"'Instrument Serif',serif",color:ORAN,width:22,flexShrink:0}}>{idx+1}</span>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,color:TEXT}}>{item.text}</div>
-                        <div style={{fontSize:11,color:MUTED,marginTop:2}}>{item.dimLabel}</div>
+                        <div style={{fontSize:11,color:item.dimColor||MUTED,marginTop:2,fontWeight:500}}>{item.dimName}</div>
                       </div>
                       <span style={{background:`${ORAN}22`,color:ORAN,borderRadius:6,padding:'2px 10px',fontSize:13,fontWeight:700}}>{item.self}</span>
                     </div>
                   ))}
+                  {restBot.length > 0 && (
+                    <div style={{marginTop:4}}>
+                      {restBot.map((item, idx) => (
+                        <div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${BORD}44`}}>
+                          <span style={{fontSize:14,fontFamily:"'Instrument Serif',serif",color:DIM,width:22,flexShrink:0}}>{idx+6}</span>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:12,color:MUTED}}>{item.text}</div>
+                            <div style={{fontSize:10,color:DIM,marginTop:1}}>{item.dimName}</div>
+                          </div>
+                          <span style={{color:DIM,fontSize:12,fontWeight:600}}>{item.self}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {hasOthers && (
                   <div>
@@ -1274,7 +1334,7 @@ function SurveyView({ nav, goBack, ctx }) {
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
-      <div style={{position:'sticky',top:0,zIndex:100,background:'#111110',borderBottom:`1px solid ${BORD}`}}>
+      <div style={{position:'sticky',top:0,zIndex:100,background:SURF,borderBottom:`1px solid ${BORD}`}}>
         <div style={{padding:'0 20px',height:52,display:'flex',alignItems:'center',gap:12}}>
           <button onClick={goBack} style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:18,padding:'0 4px',display:'flex',alignItems:'center',flexShrink:0}}>{'‹'}</button>
           <div style={{flex:1,fontSize:13,color:TEXT,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -1285,7 +1345,7 @@ function SurveyView({ nav, goBack, ctx }) {
           {draftLoaded && Object.keys(scores).length > 0 && pct < 100 && <span style={{fontSize:10,color:GREEN,flexShrink:0}}>💾</span>}
           <button onClick={() => setShowScaleSettings(p => !p)} title="Skála beállítások"
             style={{background:showScaleSettings?`${GOLD}22`:'none',border:`1px solid ${showScaleSettings?GOLD:BORD}`,borderRadius:6,cursor:'pointer',width:24,height:24,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:13,color:showScaleSettings?GOLD:MUTED,transition:'all .15s'}}>⚙</button>
-          <div style={{width:22,height:22,borderRadius:6,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:10,flexShrink:0}}>L</div>
+          <div style={{width:22,height:22,borderRadius:6,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:10,flexShrink:0}}>L</div>
         </div>
         <div style={{height:3,background:BORD}}>
           <div style={{height:'100%',width:`${pct}%`,background:GOLD,transition:'width .3s',borderRadius:2}}/>
@@ -1342,15 +1402,7 @@ function SurveyView({ nav, goBack, ctx }) {
             <div style={{display:'flex',gap:scaleMax > 7 ? 3 : 6}}>
               {Array.from({length:scaleMax},(_,i)=>i+1).map(v => (
                 <button key={v}
-                  onClick={() => {
-                    const newScores = { ...scores, [item.id]: v };
-                    setScores(newScores);
-                    // Auto-advance: ha az összes item ki van töltve ebben a dimenzióban
-                    const allDone = curDim.items.every(it => (newScores[it.id] || 0) > 0);
-                    if (allDone && activeDim < safeDims.length - 1) {
-                      setTimeout(() => setActiveDim(prev => prev + 1), 220);
-                    }
-                  }}
+                  onClick={() => setScores(prev => ({ ...prev, [item.id]: v }))}
                   style={{flex:'1 1 0',padding:scaleMax > 7 ? '6px 2px' : '8px 4px',border:`1px solid ${scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : BORD2}`,borderRadius:8,background:scores[item.id]===v ? `${scaleCfg.colors[v]||GOLD}22` : 'transparent',color:scores[item.id]===v ? (scaleCfg.colors[v]||GOLD) : MUTED,fontSize:scaleMax > 7 ? 10 : 11,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:scores[item.id]===v?700:400,transition:'all .15s',textAlign:'center',minWidth:0}}>
                   <div style={{fontSize:scaleMax > 7 ? 12 : 15,marginBottom:2}}>{v}</div>
                   <div style={{fontSize:scaleMax > 7 ? 7 : 9,lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{scaleCfg.labels[v]||''}</div>
@@ -1371,7 +1423,7 @@ function SurveyView({ nav, goBack, ctx }) {
                 onChange={e => setCommentGrowth(e.target.value)}
                 placeholder="Fejlesztendő területek, javaslatok..."
                 rows={3}
-                style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
+                style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
               />
             </div>
             <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'16px 18px'}}>
@@ -1382,7 +1434,7 @@ function SurveyView({ nav, goBack, ctx }) {
                 onChange={e => setCommentStrength(e.target.value)}
                 placeholder="Erősségek, pozitív tulajdonságok..."
                 rows={3}
-                style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
+                style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
               />
             </div>
           </div>
@@ -1392,11 +1444,12 @@ function SurveyView({ nav, goBack, ctx }) {
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
             {'← Előző'}
           </Btn>
-          {activeDim === safeDims.length - 1 && (
-            <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
-              {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
-            </Btn>
-          )}
+          {activeDim < safeDims.length - 1
+            ? <Btn variant="ghost" onClick={() => setActiveDim(prev => prev+1)}>{'Következő →'}</Btn>
+            : <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
+                {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
+              </Btn>
+          }
         </div>
       </div>
     </div>
@@ -1417,10 +1470,10 @@ function LoginView({ onLogin }) {
     setTimeout(() => onLogin(user), 600);
   }
   return (
-    <div style={{minHeight:'100vh',background:BG,display:'flex',flexDirection:'column'}}>
+    <div style={{minHeight:'100vh',background:'#FAFAF8',display:'flex',flexDirection:'column'}}>
       <div style={{padding:'18px 40px',display:'flex',alignItems:'center',borderBottom:`1px solid ${BORD}`}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
+          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
           <span style={{fontFamily:"'Instrument Serif',serif",fontSize:22}}>Ledge 360°</span>
         </div>
       </div>
@@ -1437,7 +1490,7 @@ function LoginView({ onLogin }) {
               <div style={{fontSize:13,color:MUTED,marginTop:4}}>Átirányítás...</div>
             </div>
           ) : (
-            <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:'24px',boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}>
+            <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:16,padding:'24px',boxShadow:'0 2px 8px rgba(0,0,0,.04)'}}>
               <Input label="Email cím" value={email} onChange={setEmail} placeholder="nev@ceg.hu" type="email"/>
               <Btn onClick={handleLogin} disabled={!email.trim()||sending} size="lg" style={{width:'100%',marginTop:4}}>
                 {sending ? 'Küldés...' : 'Bejelentkezési link küldése'}
@@ -1477,7 +1530,7 @@ function PaywallView({ nav, goBack, onUpgrade }) {
         <div style={{fontSize:40,marginBottom:16}}>◈</div>
         <h2 style={{fontFamily:"'Instrument Serif',serif",fontSize:28,color:TEXT,fontWeight:400,marginBottom:8}}>Szervezett 360°</h2>
         <p style={{color:MUTED,fontSize:15,lineHeight:1.6,marginBottom:28}}>Projektek, résztvevők, értékelők kezelése — professzionális tanácsadói eszköztár.</p>
-        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:'28px',boxShadow:'0 2px 8px rgba(0,0,0,.3)',marginBottom:24}}>
+        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:'28px',boxShadow:'0 2px 8px rgba(0,0,0,.04)',marginBottom:24}}>
           <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:8}}>Tanácsadói csomag</div>
           <div style={{fontFamily:"'Instrument Serif',serif",fontSize:42,color:GOLD,marginBottom:4}}>29<span style={{fontSize:18,color:MUTED}}> EUR/hó</span></div>
           <div style={{fontSize:13,color:MUTED,marginBottom:20}}>Korlátlan projekt és értékelő</div>
@@ -1525,7 +1578,7 @@ function SuperAdminPanel({ nav, goBack }) {
       <div style={{maxWidth:960,margin:'0 auto',padding:'24px'}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
           {[{label:'Felhasználók',val:stats.total,color:GOLD},{label:'Tanácsadók',val:stats.consultants,color:PURP},{label:'Vezetők',val:stats.leaders,color:BLUE},{label:'Tiltott',val:stats.banned,color:RED}].map(s => (
-            <div key={s.label} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'16px 20px',boxShadow:'0 1px 3px rgba(0,0,0,.3)'}}>
+            <div key={s.label} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:'16px 20px',boxShadow:'0 1px 3px rgba(0,0,0,.04)'}}>
               <div style={{fontSize:28,fontFamily:"'Instrument Serif',serif",color:s.color}}>{s.val}</div>
               <div style={{fontSize:11,color:MUTED,marginTop:4}}>{s.label}</div>
             </div>
@@ -1533,17 +1586,17 @@ function SuperAdminPanel({ nav, goBack }) {
         </div>
         <div style={{display:'flex',gap:2,marginBottom:20,background:S2,borderRadius:12,padding:3,border:`1px solid ${BORD}`}}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{flex:1,padding:'10px 8px',border:'none',borderRadius:10,background:tab===t.id?S2:'transparent',cursor:'pointer',fontSize:13,fontFamily:"'DM Sans',sans-serif",color:tab===t.id?GOLD:MUTED,fontWeight:tab===t.id?600:400,transition:'all .15s',boxShadow:tab===t.id?'0 1px 2px rgba(0,0,0,.04)':'none'}}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{flex:1,padding:'10px 8px',border:'none',borderRadius:10,background:tab===t.id?'#FFFFFF':'transparent',cursor:'pointer',fontSize:13,fontFamily:"'DM Sans',sans-serif",color:tab===t.id?GOLD:MUTED,fontWeight:tab===t.id?600:400,transition:'all .15s',boxShadow:tab===t.id?'0 1px 2px rgba(0,0,0,.04)':'none'}}>{t.label}</button>
           ))}
         </div>
         {tab === 'users' && users.map(u => (
-          <div key={u.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'14px 18px',marginBottom:8,display:'flex',alignItems:'center',gap:12,boxShadow:'0 1px 2px rgba(0,0,0,.25)'}}>
+          <div key={u.id} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:12,padding:'14px 18px',marginBottom:8,display:'flex',alignItems:'center',gap:12,boxShadow:'0 1px 2px rgba(0,0,0,.03)'}}>
             <div style={{width:36,height:36,borderRadius:'50%',background:`${GOLD}14`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:GOLD,flexShrink:0}}>{(u.displayName||u.email||'?')[0].toUpperCase()}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:14,color:TEXT,fontWeight:600}}>{u.displayName||u.email}{u.banned?' — TILTVA':''}</div>
               <div style={{fontSize:12,color:MUTED}}>{u.email}</div>
             </div>
-            <select value={u.role} onChange={e => changeRole(u.id, e.target.value)} style={{background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'6px 10px',fontSize:12,color:TEXT,cursor:'pointer'}}>
+            <select value={u.role} onChange={e => changeRole(u.id, e.target.value)} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:8,padding:'6px 10px',fontSize:12,color:TEXT,cursor:'pointer'}}>
               <option value="leader">Vezető</option><option value="consultant">Tanácsadó</option><option value="super_admin">SuperAdmin</option>
             </select>
             <Btn variant={u.banned?"ghost":"danger"} size="sm" onClick={() => toggleBan(u.id)}>{u.banned?'Feloldás':'Tiltás'}</Btn>
@@ -1563,7 +1616,7 @@ function SuperAdminPanel({ nav, goBack }) {
         {tab === 'invites' && (invites.length === 0
           ? <div style={{textAlign:'center',color:MUTED,padding:40}}>Nincs kiadott meghívó.</div>
           : invites.map((inv,i) => (
-              <div key={i} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:6,display:'flex',alignItems:'center',gap:12}}>
+              <div key={i} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:6,display:'flex',alignItems:'center',gap:12}}>
                 <Badge color={inv.status==='accepted'?GREEN:inv.status==='expired'?RED:GOLD}>{inv.status}</Badge>
                 <div style={{flex:1,fontSize:13,color:TEXT}}>{inv.email}</div>
                 <div style={{fontSize:11,color:MUTED}}>{new Date(inv.created).toLocaleDateString('hu-HU')}</div>
@@ -1621,7 +1674,7 @@ function ConsultantInviteView({ nav, goBack }) {
           <Badge color={GREEN}>{invites.filter(i=>i.status==='accepted').length} elfogadva</Badge>
         </div>
         {invites.map((inv,i) => (
-          <div key={i} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+          <div key={i} style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
             <Badge color={inv.status==='accepted'?GREEN:GOLD}>{inv.status==='accepted'?'Elfogadva':'Függőben'}</Badge>
             <div style={{flex:1}}>
               <div style={{fontSize:14,color:TEXT}}>{inv.email}</div>
@@ -1638,10 +1691,10 @@ function ConsultantInviteView({ nav, goBack }) {
 // ─── HOME VIEW ─────────────────────────────────────────────────
 function HomeView({ nav, goBack, ctx, onLogout }) {
   return (
-    <div style={{minHeight:'100vh',background:BG,display:'flex',flexDirection:'column'}}>
+    <div style={{minHeight:'100vh',background:'#FAFAF8',display:'flex',flexDirection:'column'}}>
       <div style={{padding:'18px 40px',display:'flex',alignItems:'center',borderBottom:`1px solid ${BORD}`}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:BG,fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
+          <div style={{width:34,height:34,borderRadius:10,background:TEXT,display:'flex',alignItems:'center',justifyContent:'center',color:'#FAFAF8',fontFamily:"'Instrument Serif',serif",fontSize:18}}>L</div>
           <span style={{fontFamily:"'Instrument Serif',serif",fontSize:22}}>Ledge 360°</span>
         </div>
         <span style={{marginLeft:14,fontSize:11,color:MUTED,letterSpacing:'.1em',textTransform:'uppercase'}}>by ZEL Group</span>
@@ -2013,7 +2066,7 @@ function GroupModal({ onClose, onSave, selves }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:480}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:480}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>Új csoport</div>
         <div style={{marginBottom:16}}>
           <div style={{fontSize:11,color:MUTED,marginBottom:8,textTransform:'uppercase',letterSpacing:'.08em'}}>Javaslatok</div>
@@ -2086,7 +2139,7 @@ function PresetPickerModal({ onClose, onPick, hasExisting }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:520}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:520}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:hasExisting?8:20}}>Sablon választás</div>
         {hasExisting && (
           <div style={{background:`${ORAN}18`,border:`1px solid ${ORAN}44`,borderRadius:8,padding:'8px 14px',marginBottom:16,fontSize:13,color:ORAN}}>
@@ -2251,7 +2304,7 @@ Szabályok:
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:640,maxHeight:'85vh',overflow:'auto'}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:640,maxHeight:'85vh',overflow:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
           <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT}}>📊 Excel importálás</div>
           <Btn variant="ghost" size="sm" onClick={onClose}>✕</Btn>
@@ -2759,7 +2812,7 @@ function GroupManageView({ nav, goBack, ctx }) {
         const dims = preset.dims;
         return (
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-            <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:560,maxHeight:'80vh',overflow:'auto',boxShadow:'0 8px 30px rgba(0,0,0,.5)'}}>
+            <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:560,maxHeight:'80vh',overflow:'auto',boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
                 <div>
                   <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT}}>{viewingMember.firstName} {viewingMember.lastName}</div>
@@ -3206,7 +3259,7 @@ function ProjectView({ nav, goBack, ctx }) {
     await db.set(id, { id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), created:Date.now() });
     const sc  = uid(12);
     const rid = 'rat:'+uid(10);
-    await db.set(rid, { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role:'self', code:sc, status:'pending' });
+    await db.set(rid, { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), role:'self', code:sc, status:'pending' });
     setFn(''); setLn(''); setEm('');
     setAddingP(false);
     load();
@@ -3321,19 +3374,24 @@ function ProjectView({ nav, goBack, ctx }) {
 
         <div style={{display:'flex',gap:10,marginBottom:18}}>
           <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', { projectId })}>📚 Könyvtár kezelése</Btn>
+          {parts.length >= 2 && (
+            <Btn variant="ghost" size="sm" onClick={() => nav('project_compare', { projectId })} style={{color:PURP,borderColor:PURP+'44'}}>
+              ⊞ Összehasonlítás
+            </Btn>
+          )}
         </div>
 
         {/* Tanácsadók a projektben */}
-        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22,boxShadow:'0 1px 3px rgba(0,0,0,.3)'}}>
+        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22,boxShadow:'0 1px 3px rgba(0,0,0,.04)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
             <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Tanácsadók a projektben</div>
             <Badge color={MUTED}>{collabs.length} fő</Badge>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:10}}>
             <div style={{flex:1}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="kollega@ceg.hu"
-              style={{width:'100%',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
+              style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
             <select value={collabPerm} onChange={e=>setCollabPerm(e.target.value)}
-              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
+              style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
               <option value="view">Olvasás</option>
               <option value="edit">Szerkesztés</option>
             </select>
@@ -3430,7 +3488,7 @@ function ProjectView({ nav, goBack, ctx }) {
 
       {editingProj && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.5)'}}>
+          <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
             <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>Projekt szerkesztése</div>
             <Input label="Projekt neve" value={editName} onChange={setEditName} placeholder="Projekt neve"/>
             <Input label="Ügyfél / Szervezet" value={editClient} onChange={setEditClient} placeholder="Ügyfél neve"/>
@@ -3472,12 +3530,6 @@ function RatersView({ nav, goBack, ctx }) {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const bulkRef = useRef(null);
-  const [editingId,   setEditingId]   = useState(null);
-  const [editFn,      setEditFn]      = useState('');
-  const [editLn,      setEditLn]      = useState('');
-  const [editEm,      setEditEm]      = useState('');
-  const [editRole,    setEditRole]    = useState('peer');
-  const [sendingId,   setSendingId]   = useState(null);
 
   const load = useCallback(async () => {
     const p  = await db.get(projectId);
@@ -3499,62 +3551,7 @@ function RatersView({ nav, goBack, ctx }) {
     load();
   }
 
-  function startEdit(r) {
-    setEditingId(r.id);
-    setEditFn(r.firstName || '');
-    setEditLn(r.lastName  || '');
-    setEditEm(r.email     || '');
-    setEditRole(r.role    || 'peer');
-  }
-
-  async function saveEdit(r) {
-    const updated = { ...r, firstName:editFn.trim(), lastName:editLn.trim(), email:editEm.trim(), role:editRole };
-    await db.set(r.id, updated);
-    setEditingId(null);
-    load();
-  }
-
-  function cancelEdit() { setEditingId(null); }
-
   async function rem(id) { await db.del(id); load(); }
-
-  async function sendRaterEmail(r, isReminder = false) {
-    if (!r.email) return;
-    setSendingId(r.id);
-    try {
-      const raterName     = r.firstName + (r.lastName ? ' ' + r.lastName : '');
-      const participantName = part ? part.firstName + ' ' + part.lastName : '';
-      const surveyTitle   = proj?.name || 'LEDGE 360° értékelés';
-      const baseUrl       = window.location.origin;
-      const appPath       = window.location.pathname.replace(/\/$/, '') || '';
-      const surveyUrl     = `${baseUrl}${appPath}?code=${r.code}`;
-      const subject       = isReminder
-        ? `Emlékeztető: ${surveyTitle} — kérjük, töltsd ki`
-        : `${surveyTitle} — kérjük, töltsd ki`;
-      const bodyText      = isReminder
-        ? `Kedves ${raterName}!\n\nEmlékeztetünk, hogy még nem töltötted ki a(z) ${participantName} értékeléséhez kapcsolódó kérdőívet.\n\nAzonosítód: ${r.code}\nLink: ${surveyUrl}\n\nKöszönjük!\nLEDGE 360°`
-        : `Kedves ${raterName}!\n\nMeghívást kaptál, hogy értékeld ${participantName} vezető kollégádat egy 360 fokos értékelésben.\n\nAzonosítód: ${r.code}\nLink: ${surveyUrl}\n\nA kitöltés kb. 5-10 percet vesz igénybe.\n\nKöszönjük!\nLEDGE 360°`;
-      const resp = await fetch('/api/send-360-invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: r.email, subject, bodyText }),
-      });
-      if (resp.ok) {
-        const now = Date.now();
-        const updated = isReminder
-          ? { ...r, lastReminderSent: now }
-          : { ...r, emailSent: true, emailSentAt: now };
-        await db.set(r.id, updated);
-        load();
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        alert('Email küldési hiba: ' + (err.error || resp.status));
-      }
-    } catch (e) {
-      alert('Email küldési hiba: ' + e.message);
-    }
-    setSendingId(null);
-  }
 
   async function handleBulkImport(e) {
     const file = e.target.files && e.target.files[0];
@@ -3658,81 +3655,19 @@ function RatersView({ nav, goBack, ctx }) {
 
         {raters.map(r => {
           const ri = roles.find(d => d.id === r.role) || roles[0];
-          const isEditing = editingId === r.id;
-          if (isEditing) {
-            return (
-              <div key={r.id} style={{background:SURF,border:`1.5px solid ${GOLD}`,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-                  <Input label="Keresztnév" value={editFn} onChange={setEditFn} placeholder="Péter"/>
-                  <Input label="Vezetéknév" value={editLn} onChange={setEditLn} placeholder="Nagy"/>
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-                  <Input label="Email" value={editEm} onChange={setEditEm} placeholder="email@ceg.hu"/>
-                  <div>
-                    <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Szerep</div>
-                    <select value={editRole} onChange={e => setEditRole(e.target.value)}
-                      style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}>
-                      {roles.map(ro => <option key={ro.id} value={ro.id}>{ro.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:8}}>
-                  <Btn size="sm" onClick={() => saveEdit(r)} disabled={!editFn.trim()}>✓ Mentés</Btn>
-                  <Btn size="sm" variant="ghost" onClick={cancelEdit}>Mégse</Btn>
-                </div>
-              </div>
-            );
-          }
-          const isSending = sendingId === r.id;
-          const sentTs = r.emailSentAt ? new Date(r.emailSentAt) : null;
-          const reminderTs = r.lastReminderSent ? new Date(r.lastReminderSent) : null;
-          const fmtDate = (d) => d ? `${d.getMonth()+1 < 10 ? '0'+(d.getMonth()+1) : d.getMonth()+1}. ${d.getDate()}. ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '';
           return (
-            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-              <div style={{flex:1,minWidth:180}}>
+            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
+              <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <span style={{fontSize:14,color:TEXT,fontWeight:500}}>{r.firstName} {r.lastName}</span>
                   <Badge color={ri.color||MUTED}>{ri.label}</Badge>
                 </div>
-                {r.email ? (
-                  <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3,flexWrap:'wrap'}}>
-                    <span style={{fontSize:12,color:MUTED}}>{r.email}</span>
-                    {r.emailSent
-                      ? <span style={{fontSize:11,color:GREEN}}>✉✓ elküldve{sentTs ? ` · ${fmtDate(sentTs)}` : ''}</span>
-                      : <span style={{fontSize:11,color:MUTED}}>✉ nem elküldve</span>
-                    }
-                    {reminderTs && <span style={{fontSize:11,color:MUTED}}>· emlékeztető: {fmtDate(reminderTs)}</span>}
-                  </div>
-                ) : (
-                  <div style={{fontSize:12,color:ORAN,marginTop:2,fontStyle:'italic'}}>Nincs email cím — szerkesztéssel adható hozzá</div>
-                )}
+                {r.email && <div style={{fontSize:12,color:MUTED,marginTop:2}}>{r.email}</div>}
               </div>
               <div style={{textAlign:'center',flexShrink:0}}>
                 <CopyCode code={r.code}/>
               </div>
               <StatusDot status={r.status}/>
-              {r.email && (
-                r.emailSent
-                  ? <button
-                      onClick={() => sendRaterEmail(r, true)}
-                      disabled={isSending}
-                      style={{background:'none',border:`1px solid ${BORD}`,borderRadius:6,color:MUTED,cursor:'pointer',fontSize:12,padding:'4px 8px',flexShrink:0,transition:'all .15s',opacity:isSending?0.5:1}}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor=BLUE; e.currentTarget.style.color=BLUE; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor=BORD; e.currentTarget.style.color=MUTED; }}
-                    >{isSending ? '...' : '↺ Emlékeztető'}</button>
-                  : <button
-                      onClick={() => sendRaterEmail(r, false)}
-                      disabled={isSending}
-                      style={{background:GOLD,border:'none',borderRadius:6,color:'#fff',cursor:'pointer',fontSize:12,padding:'5px 10px',flexShrink:0,fontWeight:600,opacity:isSending?0.5:1}}
-                    >{isSending ? 'Küldés...' : '✉ Meghívó küldése'}</button>
-              )}
-              <button
-                onClick={() => startEdit(r)}
-                title="Szerkesztés"
-                style={{background:'none',border:`1px solid ${BORD}`,borderRadius:6,color:MUTED,cursor:'pointer',fontSize:13,padding:'4px 8px',flexShrink:0,lineHeight:1,transition:'all .15s'}}
-                onMouseEnter={e => { e.currentTarget.style.borderColor=GOLD; e.currentTarget.style.color=GOLD; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor=BORD; e.currentTarget.style.color=MUTED; }}
-              >✎</button>
               <button onClick={() => rem(r.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:16,padding:4,flexShrink:0}}>✕</button>
             </div>
           );
@@ -3809,6 +3744,442 @@ function ReportPageView({ nav, goBack, ctx }) {
   );
 }
 
+// ─── PROJECT COMPARE VIEW ─────────────────────────────────────
+function ProjectCompareView({ nav, goBack, ctx }) {
+  const projectId = ctx.projectId;
+  const [loading,  setLoading]  = useState(true);
+  const [proj,     setProj]     = useState(null);
+  const [parts,    setParts]    = useState([]);   // [{id, firstName, lastName, ...}]
+  const [partData, setPartData] = useState([]);   // [{part, selfScores, othersAvg, totalDone}]
+  const [scoreMode, setScoreMode] = useState('self'); // 'self' | 'others' | 'combined'
+  const [tab, setTab] = useState('radar');         // 'radar' | 'table' | 'ranking'
+  const [selectedParts, setSelectedParts] = useState(null); // null = all
+
+  useEffect(() => {
+    (async () => {
+      const p = await db.get(projectId);
+      setProj(p);
+      const pks = await db.list('part:');
+      const allP = await Promise.all(pks.map(k => db.get(k)));
+      const ps = allP.filter(x => x && x.projectId === projectId);
+      setParts(ps);
+
+      const rks = await db.list('rat:');
+      const allR = await Promise.all(rks.map(k => db.get(k)));
+
+      const results = await Promise.all(ps.map(async (part) => {
+        const pr = allR.filter(r => r && r.participantId === part.id);
+        const selfR  = pr.find(r => r.role === 'self');
+        const otherR = pr.filter(r => r.role !== 'self' && r.status === 'done');
+        const selfResp   = selfR   ? await db.get('resp:' + selfR.code) : null;
+        const otherResps = await Promise.all(otherR.map(r => db.get('resp:' + r.code)));
+        const otherScoreSets = otherResps.filter(Boolean).map(r => r.scores || {});
+        return {
+          part,
+          selfScores:  selfResp ? (selfResp.scores || {}) : {},
+          othersAvg:   mergeScoresets(otherScoreSets),
+          otherCount:  otherScoreSets.length,
+          totalRaters: pr.length,
+          totalDone:   pr.filter(r => r.status === 'done').length,
+        };
+      }));
+      setPartData(results);
+      setSelectedParts(ps.map(p => p.id));
+      setLoading(false);
+    })();
+  }, [projectId]);
+
+  if (loading) return <div style={{padding:60,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
+  if (!proj)   return <div style={{padding:40,color:MUTED,background:BG,minHeight:'100vh'}}>Projekt nem található.</div>;
+
+  const preset  = resolvePreset(proj.libraryId, proj.customDims);
+  const dims    = preset.dims;
+  const sMax    = getScaleMax(proj.scaleId || '5pt');
+
+  // A résztvevők amik ki vannak jelölve
+  const visibleData = partData.filter(pd => selectedParts && selectedParts.includes(pd.part.id));
+
+  // Egy résztvevő "aktív" score-jai a scoreMode alapján
+  function getScore(pd, dimOrItem, isItem) {
+    const self  = isItem ? (pd.selfScores[dimOrItem.id] || 0) : dimAvg(pd.selfScores, dimOrItem);
+    const other = isItem ? (pd.othersAvg[dimOrItem.id]  || 0) : dimAvg(pd.othersAvg,  dimOrItem);
+    if (scoreMode === 'self')     return self;
+    if (scoreMode === 'others')   return other > 0 ? other : null;
+    // combined: átlag ha mindkét adat van, különben az amelyik megvan
+    if (self > 0 && other > 0)   return +((self + other) / 2).toFixed(2);
+    if (self > 0)                 return self;
+    if (other > 0)                return other;
+    return null;
+  }
+
+  // Dimenzió összesítő táblázat adatok
+  const tableRows = dims.map(d => {
+    const row = { dim: d, vals: {} };
+    visibleData.forEach(pd => {
+      row.vals[pd.part.id] = getScore(pd, d, false);
+    });
+    return row;
+  });
+
+  // Radar adat — minden résztvevő külön Radar vonal
+  const radarData = dims.map(d => {
+    const row = { dim: d.name.split(' ')[0] };
+    visibleData.forEach(pd => {
+      const v = getScore(pd, d, false);
+      row[pd.part.firstName] = v || 0;
+    });
+    return row;
+  });
+
+  // Ranking: összesített dimenzió-átlag per résztvevő
+  const ranking = visibleData.map(pd => {
+    const dimVals = dims.map(d => getScore(pd, d, false)).filter(v => v !== null && v > 0);
+    const avg = dimVals.length ? +(dimVals.reduce((a,b) => a+b, 0) / dimVals.length).toFixed(2) : 0;
+    return { pd, avg };
+  }).sort((a, b) => b.avg - a.avg);
+
+  // Csapat-szintű dimenzió átlagok
+  const teamDimAvgs = dims.map(d => {
+    const vals = visibleData.map(pd => getScore(pd, d, false)).filter(v => v !== null && v > 0);
+    return { dim: d, avg: vals.length ? +(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2) : 0 };
+  });
+
+  // Legjobb és leggyengébb csapat-dimenzió
+  const sorted = [...teamDimAvgs].filter(x => x.avg > 0).sort((a,b) => b.avg - a.avg);
+  const teamTop3    = sorted.slice(0, 3);
+  const teamBottom3 = sorted.slice(-3).reverse();
+
+  // Szín-palette a résztvevőkhöz
+  const PART_COLORS = [GOLD, BLUE, PURP, GREEN, ORAN, RED, '#D4AA78', '#7AAED0', '#B89BC9'];
+  function partColor(idx) { return PART_COLORS[idx % PART_COLORS.length]; }
+
+  const TABS = [
+    { id:'radar',   label:'Radar' },
+    { id:'table',   label:'Dimenzió táblázat' },
+    { id:'ranking', label:'Rangsor' },
+  ];
+
+  const MODES = [
+    { id:'self',     label:'Önértékelés' },
+    { id:'others',   label:'Mások visszajelzése' },
+    { id:'combined', label:'Összesített' },
+  ];
+
+  function togglePart(id) {
+    setSelectedParts(prev => {
+      if (!prev) return parts.map(p => p.id).filter(x => x !== id);
+      if (prev.includes(id)) {
+        if (prev.length <= 1) return prev; // legalább 1 legyen
+        return prev.filter(x => x !== id);
+      }
+      return [...prev, id];
+    });
+  }
+
+  return (
+    <div style={{background:BG, minHeight:'100vh'}}>
+      <TopBar
+        title="⊞ Összehasonlító riport"
+        subtitle={proj.name + (proj.client ? ' — ' + proj.client : '')}
+        back onBack={goBack}
+      />
+      <div style={{maxWidth:1040, margin:'0 auto', padding:'22px 24px'}}>
+
+        {/* ── Fejléc metrikák ── */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:20}}>
+          {[
+            { label:'Résztvevők',    val:parts.length,                             color:GOLD },
+            { label:'Riport kész',   val:partData.filter(d=>d.totalDone>0).length, color:GREEN },
+            { label:'Dimenziók',     val:dims.length,                              color:BLUE },
+            { label:'Alkompetenciák',val:dims.reduce((s,d)=>s+d.items.length,0),   color:PURP },
+          ].map(s => (
+            <div key={s.label} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'12px 16px'}}>
+              <div style={{fontSize:24,fontFamily:"'Instrument Serif',serif",color:s.color}}>{s.val}</div>
+              <div style={{fontSize:11,color:MUTED,marginTop:2}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Résztvevő szűrő ── */}
+        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'14px 18px',marginBottom:18}}>
+          <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Résztvevők</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {partData.map((pd, i) => {
+              const active = selectedParts && selectedParts.includes(pd.part.id);
+              const col = partColor(i);
+              return (
+                <button key={pd.part.id} onClick={() => togglePart(pd.part.id)}
+                  style={{display:'flex',alignItems:'center',gap:7,padding:'6px 14px',borderRadius:20,border:`1.5px solid ${active ? col : BORD}`,background:active ? col+'18' : 'transparent',cursor:'pointer',transition:'all .15s'}}>
+                  <span style={{width:8,height:8,borderRadius:'50%',background:active?col:DIM,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:active?col:MUTED,fontWeight:active?600:400}}>
+                    {pd.part.firstName} {pd.part.lastName}
+                  </span>
+                  <span style={{fontSize:10,color:DIM}}>{pd.totalDone}/{pd.totalRaters}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Score mód + Tab bar ── */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10,marginBottom:16}}>
+          {/* Score mód */}
+          <div style={{display:'flex',gap:2,background:S2,borderRadius:10,padding:3,border:`1px solid ${BORD}`}}>
+            {MODES.map(m => (
+              <button key={m.id} onClick={() => setScoreMode(m.id)}
+                style={{padding:'7px 14px',border:'none',borderRadius:8,background:scoreMode===m.id?SURF:'transparent',cursor:'pointer',fontSize:12,fontFamily:"'DM Sans',sans-serif",color:scoreMode===m.id?GOLD:MUTED,fontWeight:scoreMode===m.id?600:400,transition:'all .15s',boxShadow:scoreMode===m.id?'0 1px 2px rgba(0,0,0,.05)':'none'}}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {/* Tab */}
+          <div style={{display:'flex',gap:2,background:S2,borderRadius:10,padding:3,border:`1px solid ${BORD}`}}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                style={{padding:'7px 14px',border:'none',borderRadius:8,background:tab===t.id?SURF:'transparent',cursor:'pointer',fontSize:12,fontFamily:"'DM Sans',sans-serif",color:tab===t.id?TEXT:MUTED,fontWeight:tab===t.id?600:400,transition:'all .15s',boxShadow:tab===t.id?'0 1px 2px rgba(0,0,0,.05)':'none'}}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ══ RADAR TAB ══ */}
+        {tab === 'radar' && (
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'22px 24px',marginBottom:20}}>
+            <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:16}}>
+              Kompetencia térkép — {visibleData.length} résztvevő
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,alignItems:'start'}}>
+              {/* Radar */}
+              <div>
+                <ResponsiveContainer width="100%" height={340}>
+                  <RadarChart data={radarData} margin={{top:16,right:32,bottom:16,left:32}}>
+                    <PolarGrid stroke={BORD}/>
+                    <PolarAngleAxis dataKey="dim" tick={{fill:MUTED,fontSize:11}}/>
+                    <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
+                    {visibleData.map((pd, i) => (
+                      <Radar
+                        key={pd.part.id}
+                        name={pd.part.firstName+' '+pd.part.lastName}
+                        dataKey={pd.part.firstName}
+                        stroke={partColor(partData.indexOf(pd))}
+                        fill={partColor(partData.indexOf(pd))}
+                        fillOpacity={0.08}
+                        strokeWidth={2}
+                        dot={{fill:partColor(partData.indexOf(pd)),r:3}}
+                      />
+                    ))}
+                    <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Csapat átlag dimenzió sávok */}
+              <div>
+                <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12}}>Csapat átlag dimenzióként</div>
+                {teamDimAvgs.map(({ dim: d, avg }) => (
+                  <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                    <span style={{fontSize:10,color:d.color,fontWeight:700,width:26,flexShrink:0,textAlign:'right'}}>{d.id}</span>
+                    <MiniBar val={avg} max={sMax} color={d.color}/>
+                    <span style={{fontSize:13,fontWeight:600,color:avg > 0 ? scoreColor(avg,sMax) : MUTED,width:28,textAlign:'right'}}>{avg > 0 ? avg.toFixed(1) : '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Csapat top3 / bottom3 */}
+            {(teamTop3.length > 0 || teamBottom3.length > 0) && (
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:20,paddingTop:20,borderTop:`1px solid ${BORD}`}}>
+                <div>
+                  <div style={{fontSize:11,color:GREEN,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Csapat erősség (top 3)</div>
+                  {teamTop3.map(({dim:d,avg},i) => (
+                    <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
+                      <span style={{fontSize:14,fontFamily:"'Instrument Serif',serif",color:GREEN,width:18}}>{i+1}</span>
+                      <span style={{width:8,height:8,borderRadius:'50%',background:d.color,flexShrink:0}}/>
+                      <span style={{fontSize:13,color:TEXT,flex:1}}>{d.name}</span>
+                      <span style={{background:`${GREEN}18`,color:GREEN,borderRadius:6,padding:'2px 8px',fontSize:12,fontWeight:700}}>{avg.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:ORAN,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Fejlesztési fókusz (bottom 3)</div>
+                  {teamBottom3.map(({dim:d,avg},i) => (
+                    <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
+                      <span style={{fontSize:14,fontFamily:"'Instrument Serif',serif",color:ORAN,width:18}}>{i+1}</span>
+                      <span style={{width:8,height:8,borderRadius:'50%',background:d.color,flexShrink:0}}/>
+                      <span style={{fontSize:13,color:TEXT,flex:1}}>{d.name}</span>
+                      <span style={{background:`${ORAN}18`,color:ORAN,borderRadius:6,padding:'2px 8px',fontSize:12,fontWeight:700}}>{avg.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ TABLE TAB ══ */}
+        {tab === 'table' && (
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,overflow:'hidden',marginBottom:20}}>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:'left',padding:'12px 16px',color:MUTED,fontSize:11,background:S2,borderBottom:`1px solid ${BORD}`,position:'sticky',left:0,zIndex:2}}>
+                      Dimenzió
+                    </th>
+                    {visibleData.map((pd, i) => (
+                      <th key={pd.part.id} style={{textAlign:'center',padding:'12px 16px',background:S2,borderBottom:`1px solid ${BORD}`,minWidth:100}}>
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                          <span style={{width:10,height:10,borderRadius:'50%',background:partColor(partData.indexOf(pd))}}/>
+                          <span style={{fontSize:12,color:TEXT,fontWeight:600,whiteSpace:'nowrap'}}>
+                            {pd.part.firstName}
+                          </span>
+                          <span style={{fontSize:10,color:MUTED}}>{pd.totalDone}/{pd.totalRaters}</span>
+                        </div>
+                      </th>
+                    ))}
+                    <th style={{textAlign:'center',padding:'12px 16px',background:S2,borderBottom:`1px solid ${BORD}`,minWidth:80}}>
+                      <span style={{fontSize:11,color:GOLD,fontWeight:700}}>Csapat</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, ri) => {
+                    const teamAvg = teamDimAvgs.find(x => x.dim.id === row.dim.id)?.avg || 0;
+                    return (
+                      <tr key={row.dim.id} style={{background:ri%2===0?'transparent':S2+'88'}}>
+                        <td style={{padding:'10px 16px',borderBottom:`1px solid ${BORD}`,position:'sticky',left:0,background:ri%2===0?SURF:S2,zIndex:1}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <span style={{fontSize:10,color:row.dim.color,fontWeight:700,width:24}}>{row.dim.id}</span>
+                            <span style={{fontSize:12,color:TEXT}}>{row.dim.name}</span>
+                          </div>
+                        </td>
+                        {visibleData.map((pd) => {
+                          const v = row.vals[pd.part.id];
+                          return (
+                            <td key={pd.part.id} style={{textAlign:'center',padding:'10px 16px',borderBottom:`1px solid ${BORD}`}}>
+                              {v !== null && v > 0
+                                ? <span style={{background:`${scoreColor(v,sMax)}22`,color:scoreColor(v,sMax),borderRadius:6,padding:'3px 10px',fontSize:13,fontWeight:700,display:'inline-block'}}>{v.toFixed ? v.toFixed(1) : v}</span>
+                                : <span style={{color:DIM,fontSize:12}}>—</span>
+                              }
+                            </td>
+                          );
+                        })}
+                        <td style={{textAlign:'center',padding:'10px 16px',borderBottom:`1px solid ${BORD}`}}>
+                          {teamAvg > 0
+                            ? <span style={{background:`${GOLD}18`,color:GOLD,borderRadius:6,padding:'3px 10px',fontSize:13,fontWeight:700,display:'inline-block'}}>{teamAvg.toFixed(1)}</span>
+                            : <span style={{color:DIM,fontSize:12}}>—</span>
+                          }
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{background:S3}}>
+                    <td style={{padding:'11px 16px',fontSize:12,color:TEXT,fontWeight:700,position:'sticky',left:0,background:S3,zIndex:1}}>Összes átlag</td>
+                    {visibleData.map((pd) => {
+                      const dimVals = dims.map(d => getScore(pd, d, false)).filter(v => v !== null && v > 0);
+                      const avg = dimVals.length ? +(dimVals.reduce((a,b)=>a+b,0)/dimVals.length).toFixed(2) : 0;
+                      return (
+                        <td key={pd.part.id} style={{textAlign:'center',padding:'11px 16px'}}>
+                          <span style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:avg>0?scoreColor(avg,sMax):MUTED,fontWeight:600}}>{avg>0?avg.toFixed(1):'—'}</span>
+                        </td>
+                      );
+                    })}
+                    <td style={{textAlign:'center',padding:'11px 16px'}}>
+                      {(() => {
+                        const all = teamDimAvgs.filter(x=>x.avg>0).map(x=>x.avg);
+                        const ta = all.length ? +(all.reduce((a,b)=>a+b,0)/all.length).toFixed(2) : 0;
+                        return <span style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:ta>0?GOLD:MUTED,fontWeight:600}}>{ta>0?ta.toFixed(1):'—'}</span>;
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ══ RANKING TAB ══ */}
+        {tab === 'ranking' && (
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'22px 24px',marginBottom:20}}>
+            <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:18}}>
+              Résztvevő rangsor — összes dimenzió átlaga
+            </div>
+
+            {ranking.map(({pd, avg}, i) => {
+              const col = partColor(partData.indexOf(pd));
+              const dimVals = dims.map(d => ({ dim:d, val: getScore(pd, d, false) })).filter(x => x.val !== null && x.val > 0);
+              const topDim    = [...dimVals].sort((a,b) => b.val - a.val)[0];
+              const bottomDim = [...dimVals].sort((a,b) => a.val - b.val)[0];
+              return (
+                <div key={pd.part.id} style={{background: i===0 ? `${GOLD}08` : 'transparent', border:`1px solid ${i===0?GOLD+'44':BORD}`,borderRadius:12,padding:'16px 20px',marginBottom:10}}>
+                  <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:12}}>
+                    {/* Helyezés */}
+                    <div style={{width:36,height:36,borderRadius:'50%',background:i===0?`${GOLD}22`:S2,border:`2px solid ${i===0?GOLD:BORD}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      <span style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:i===0?GOLD:MUTED,fontWeight:600}}>{i+1}</span>
+                    </div>
+                    {/* Szín jelző + név */}
+                    <div style={{display:'flex',alignItems:'center',gap:8,flex:1}}>
+                      <span style={{width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
+                      <div>
+                        <div style={{fontSize:15,color:TEXT,fontWeight:600}}>{pd.part.firstName} {pd.part.lastName}</div>
+                        {pd.part.email && <div style={{fontSize:11,color:MUTED}}>{pd.part.email}</div>}
+                      </div>
+                    </div>
+                    {/* Összesített szám */}
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontFamily:"'Instrument Serif',serif",fontSize:28,color:avg>0?scoreColor(avg,sMax):MUTED,fontWeight:600}}>{avg>0?avg.toFixed(1):'—'}</div>
+                      <div style={{fontSize:10,color:MUTED}}>{pd.totalDone}/{pd.totalRaters} beküldött</div>
+                    </div>
+                    <Btn size="sm" onClick={() => nav('report',{projectId,participantId:pd.part.id})} variant="ghost">Riport →</Btn>
+                  </div>
+
+                  {/* Dimenzió mini sávok */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:6}}>
+                    {dimVals.map(({dim:d,val:v}) => (
+                      <div key={d.id} style={{display:'flex',alignItems:'center',gap:6}}>
+                        <span style={{fontSize:9,color:d.color,fontWeight:700,width:20,flexShrink:0,textAlign:'right'}}>{d.id}</span>
+                        <MiniBar val={v} max={sMax} color={d.color}/>
+                        <span style={{fontSize:11,color:TEXT,fontWeight:600,width:22,flexShrink:0}}>{v.toFixed ? v.toFixed(1) : v}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Top / bottom dimenzió badges */}
+                  {(topDim || bottomDim) && (
+                    <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
+                      {topDim && (
+                        <span style={{background:`${GREEN}14`,color:GREEN,borderRadius:20,padding:'3px 10px',fontSize:11,fontWeight:600}}>
+                          ▲ {topDim.dim.name} {topDim.val.toFixed(1)}
+                        </span>
+                      )}
+                      {bottomDim && bottomDim.dim.id !== topDim?.dim.id && (
+                        <span style={{background:`${ORAN}14`,color:ORAN,borderRadius:20,padding:'3px 10px',fontSize:11,fontWeight:600}}>
+                          ▼ {bottomDim.dim.name} {bottomDim.val.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {ranking.length === 0 && (
+              <div style={{textAlign:'center',padding:'40px 0',color:MUTED}}>
+                <div style={{fontSize:28,marginBottom:10}}>📊</div>
+                <div>Még nincs elegendő adat az összehasonlításhoz.</div>
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 // ─── SHARE MODAL ──────────────────────────────────────────────
 function ShareModal({ onClose, libraryId, dims, customName }) {
   const [code, setCode] = useState('');
@@ -3837,7 +4208,7 @@ function ShareModal({ onClose, libraryId, dims, customName }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.5)',width:'100%',maxWidth:420}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:420}}>
         <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>🔗 Megosztás</div>
         {code ? (
           <div style={{marginBottom:24}}>
@@ -4555,7 +4926,7 @@ export default function App() {
     if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
   }, []);
 
-  if (view === 'loading') return <div style={{background:BG,minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:MUTED}}>Betöltés...</div>;
+  if (view === 'loading') return <div style={{background:'#FAFAF8',minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:MUTED}}>Betöltés...</div>;
   if (view === 'login') return <LoginView onLogin={handleLogin}/>;
 
   const views = {
@@ -4577,11 +4948,12 @@ export default function App() {
     project:          <ProjectView       nav={nav} goBack={goBack} ctx={ctx}/>,
     raters:           <RatersView        nav={nav} goBack={goBack} ctx={ctx}/>,
     report:           <ReportPageView    nav={nav} goBack={goBack} ctx={ctx}/>,
+    project_compare:  <ProjectCompareView nav={nav} goBack={goBack} ctx={ctx}/>,
     library_manager:  <LibraryManagerView nav={nav} goBack={goBack} ctx={ctx}/>,
   };
 
   return (
-    <div style={{background:BG,minHeight:'100vh',color:TEXT,fontFamily:"'DM Sans',-apple-system,sans-serif",WebkitFontSmoothing:'antialiased'}}>
+    <div style={{background:'#FAFAF8',minHeight:'100vh',color:TEXT,fontFamily:"'DM Sans',-apple-system,sans-serif",WebkitFontSmoothing:'antialiased'}}>
       {views[view] || views['home']}
     </div>
   );
