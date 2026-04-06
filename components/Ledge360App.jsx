@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// LEDGE 360° — v3.4 CURRENT · 2026-04-06
+// LEDGE 360° — v3.3 CURRENT · 2026-03-19
 // ═══════════════════════════════════════════════════════════════
 // ⚠ EZ AZ AKTUÁLIS MASTER VERZIÓ — minden fejlesztés ebből induljon
 // ═══════════════════════════════════════════════════════════════
@@ -34,12 +34,8 @@
 //                  Excel feltöltés AI feldolgozással (SheetJS + Claude API → kompetencia struktúra),
 //                  Preset kategorizálás: leadership vs classic, SelfPickView 2×2 eszköz grid,
 //                  Dinamikus skála: scoreColor(), getScaleConfig(), radar/bar/heatmap sMax
-// v3.4  2026-04-06 Email küldés aktiváláskor (auto-send minden emailes raternek),
-//                  RatersView: "✓ Küldve [dátum]" badge + "✉ Email küldése" / "↺ Emlékeztető" gomb,
-//                  Auto-fill: korábbi projektek értékelői alapján név+email+szerep kitöltés,
-//                  email_sent + email_sent_count tracking a rater objektumon
 //
-// ── KÉSZ FUNKCIÓK (v3.4) ─────────────────────────────────────
+// ── KÉSZ FUNKCIÓK (v3.3) ─────────────────────────────────────
 // ✅ Két track: Személyes tükör (B2C) + Szervezeti 360° (B2B)
 // ✅ 4 preset kompetencia könyvtár — VÉGLEGES szövegek (8/30 + 3×4/16)
 // ✅ Multi-self önértékelés (átnevezés, törlés, kártya nézet)
@@ -652,8 +648,9 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   const ss = selfScores || {};
   const gs = groups || [];
   const allComments = comments || [];
-  const [tab,      setTab]      = useState('overview');
-  const [expanded, setExpanded] = useState({});
+  const [tab,        setTab]      = useState('overview');
+  const [expanded,   setExpanded] = useState({});
+  const [hoveredDim, setHoveredDim] = useState(null);
 
   const allOtherSets = gs.flatMap(g => g.scores || []);
   const othersAvg    = mergeScoresets(allOtherSets);
@@ -662,27 +659,51 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   const groupAvgs    = gs.map(g => ({ ...g, avg: mergeScoresets(g.scores || []) }));
 
   const radarData = dims.map(d => {
-    const row = { dim:d.id, 'Önértékelés':dimAvg(ss,d) };
+    const row = { dim: d.id, 'Önértékelés': dimAvg(ss, d) };
     if (hasOthers) row['Mások átlaga'] = dimAvg(othersAvg, d);
     return row;
   });
   const barData = dims.map(d => ({
-    name:d.id, label:d.label, color:d.color,
+    name: d.label, dimId: d.id, color: d.color,
     'Önértékelés': dimAvg(ss, d),
-    ...(hasOthers ? {'Mások átlaga': dimAvg(othersAvg, d)} : {}),
+    ...(hasOthers ? { 'Mások átlaga': dimAvg(othersAvg, d) } : {}),
   }));
 
-  const allItems   = dims.flatMap(d => d.items.map(i => ({...i, dimLabel:d.label})));
-  const selfArr    = allItems.map(i => ({...i, self:ss[i.id]||0, others:othersAvg[i.id]||0})).filter(i => i.self > 0);
-  const top5       = [...selfArr].sort((a,b) => b.self - a.self).slice(0, 5);
-  const bot5       = [...selfArr].sort((a,b) => a.self - b.self).slice(0, 5);
+  const allItems   = dims.flatMap(d => d.items.map(i => ({ ...i, dimLabel: d.label, dimColor: d.color })));
+  const selfArr    = allItems.map(i => ({ ...i, self: ss[i.id]||0, others: othersAvg[i.id]||0 })).filter(i => i.self > 0);
+  const top5       = [...selfArr].sort((a, b) => b.self - a.self).slice(0, 5);
+  const bot5       = [...selfArr].sort((a, b) => a.self - b.self).slice(0, 5);
   const blindSpots = selfArr.filter(i => i.others > 0 && i.self - i.others >= 1.0);
   const hiddenStr  = selfArr.filter(i => i.others > 0 && i.others - i.self >= 1.0);
+
+  // Custom colored tick for radar
+  function RadarTick({ x, y, payload, textAnchor }) {
+    const d = dims.find(d => d.id === payload.value);
+    if (!d) return null;
+    const label = d.label || d.id;
+    // Split long labels into two lines
+    const words = label.split(/[\s\-\/]/);
+    const mid = Math.ceil(words.length / 2);
+    const line1 = words.slice(0, mid).join(' ');
+    const line2 = words.slice(mid).join(' ');
+    return (
+      <g
+        onMouseEnter={() => setHoveredDim(d)}
+        onMouseLeave={() => setHoveredDim(null)}
+        style={{ cursor: 'pointer' }}
+      >
+        <text x={x} y={y} textAnchor={textAnchor} fill={d.color || GOLD} fontSize={12} fontWeight={600} fontFamily="'DM Sans',sans-serif">
+          <tspan x={x} dy={line2 ? '-0.3em' : '0.35em'}>{line1}</tspan>
+          {line2 && <tspan x={x} dy="1.2em">{line2}</tspan>}
+        </text>
+      </g>
+    );
+  }
 
   function CT({ active, payload }) {
     if (!active || !payload || !payload.length) return null;
     return (
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.08)'}}>
+      <div style={{background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:12,boxShadow:'0 4px 12px rgba(0,0,0,.12)'}}>
         {payload.map((p, i) => (
           <div key={i} style={{color:p.color||TEXT}}>{p.name}: <b>{typeof p.value === 'number' ? p.value.toFixed(2) : p.value}</b></div>
         ))}
@@ -725,34 +746,64 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:20}}>
-              <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Radar</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <RadarChart data={radarData} margin={{top:10,right:30,bottom:10,left:30}}>
-                    <PolarGrid stroke={BORD}/>
-                    <PolarAngleAxis dataKey="dim" tick={{fill:MUTED,fontSize:11}}/>
-                    <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                    <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
-                    {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.1} strokeWidth={2} strokeDasharray="4 2" dot={{fill:BLUE,r:3}}/>}
-                    {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED}}/>}
-                  </RadarChart>
-                </ResponsiveContainer>
+            {/* RADAR — full width with hover tooltip card */}
+            <div style={{marginBottom:28}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:14,textTransform:'uppercase',letterSpacing:'.1em'}}>Kompetencia Radar</div>
+              <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <ResponsiveContainer width="100%" height={460}>
+                    <RadarChart data={radarData} margin={{top:48,right:80,bottom:48,left:80}}>
+                      <PolarGrid stroke={BORD2}/>
+                      <PolarAngleAxis dataKey="dim" tick={<RadarTick/>} tickLine={false}/>
+                      <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
+                      <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:4}}/>
+                      {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
+                      {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Hover tooltip card */}
+                <div style={{width:250,flexShrink:0,marginTop:40}}>
+                  {hoveredDim ? (
+                    <div style={{background:S3,border:`1px solid ${hoveredDim.color||GOLD}55`,borderRadius:14,padding:'16px 18px'}}>
+                      <div style={{fontSize:10,color:hoveredDim.color||GOLD,fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Kompetencia</div>
+                      <div style={{fontSize:16,color:TEXT,fontWeight:700,marginBottom:4,lineHeight:1.3}}>{hoveredDim.label}</div>
+                      <div style={{fontSize:24,fontFamily:"'Instrument Serif',serif",color:hoveredDim.color||GOLD,fontWeight:600,marginBottom:12}}>
+                        {dimAvg(ss,hoveredDim) > 0 ? dimAvg(ss,hoveredDim).toFixed(1) : '—'}
+                      </div>
+                      {hoveredDim.items.map(item => {
+                        const v = ss[item.id] || 0;
+                        return (
+                          <div key={item.id} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderTop:`1px solid ${BORD}`}}>
+                            <div style={{flex:1,fontSize:12,color:MUTED,lineHeight:1.4}}>{item.text}</div>
+                            {v > 0 && <span style={{background:`${scoreColor(v,sMax)}33`,color:scoreColor(v,sMax),borderRadius:6,padding:'1px 7px',fontSize:12,fontWeight:700,flexShrink:0}}>{v}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{padding:'20px 12px',color:MUTED,fontSize:12,lineHeight:1.6,textAlign:'center',marginTop:60,opacity:0.7}}>
+                      Vidd az egeret egy kompetencia felirata fölé a részletek megtekintéséhez
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <div style={{fontSize:11,color:MUTED,marginBottom:10,textTransform:'uppercase',letterSpacing:'.08em'}}>Dimenzió átlagok</div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={barData} layout="vertical" margin={{left:55}}>
-                    <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
-                    <YAxis type="category" dataKey="name" tick={{fill:MUTED,fontSize:11}} axisLine={false} tickLine={false} width={48}/>
-                    <Tooltip content={<CT/>}/>
-                    <Bar dataKey="Önértékelés" radius={4}>
-                      {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
-                    </Bar>
-                    {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.45} radius={4}/>}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            </div>
+
+            {/* BAR CHART — full width below radar */}
+            <div style={{marginBottom:24}}>
+              <div style={{fontSize:11,color:MUTED,marginBottom:14,textTransform:'uppercase',letterSpacing:'.1em'}}>Dimenzió átlagok</div>
+              <ResponsiveContainer width="100%" height={dims.length * 38 + 24}>
+                <BarChart data={barData} layout="vertical" margin={{left:8,right:32,top:4,bottom:4}}>
+                  <XAxis type="number" domain={[0,sMax]} tick={{fill:MUTED,fontSize:10}} axisLine={false} tickLine={false}/>
+                  <YAxis type="category" dataKey="name" tick={{fill:TEXT,fontSize:12}} axisLine={false} tickLine={false} width={140}/>
+                  <Tooltip content={<CT/>}/>
+                  <Bar dataKey="Önértékelés" radius={4} barSize={14}>
+                    {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
+                  </Bar>
+                  {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.4} radius={4} barSize={14}/>}
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
             {/* Collapsible group breakdown */}
@@ -3034,40 +3085,8 @@ function ProjectView({ nav, goBack, ctx }) {
     const updated = { ...proj, status:'active' };
     await db.set(projectId, updated);
     setProj(updated);
-    // Auto-send emails to all raters with email addresses
-    let sentCount = 0;
-    try {
-      const rks = await db.list('rat:');
-      const allR = await Promise.all(rks.map(k => db.get(k)));
-      const projectRaters = allR.filter(r => r && r.projectId === projectId && r.email && !r.email_sent);
-      const pks = await db.list('part:');
-      const allP = await Promise.all(pks.map(k => db.get(k)));
-      for (const rater of projectRaters) {
-        const part = allP.find(p => p && p.id === rater.participantId);
-        try {
-          await fetch('/api/send-invite', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: rater.email,
-              raterName: rater.firstName + (rater.lastName ? ' ' + rater.lastName : ''),
-              code: rater.code,
-              surveyTitle: proj.name || 'LEDGE 360° értékelés',
-              participantName: part ? part.firstName + ' ' + part.lastName : '',
-              senderName: ctx.user ? (ctx.user.displayName || ctx.user.email) : '',
-              isReminder: false,
-            }),
-          });
-          await db.set(rater.id, { ...rater, email_sent: Date.now(), email_sent_count: 1 });
-          sentCount++;
-        } catch(e) { console.error('Email send failed for', rater.email, e); }
-      }
-    } catch(e) { console.error('Activation email error:', e); }
-    const msg = sentCount > 0
-      ? `✓ Projekt aktiválva — ${sentCount} értékelőnek kiküldtük az emailt.`
-      : '✓ A projekt sikeresen aktiválva. Az értékelők most már kitölthetik a kérdőívet.';
-    setActivatedMsg(msg);
-    setTimeout(() => setActivatedMsg(false), 6000);
+    setActivatedMsg(true);
+    setTimeout(() => setActivatedMsg(false), 3000);
   }
 
   async function saveEdit() {
@@ -3152,7 +3171,7 @@ function ProjectView({ nav, goBack, ctx }) {
       <div style={{maxWidth:860,margin:'0 auto',padding:'22px 24px'}}>
         {activatedMsg && (
           <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:GREEN}}>
-            {typeof activatedMsg === 'string' ? activatedMsg : '✓ A projekt sikeresen aktiválva. Az értékelők most már kitölthetik a kérdőívet.'}
+            ✓ A projekt sikeresen aktiválva. Az értékelők most már kitölthetik a kérdőívet.
           </div>
         )}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:22}}>
@@ -3321,8 +3340,6 @@ function RatersView({ nav, goBack, ctx }) {
   const [role,   setRole]   = useState('peer');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkError, setBulkError] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [sendingEmail, setSendingEmail] = useState(null); // rater id being emailed
   const bulkRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -3337,63 +3354,11 @@ function RatersView({ nav, goBack, ctx }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-fill: search all previous raters by first name
-  async function handleFnChange(val) {
-    setFn(val);
-    if (val.trim().length < 2) { setSuggestions([]); return; }
-    const ks = await db.list('rat:');
-    const rs = await Promise.all(ks.map(k => db.get(k)));
-    const q = val.trim().toLowerCase();
-    const matches = rs.filter(r => r && r.firstName && r.firstName.toLowerCase().startsWith(q) && r.participantId !== participantId);
-    // deduplicate by firstName+lastName+email
-    const seen = new Set();
-    const unique = matches.filter(r => {
-      const key = r.firstName+'|'+r.lastName+'|'+r.email;
-      if (seen.has(key)) return false;
-      seen.add(key); return true;
-    });
-    setSuggestions(unique.slice(0, 4));
-  }
-
-  function applySuggestion(r) {
-    setFn(r.firstName); setLn(r.lastName || ''); setEm(r.email || '');
-    if (r.role) setRole(r.role);
-    setSuggestions([]);
-  }
-
-  async function sendRaterEmail(rater, isReminder = false) {
-    if (!rater.email) return;
-    setSendingEmail(rater.id);
-    try {
-      const baseUrl = window.location.origin || 'https://ledge360.vercel.app';
-      await fetch('/api/send-invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: rater.email,
-          raterName: rater.firstName + (rater.lastName ? ' ' + rater.lastName : ''),
-          code: rater.code,
-          surveyTitle: proj ? proj.name : 'LEDGE 360° értékelés',
-          participantName: part ? part.firstName + ' ' + part.lastName : '',
-          senderName: ctx.user ? (ctx.user.displayName || ctx.user.email) : '',
-          isReminder,
-        }),
-      });
-      // Mark email sent on rater record
-      const updated = { ...rater, email_sent: Date.now(), email_sent_count: (rater.email_sent_count || 0) + 1 };
-      await db.set(rater.id, updated);
-      load();
-    } catch (err) {
-      console.error('Email send error:', err);
-    }
-    setSendingEmail(null);
-  }
-
   async function add() {
     if (!fn.trim()) return;
     const id = 'rat:'+uid(10);
     await db.set(id, { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' });
-    setFn(''); setLn(''); setEm(''); setSuggestions([]);
+    setFn(''); setLn(''); setEm('');
     load();
   }
 
@@ -3471,22 +3436,7 @@ function RatersView({ nav, goBack, ctx }) {
         <Card style={{marginBottom:18}}>
           <div style={{fontSize:13,color:GOLD,fontWeight:600,marginBottom:12}}>Értékelő hozzáadása</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <div style={{position:'relative'}}>
-              <Input label="Keresztnév" value={fn} onChange={handleFnChange} placeholder="Péter"/>
-              {suggestions.length > 0 && (
-                <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:`1px solid ${BORD}`,borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,0.10)',zIndex:50,overflow:'hidden'}}>
-                  {suggestions.map((s,i) => (
-                    <div key={i} onClick={() => applySuggestion(s)}
-                      style={{padding:'8px 14px',cursor:'pointer',fontSize:13,color:TEXT,borderBottom:i<suggestions.length-1?`1px solid ${BORD}`:'none',display:'flex',alignItems:'center',gap:8}}
-                      onMouseEnter={e => e.currentTarget.style.background=S2}
-                      onMouseLeave={e => e.currentTarget.style.background='#fff'}>
-                      <span style={{fontWeight:500}}>{s.firstName} {s.lastName}</span>
-                      {s.email && <span style={{color:MUTED,fontSize:11}}>{s.email}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <Input label="Keresztnév" value={fn} onChange={setFn} placeholder="Péter"/>
             <Input label="Vezetéknév" value={ln} onChange={setLn} placeholder="Nagy"/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
@@ -3516,38 +3466,20 @@ function RatersView({ nav, goBack, ctx }) {
 
         {raters.map(r => {
           const ri = roles.find(d => d.id === r.role) || roles[0];
-          const isSending = sendingEmail === r.id;
-          const sentDate = r.email_sent ? new Date(r.email_sent).toLocaleDateString('hu-HU', {month:'short',day:'numeric'}) : null;
           return (
-            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10}}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <span style={{fontSize:14,color:TEXT,fontWeight:500}}>{r.firstName} {r.lastName}</span>
-                    <Badge color={ri.color||MUTED}>{ri.label}</Badge>
-                    {sentDate && <Badge color={GREEN}>✓ Küldve {sentDate}{r.email_sent_count > 1 ? ` (${r.email_sent_count}×)` : ''}</Badge>}
-                  </div>
-                  {r.email && <div style={{fontSize:12,color:MUTED,marginTop:2}}>{r.email}</div>}
+            <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <span style={{fontSize:14,color:TEXT,fontWeight:500}}>{r.firstName} {r.lastName}</span>
+                  <Badge color={ri.color||MUTED}>{ri.label}</Badge>
                 </div>
-                <div style={{textAlign:'center',flexShrink:0}}>
-                  <CopyCode code={r.code}/>
-                </div>
-                <StatusDot status={r.status}/>
-                <button onClick={() => rem(r.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:16,padding:4,flexShrink:0}}>✕</button>
+                {r.email && <div style={{fontSize:12,color:MUTED,marginTop:2}}>{r.email}</div>}
               </div>
-              {r.email && r.status !== 'done' && (
-                <div style={{display:'flex',gap:8,marginTop:10,paddingTop:8,borderTop:`1px solid ${BORD}`}}>
-                  {!sentDate ? (
-                    <Btn size="sm" onClick={() => sendRaterEmail(r, false)} disabled={isSending}>
-                      {isSending ? 'Küldés...' : '✉ Email küldése'}
-                    </Btn>
-                  ) : (
-                    <Btn size="sm" variant="ghost" onClick={() => sendRaterEmail(r, true)} disabled={isSending}>
-                      {isSending ? 'Küldés...' : '↺ Emlékeztető küldése'}
-                    </Btn>
-                  )}
-                </div>
-              )}
+              <div style={{textAlign:'center',flexShrink:0}}>
+                <CopyCode code={r.code}/>
+              </div>
+              <StatusDot status={r.status}/>
+              <button onClick={() => rem(r.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:16,padding:4,flexShrink:0}}>✕</button>
             </div>
           );
         })}
