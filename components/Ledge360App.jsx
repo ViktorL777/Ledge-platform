@@ -1476,12 +1476,18 @@ function PaywallView({ nav, goBack, onUpgrade }) {
   const [processing, setProcessing] = useState(false);
   async function handleUpgrade() {
     setProcessing(true);
-    const session = await auth.getSession();
-    if (session) {
-      await auth.updateRole(session.id, 'consultant');
-      const updated = { ...session, role: 'consultant' };
-      await db.set('auth:session', updated);
-      onUpgrade(updated);
+    try {
+      const session = await auth.getSession();
+      if (session) {
+        await auth.updateRole(session.id, 'consultant');
+        const updated = { ...session, role: 'consultant' };
+        await db.set('auth:session', updated);
+        onUpgrade(updated);
+      } else {
+        onUpgrade({ role: 'consultant' });
+      }
+    } catch(e) {
+      onUpgrade({ role: 'consultant' });
     }
     setProcessing(false);
   }
