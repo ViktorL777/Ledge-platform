@@ -2199,7 +2199,7 @@ function ExcelUploadModal({ onClose, onResult }) {
     setFileName(file.name);
     setError('');
     try {
-      const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+      const XLSX = await import('xlsx');
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type:'array' });
       setSheetNames(wb.SheetNames);
@@ -3639,8 +3639,7 @@ function RatersView({ nav, goBack, ctx }) {
           r.onerror = () => rej(new Error('Fájl olvasási hiba'));
           r.readAsArrayBuffer(file);
         });
-        const XLSX = window.XLSX || null;
-        if (!XLSX) { setBulkError('Excel feldolgozás nem elérhető — használj CSV-t.'); setBulkImporting(false); if (bulkRef.current) bulkRef.current.value=''; return; }
+        const XLSX = await import('xlsx');
         const wb = XLSX.read(buffer, { type:'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const sheetRows = XLSX.utils.sheet_to_json(ws, { header:1 });
@@ -4232,11 +4231,10 @@ function LibraryManagerView({ nav, goBack, ctx }) {
   }
 
   // ── XLSX Export ──
-  function exportXLSX() {
+  async function exportXLSX() {
     if (!dims) return;
     try {
-      const XLSX = window.XLSX || null;
-      if (!XLSX) { exportCSV(); return; } // fallback
+      const XLSX = await import('xlsx');
       const rows = [];
       dims.forEach(d => {
         if (d.items.length === 0) rows.push({ 'Kompetencia': d.name, 'Rövid kód': d.id, 'Label': d.label, 'Alkompetencia ID': '', 'Értékelendő mondat': '' });
@@ -4281,10 +4279,9 @@ function LibraryManagerView({ nav, goBack, ctx }) {
     importRows(rows);
   }
 
-  function parseXLSX(buffer) {
+  async function parseXLSX(buffer) {
     try {
-      const XLSX = window.XLSX || null;
-      if (!XLSX) { setImportErr('Excel feldolgozás nem elérhető — használj CSV-t.'); return; }
+      const XLSX = await import('xlsx');
       const wb = XLSX.read(buffer, { type:'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header:1 });
