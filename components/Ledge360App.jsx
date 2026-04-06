@@ -3841,8 +3841,6 @@ function RatersView({ nav, goBack, ctx }) {
               {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
           </div>
-              </select>
-            </div>
           <Btn onClick={add} disabled={!fn.trim()}>+ Azonosító generálása</Btn>
           <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,paddingTop:10,borderTop:`1px solid ${BORD}`}}>
             <Btn variant="ghost" size="sm" onClick={() => bulkRef.current && bulkRef.current.click()} disabled={bulkImporting}>
