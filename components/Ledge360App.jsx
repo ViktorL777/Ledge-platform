@@ -525,37 +525,68 @@ const _sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const _supabase = _sbUrl && _sbKey ? createClient(_sbUrl, _sbKey) : null;
 
 const db = {
+  // ── claude.ai sandbox: window.storage stores strings → JSON.stringify/parse needed
+  // ── Vercel/Supabase: kv_store.value is jsonb → PostgREST returns already-parsed
+  //    objects, so do NOT JSON.stringify on set or JSON.parse on get (would double-encode)
   async get(k) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null;
       }
-      if (_supabase) { const { data } = await _supabase.from('kv_store').select('value').eq('key', k).single(); return data ? JSON.parse(data.value) : null; }
-    } catch(e) {} return null;
+      if (_supabase) {
+        const { data, error } = await _supabase.from('kv_store').select('value').eq('key', k).single();
+        if (error && error.code !== 'PGRST116') console.error('[db.get] Supabase error:', k, error.message, error.code);
+        return data ? data.value : null;  // jsonb → already a JS object, no JSON.parse
+      }
+    } catch(e) { console.error('[db.get] exception:', k, e); } return null;
   },
   async set(k, v) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         await window.storage.set(k, JSON.stringify(v)); return true;
       }
-      if (_supabase) { const { error } = await _supabase.from('kv_store').upsert({ key: k, value: JSON.stringify(v), updated_at: new Date().toISOString() }, { onConflict: 'key' }); return !error; }
-    } catch(e) {} return false;
+      if (_supabase) {
+        const { error } = await _supabase.from('kv_store').upsert(
+          { key: k, value: v, updated_at: new Date().toISOString() },  // pass object directly, jsonb handles it
+          { onConflict: 'key' }
+        );
+        if (error) console.error('[db.set] Supabase error:', k, error.message, error.code, error.details);
+        return !error;
+      }
+    } catch(e) { console.error('[db.set] exception:', k, e); } return false;
   },
   async del(k) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         await window.storage.delete(k); return true;
       }
-      if (_supabase) { const { error } = await _supabase.from('kv_store').delete().eq('key', k); return !error; }
-    } catch(e) {} return false;
+      if (_supabase) {
+        const { error } = await _supabase.from('kv_store').delete().eq('key', k);
+        if (error) console.error('[db.del] Supabase error:', k, error.message);
+        return !error;
+      }
+    } catch(e) { console.error('[db.del] exception:', k, e); } return false;
   },
   async list(prefix) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         const r = await window.storage.list(prefix); return r ? (r.keys || []) : [];
       }
-      if (_supabase) { const { data } = await _supabase.from('kv_store').select('key').like('key', prefix + '%'); return data ? data.map(d => d.key) : []; }
-    } catch(e) {} return [];
+      if (_supabase) {
+        const { data, error } = await _supabase.from('kv_store').select('key').like('key', prefix + '%');
+        if (error) console.error('[db.list] Supabase error:', prefix, error.message);
+        return data ? data.map(d => d.key) : [];
+      }
+    } catch(e) { console.error('[db.list] exception:', prefix, e); } return [];
+  },
+  // diagnostic: returns connection status string — call from browser console: db.ping().then(console.log)
+  async ping() {
+    if (typeof window !== 'undefined' && window.storage) return 'claude.ai sandbox (window.storage)';
+    if (!_supabase) return 'NO BACKEND — env vars missing (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)';
+    try {
+      const { error } = await _supabase.from('kv_store').select('key').limit(1);
+      return error ? `Supabase error: ${error.message} (${error.code})` : 'Supabase OK';
+    } catch(e) { return `Supabase exception: ${e.message}`; }
   },
 };
 
@@ -692,6 +723,55 @@ function Input({ label, value, onChange, placeholder, type, style }) {
         placeholder={placeholder}
         style={Object.assign({width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box',transition:'border-color .2s'}, st)}
       />
+    </div>
+  );
+}
+
+// Autofill keresztnév mező — korábbi bejegyzések alapján javaslatokat ad
+function AutocompletePersonInput({ fn, setFn, ln, setLn, em, setEm, suggestions }) {
+  const [open, setOpen] = useState(false);
+  const filtered = fn.trim().length >= 1
+    ? suggestions.filter(s => s.firstName.toLowerCase().startsWith(fn.toLowerCase()) && (ln === '' || s.lastName.toLowerCase().startsWith(ln.toLowerCase())))
+    : [];
+
+  function pick(s) {
+    setFn(s.firstName);
+    setLn(s.lastName || '');
+    setEm(s.email || '');
+    setOpen(false);
+  }
+
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,position:'relative'}}>
+      <div style={{position:'relative',marginBottom:14}}>
+        <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Keresztnév</div>
+        <input value={fn} onChange={e => { setFn(e.target.value); setOpen(true); }} placeholder="Péter"
+          onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
+        {open && filtered.length > 0 && (
+          <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,boxShadow:'0 4px 16px rgba(0,0,0,.1)',zIndex:100,overflow:'hidden'}}>
+            {filtered.slice(0,6).map((s,i) => (
+              <div key={i} onMouseDown={() => pick(s)}
+                style={{padding:'9px 14px',cursor:'pointer',fontSize:13,color:TEXT,borderBottom:`1px solid ${BORD}`,background:'#FFFFFF'}}
+                onMouseEnter={e => e.currentTarget.style.background=S2}
+                onMouseLeave={e => e.currentTarget.style.background='#FFFFFF'}>
+                <span style={{fontWeight:600}}>{s.firstName} {s.lastName}</span>
+                {s.email && <span style={{color:MUTED,marginLeft:8,fontSize:12}}>{s.email}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Vezetéknév</div>
+        <input value={ln} onChange={e => setLn(e.target.value)} placeholder="Nagy"
+          style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
+      </div>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Email</div>
+        <input value={em} onChange={e => setEm(e.target.value)} placeholder="email@ceg.hu" type="email"
+          style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'11px 16px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
+      </div>
     </div>
   );
 }
@@ -3049,7 +3129,7 @@ function AdminView({ nav, goBack }) {
 }
 
 // ─── NEW PROJECT VIEW ──────────────────────────────────────────
-function NewProjectView({ nav, goBack }) {
+function NewProjectView({ nav, navReplace, goBack }) {
   const [name,   setName]   = useState('');
   const [client, setClient] = useState('');
   const [saving, setSaving] = useState(false);
@@ -3084,14 +3164,14 @@ function NewProjectView({ nav, goBack }) {
   async function goToAIBuilder() {
     if (!name.trim()) return;
     const id = await createWithLib('ledge-ai-aug');
-    if (id) nav('ai_builder', { projectId: id });
+    if (id) navReplace('ai_builder', { projectId: id });
   }
 
   function handleShareClose(data) {
     if (data && data.dims) {
       (async () => {
         const id = await createWithLib(data.libraryId || 'custom_shared', data.dims);
-        if (id) nav('project', { projectId: id });
+        if (id) navReplace('project', { projectId: id });
       })();
     }
     setShowShare(false);
@@ -3150,8 +3230,8 @@ function NewProjectView({ nav, goBack }) {
             {/* ── Saját sablonok ── */}
             <CustomTemplateSection
               templates={customTpls}
-              onPick={async (t) => { const id = await createWithLib(t.id, t.dims); if (id) nav('project', { projectId:id }); }}
-              onEdit={(t) => { (async () => { const id = await createWithLib(t.id, t.dims); if (id) nav('library_manager', { projectId:id }); })(); }}
+              onPick={async (t) => { const id = await createWithLib(t.id, t.dims); if (id) navReplace('project', { projectId:id }); }}
+              onEdit={(t) => { (async () => { const id = await createWithLib(t.id, t.dims); if (id) navReplace('library_manager', { projectId:id }); })(); }}
               onDelete={async (id) => { await deleteCustomTemplate(id); setCustomTpls(prev => prev.filter(t => t.id !== id)); }}
               onDuplicate={async (t) => { await saveCustomTemplate(t.name+' (másolat)', JSON.parse(JSON.stringify(t.dims))); setCustomTpls(await loadCustomTemplates()); }}
             />
@@ -3284,6 +3364,7 @@ function ProjectView({ nav, goBack, ctx }) {
   const [collabPerm,        setCollabPerm]        = useState('view');
   const [showEmailTmpls,    setShowEmailTmpls]    = useState(false);
   const [sendingId,         setSendingId]         = useState(null);
+  const [suggestions,       setSuggestions]       = useState([]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -3297,6 +3378,20 @@ function ProjectView({ nav, goBack, ctx }) {
     setRaters(rs.filter(r => r && r.projectId === projectId));
     const cs = await db.get('collab:'+projectId) || [];
     setCollabs(cs);
+    // Load all known people for autofill
+    const allRats = rs.filter(Boolean);
+    const allParts = ps.filter(Boolean);
+    const seen = new Map();
+    [...allParts, ...allRats].forEach(p => {
+      if (p.firstName && p.email) {
+        const key = p.email.toLowerCase();
+        if (!seen.has(key)) seen.set(key, { firstName: p.firstName, lastName: p.lastName||'', email: p.email });
+      } else if (p.firstName) {
+        const key = (p.firstName+p.lastName).toLowerCase();
+        if (!seen.has(key)) seen.set(key, { firstName: p.firstName, lastName: p.lastName||'', email: p.email||'' });
+      }
+    });
+    setSuggestions([...seen.values()]);
     setLoading(false);
   }, [projectId]);
 
@@ -3315,11 +3410,7 @@ function ProjectView({ nav, goBack, ctx }) {
     const rid = 'rat:'+uid(10);
     const selfRater = { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role:'self', code:sc, status:'pending' };
     await db.set(rid, selfRater);
-    if (em.trim() && proj) {
-      const cn = await getConsultantName();
-      const res = await sendProjectEmail({ to:em.trim(), firstName:fn.trim(), participantName:`${fn.trim()} ${ln.trim()}`.trim(), code:sc, project:proj, templateKey:'selfInvite', consultantName:cn });
-      if (res.ok) await db.set(rid, { ...selfRater, email_sent:true, email_sent_at:Date.now() });
-    }
+    // Email küldés NEM itt — csak aktiváláskor (activate())
     setFn(''); setLn(''); setEm('');
     setAddingP(false);
     load();
@@ -3497,12 +3588,8 @@ function ProjectView({ nav, goBack, ctx }) {
 
         {addingP && (
           <Card style={{marginBottom:12}}>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
-              <Input label="Keresztnév" value={fn} onChange={setFn} placeholder="Péter"/>
-              <Input label="Vezetéknév" value={ln} onChange={setLn} placeholder="Nagy"/>
-              <Input label="Email"      value={em} onChange={setEm} placeholder="email@ceg.hu"/>
-            </div>
-            <div style={{fontSize:11,color:MUTED,marginBottom:10}}>Email megadása esetén az önértékelési meghívó automatikusan kiküldésre kerül.</div>
+            <AutocompletePersonInput fn={fn} setFn={setFn} ln={ln} setLn={setLn} em={em} setEm={setEm} suggestions={suggestions}/>
+            <div style={{fontSize:11,color:MUTED,marginBottom:10}}>Email megadása esetén az önértékelési meghívó az aktiváláskor kerül kiküldésre.</div>
             <div style={{display:'flex',gap:8}}>
               <Btn onClick={addPart} disabled={!fn.trim()}>Hozzáadás</Btn>
               <Btn variant="ghost" onClick={() => setAddingP(false)}>Mégse</Btn>
@@ -3625,6 +3712,7 @@ function RatersView({ nav, goBack, ctx }) {
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const [sendingId, setSendingId] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
   const bulkRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -3634,6 +3722,17 @@ function RatersView({ nav, goBack, ctx }) {
     const ks = await db.list('rat:');
     const rs = await Promise.all(ks.map(k => db.get(k)));
     setRaters(rs.filter(r => r && r.participantId === participantId));
+    // Autofill: collect all known people from rat: entries
+    const allRats = rs.filter(Boolean);
+    const pks = await db.list('part:');
+    const allParts = await Promise.all(pks.map(k => db.get(k)));
+    const seen = new Map();
+    [...allParts.filter(Boolean), ...allRats].forEach(p => {
+      if (!p.firstName) return;
+      const key = p.email ? p.email.toLowerCase() : (p.firstName+p.lastName).toLowerCase();
+      if (!seen.has(key)) seen.set(key, { firstName: p.firstName, lastName: p.lastName||'', email: p.email||'' });
+    });
+    setSuggestions([...seen.values()]);
     setLoading(false);
   }, [projectId, participantId]);
 
@@ -3734,20 +3833,16 @@ function RatersView({ nav, goBack, ctx }) {
       <div style={{maxWidth:680,margin:'0 auto',padding:'22px 24px'}}>
         <Card style={{marginBottom:18}}>
           <div style={{fontSize:13,color:GOLD,fontWeight:600,marginBottom:12}}>Értékelő hozzáadása</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <Input label="Keresztnév" value={fn} onChange={setFn} placeholder="Péter"/>
-            <Input label="Vezetéknév" value={ln} onChange={setLn} placeholder="Nagy"/>
+          <AutocompletePersonInput fn={fn} setFn={setFn} ln={ln} setLn={setLn} em={em} setEm={setEm} suggestions={suggestions}/>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Szerep</div>
+            <select value={role} onChange={e => setRole(e.target.value)}
+              style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}>
+              {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            <Input label="Email" value={em} onChange={setEm} placeholder="email@ceg.hu"/>
-            <div style={{marginBottom:14}}>
-              <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Szerep</div>
-              <select value={role} onChange={e => setRole(e.target.value)}
-                style={{width:'100%',background:S2,border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',color:TEXT,fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
               </select>
             </div>
-          </div>
           <Btn onClick={add} disabled={!fn.trim()}>+ Azonosító generálása</Btn>
           <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,paddingTop:10,borderTop:`1px solid ${BORD}`}}>
             <Btn variant="ghost" size="sm" onClick={() => bulkRef.current && bulkRef.current.click()} disabled={bulkImporting}>
@@ -4588,8 +4683,20 @@ export default function App() {
 
   const nav = useCallback((v, extra) => {
     const e = extra || {};
-    // Push current state to history before navigating
     historyRef.current.push({ view, ctx });
+    if (v === 'survey') {
+      setCtx({...e, user: currentUser});
+    } else {
+      setCtx(prev => Object.assign({}, prev, e, {user: currentUser}));
+    }
+    setView(v);
+    if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+  }, [view, ctx]);
+
+  // navReplace: navigál, de az aktuális nézetet NEM teszi a history-ba
+  // Használat: projekt létrehozás után, hogy vissza gomb ne menjen az üres formra
+  const navReplace = useCallback((v, extra) => {
+    const e = extra || {};
     if (v === 'survey') {
       setCtx({...e, user: currentUser});
     } else {
@@ -4626,7 +4733,7 @@ export default function App() {
     survey_enter:     <SurveyEnterView   nav={nav} goBack={goBack} ctx={ctx}/>,
     survey_done:      <SurveyDoneView    nav={nav} goBack={goBack} ctx={ctx}/>,
     admin:            <AdminView         nav={nav} goBack={goBack} ctx={ctx}/>,
-    new_project:      <NewProjectView    nav={nav} goBack={goBack} ctx={ctx}/>,
+    new_project:      <NewProjectView    nav={nav} navReplace={navReplace} goBack={goBack} ctx={ctx}/>,
     project:          <ProjectView       nav={nav} goBack={goBack} ctx={ctx}/>,
     raters:           <RatersView        nav={nav} goBack={goBack} ctx={ctx}/>,
     report:           <ReportPageView    nav={nav} goBack={goBack} ctx={ctx}/>,
