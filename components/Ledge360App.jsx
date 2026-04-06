@@ -3064,9 +3064,10 @@ function NewProjectView({ nav, goBack }) {
     const id = 'proj:'+uid(10);
     const projData = { id, name:name.trim(), client:client.trim(), libraryId, status:'draft', roles:DEFAULT_ROLES, created:Date.now() };
     if (customDims) projData.customDims = customDims;
-    await db.set(id, projData);
+    const ok = await db.set(id, projData);
+    if (!ok) console.error('Project save failed — db.set returned false', { id, projData });
     setSaving(false);
-    return id;
+    return ok ? id : null;
   }
 
   async function pickPreset(preset) {
@@ -4159,8 +4160,11 @@ function LibraryManagerView({ nav, goBack, ctx }) {
     setDims(newDims);
     if (proj && projectId) {
       const customLibId = 'custom_proj_' + proj.id;
-      await db.set('lib:' + customLibId, { dims: newDims });
-      await db.set(projectId, { ...proj, libraryId: customLibId, customDims: newDims });
+      const r1 = await db.set('lib:' + customLibId, { dims: newDims });
+      const r2 = await db.set(projectId, { ...proj, libraryId: customLibId, customDims: newDims });
+      if (!r1 || !r2) {
+        console.error('persist failed — db.set returned false', { r1, r2, projectId });
+      }
     }
     setSaved(true); setTimeout(() => setSaved(false), 1500);
   }
@@ -4393,7 +4397,13 @@ function LibraryManagerView({ nav, goBack, ctx }) {
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
-      <TopBar title="📋 Kérdőív szerkesztő" subtitle={proj ? proj.name : 'Egyedi sablon'} back onBack={goBack}/>
+      <TopBar title="📋 Kérdőív szerkesztő" subtitle={proj ? proj.name : 'Egyedi sablon'} back onBack={goBack}
+        right={projectId && (
+          <Btn size="sm" onClick={() => nav('project', { projectId })}>
+            Tovább az értékeltekhez →
+          </Btn>
+        )}
+      />
       <div style={{maxWidth:800,margin:'0 auto',padding:'22px 24px'}}>
 
         {/* Header stats + actions */}
