@@ -108,6 +108,135 @@ const DEFAULT_SCALE = SCALE_PRESETS[0];
 function getScaleConfig(scaleId) {
   return SCALE_PRESETS.find(s => s.id === scaleId) || DEFAULT_SCALE;
 }
+
+// ─── EMAIL SABLONOK ────────────────────────────────────────────
+const DEFAULT_EMAIL_TEMPLATES = {
+  hu: {
+    selfInvite: {
+      subject: 'Önértékelési felkérés — [Projekt neve]',
+      body: `Kedves [Keresztnév]!
+
+[Cég] stratégiájának részeként kiemelten fontosnak tartjuk, hogy a vezetők rendszeresen visszajelzést kapjanak saját vezetői működésükről. Ennek egyik hatékony eszköze a 360 fokos értékelés.
+
+Ezzel a levéllel arra kérünk fel, hogy értékeld a saját vezetői működésedet!
+
+Kérlek, hogy nyitottan, aktívan és felelősséggel vegyél részt ebben a felmérésben!
+
+Ha bármiben tudunk támogatni a folyamat során, fordulj hozzánk bizalommal.
+
+Előre is köszönjük a közreműködésedet!
+[Tanácsadó neve]`
+    },
+    peerInvite: {
+      subject: 'Visszajelzési felkérés — [Értékelt neve]',
+      body: `Kedves [Keresztnév]!
+
+[Értékelt neve] meghívott, hogy értékeld a vezetői működését.
+
+[Cég] stratégiájának részeként kiemelten fontosnak tartjuk, hogy a vezetők rendszeresen visszajelzést kapjanak több nézőpontból. Ezzel a levéllel Téged is felkérünk arra, hogy adj visszajelzést a kollégádnak!
+
+Kérlek, hogy nyitottan, aktívan és felelősséggel vegyél részt ebben a felmérésben! A kitöltés anonim — az egyéni válaszokat nem adjuk tovább.
+
+Előre is köszönjük a közreműködésedet!
+[Tanácsadó neve]`
+    },
+    reminder: {
+      subject: 'Emlékeztető — [Projekt neve]',
+      body: `Kedves [Keresztnév]!
+
+Szeretnénk emlékeztetni a folyamatban lévő 360 fokos vezetői felmérésre.
+
+A határidő: [Határidő]
+A kitöltés kb. 15 percet vesz igénybe.
+
+Kérjük, hogy a következő napokban szánj időt a kérdőív kitöltésére.
+
+Köszönjük az együttműködésedet!
+[Tanácsadó neve]`
+    }
+  },
+  en: {
+    selfInvite: {
+      subject: 'Self-assessment invitation — [Projekt neve]',
+      body: `Dear [Keresztnév],
+
+As part of [Cég]'s strategy, we believe it is essential that leaders regularly receive feedback on their leadership. The 360-degree assessment is one of the most effective tools for this.
+
+We invite you to assess your own leadership!
+
+Please participate openly, actively and responsibly in this survey.
+
+If you need any support during the process, please don't hesitate to reach out.
+
+Thank you in advance for your contribution!
+[Tanácsadó neve]`
+    },
+    peerInvite: {
+      subject: 'Feedback invitation — [Értékelt neve]',
+      body: `Dear [Keresztnév],
+
+[Értékelt neve] has invited you to provide feedback on their leadership.
+
+As part of [Cég]'s strategy, we invite you to give feedback to your colleague through our 360-degree leadership assessment. Responses are anonymous.
+
+Please participate openly and honestly.
+
+Thank you in advance for your contribution!
+[Tanácsadó neve]`
+    },
+    reminder: {
+      subject: 'Reminder — [Projekt neve]',
+      body: `Dear [Keresztnév],
+
+We would like to remind you of the ongoing 360-degree leadership assessment.
+
+Deadline: [Határidő]
+The survey takes approximately 15 minutes.
+
+Please take the time to complete the questionnaire in the coming days.
+
+Thank you for your cooperation!
+[Tanácsadó neve]`
+    }
+  }
+};
+
+function renderTemplate(template, vars) {
+  return template
+    .replace(/\[Keresztnév\]/g,     vars.firstName       || '')
+    .replace(/\[Cég\]/g,            vars.company         || '')
+    .replace(/\[Értékelt neve\]/g,  vars.participantName || '')
+    .replace(/\[Tanácsadó neve\]/g, vars.consultantName  || '')
+    .replace(/\[Projekt neve\]/g,   vars.projectName     || '')
+    .replace(/\[Határidő\]/g,       vars.deadline        || '…');
+}
+
+async function sendProjectEmail({ to, firstName, participantName, code, project, templateKey, consultantName }) {
+  if (!to || !code) return { ok: false, error: 'Hiányzó email vagy kód' };
+  const lang  = project.emailLang || 'hu';
+  const tmpls = (project.emailTemplates && project.emailTemplates[lang]) || DEFAULT_EMAIL_TEMPLATES[lang];
+  const tmpl  = tmpls[templateKey];
+  if (!tmpl) return { ok: false, error: 'Sablon nem található' };
+  const vars = { firstName, participantName, code, company: project.client || project.name || '', consultantName: consultantName || '', projectName: project.name || '' };
+  const subject  = renderTemplate(tmpl.subject, vars);
+  const bodyText = renderTemplate(tmpl.body,    vars);
+  const surveyUrl = `https://www.ledge.news/360?code=${code}`;
+  const htmlBody = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#1A1A18;">
+    <div style="text-align:center;margin-bottom:28px;"><span style="font-family:Georgia,serif;font-size:16px;color:#8A8478;letter-spacing:.04em;">LEDGE <span style="color:#A68542">360°</span></span></div>
+    ${bodyText.split('\n\n').map(p => `<p style="font-size:15px;line-height:1.7;color:#4A4A48;margin:0 0 18px;">${p.replace(/\n/g,'<br>')}</p>`).join('')}
+    <div style="text-align:center;margin:32px 0;"><a href="${surveyUrl}" style="display:inline-block;background:#A68542;color:#fff;padding:14px 36px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;">Kérdőív kitöltése →</a></div>
+    <div style="background:#F5F3EF;border:1px solid #E2DED6;border-radius:10px;padding:16px 20px;margin:24px 0;text-align:center;">
+      <div style="font-size:12px;color:#8A8478;margin-bottom:6px;">Azonosítód</div>
+      <div style="font-family:monospace;font-size:20px;font-weight:700;letter-spacing:.15em;color:#A68542;">${code}</div>
+    </div>
+    <hr style="border:none;border-top:1px solid #E2DED6;margin:28px 0;">
+    <p style="font-size:11px;color:#C5C0B8;text-align:center;">LEDGE 360° — ZEL Group · Bizalmas értékelési rendszer</p>
+  </div>`;
+  try {
+    const res = await fetch('/api/send-invite', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to, raterName:firstName, code, htmlBody, subject, participantName, surveyTitle:project.name }) });
+    return res.ok ? { ok:true } : { ok:false, error:'API hiba' };
+  } catch(e) { return { ok:false, error:e.message }; }
+}
 function getScaleMax(scaleId) {
   const sc = getScaleConfig(scaleId);
   return sc.labels.length - 1;
@@ -676,23 +805,16 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
   const blindSpots = selfArr.filter(i => i.others > 0 && i.self - i.others >= 1.0);
   const hiddenStr  = selfArr.filter(i => i.others > 0 && i.others - i.self >= 1.0);
 
-  // Custom colored tick for radar
   function RadarTick({ x, y, payload, textAnchor }) {
     const d = dims.find(d => d.id === payload.value);
     if (!d) return null;
-    const label = d.label || d.id;
-    // Split long labels into two lines
-    const words = label.split(/[\s\-\/]/);
-    const mid = Math.ceil(words.length / 2);
+    const words = (d.label || d.id).split(/[\s\-\/]/);
+    const mid   = Math.ceil(words.length / 2);
     const line1 = words.slice(0, mid).join(' ');
     const line2 = words.slice(mid).join(' ');
     return (
-      <g
-        onMouseEnter={() => setHoveredDim(d)}
-        onMouseLeave={() => setHoveredDim(null)}
-        style={{ cursor: 'pointer' }}
-      >
-        <text x={x} y={y} textAnchor={textAnchor} fill={d.color || GOLD} fontSize={12} fontWeight={600} fontFamily="'DM Sans',sans-serif">
+      <g onMouseEnter={() => setHoveredDim(d)} onMouseLeave={() => setHoveredDim(null)} style={{cursor:'pointer'}}>
+        <text x={x} y={y} textAnchor={textAnchor} fill={d.color||GOLD} fontSize={12} fontWeight={600} fontFamily="'DM Sans',sans-serif">
           <tspan x={x} dy={line2 ? '-0.3em' : '0.35em'}>{line1}</tspan>
           {line2 && <tspan x={x} dy="1.2em">{line2}</tspan>}
         </text>
@@ -746,7 +868,6 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            {/* RADAR — full width with hover tooltip card */}
             <div style={{marginBottom:28}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:14,textTransform:'uppercase',letterSpacing:'.1em'}}>Kompetencia Radar</div>
               <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
@@ -762,10 +883,9 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
-                {/* Hover tooltip card */}
                 <div style={{width:250,flexShrink:0,marginTop:40}}>
                   {hoveredDim ? (
-                    <div style={{background:S3,border:`1px solid ${hoveredDim.color||GOLD}55`,borderRadius:14,padding:'16px 18px'}}>
+                    <div style={{background:S2,border:`1px solid ${hoveredDim.color||GOLD}55`,borderRadius:14,padding:'16px 18px'}}>
                       <div style={{fontSize:10,color:hoveredDim.color||GOLD,fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Kompetencia</div>
                       <div style={{fontSize:16,color:TEXT,fontWeight:700,marginBottom:4,lineHeight:1.3}}>{hoveredDim.label}</div>
                       <div style={{fontSize:24,fontFamily:"'Instrument Serif',serif",color:hoveredDim.color||GOLD,fontWeight:600,marginBottom:12}}>
@@ -789,8 +909,6 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 </div>
               </div>
             </div>
-
-            {/* BAR CHART — full width below radar */}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:14,textTransform:'uppercase',letterSpacing:'.1em'}}>Dimenzió átlagok</div>
               <ResponsiveContainer width="100%" height={dims.length * 38 + 24}>
@@ -1373,13 +1491,13 @@ function PaywallView({ nav, goBack, onUpgrade }) {
       <div style={{maxWidth:480,margin:'0 auto',padding:'48px 24px',textAlign:'center'}}>
         <div style={{fontSize:40,marginBottom:16}}>◈</div>
         <h2 style={{fontFamily:"'Instrument Serif',serif",fontSize:28,color:TEXT,fontWeight:400,marginBottom:8}}>Szervezett 360°</h2>
-        <p style={{color:MUTED,fontSize:15,lineHeight:1.6,marginBottom:28}}>Projektek, résztvevők, értékelők kezelése — professzionális tanácsadói eszköztár.</p>
+        <p style={{color:MUTED,fontSize:15,lineHeight:1.6,marginBottom:28}}>Projektek, értékeltek, értékelők kezelése — professzionális tanácsadói eszköztár.</p>
         <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:'28px',boxShadow:'0 2px 8px rgba(0,0,0,.04)',marginBottom:24}}>
           <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:8}}>Tanácsadói csomag</div>
           <div style={{fontFamily:"'Instrument Serif',serif",fontSize:42,color:GOLD,marginBottom:4}}>29<span style={{fontSize:18,color:MUTED}}> EUR/hó</span></div>
           <div style={{fontSize:13,color:MUTED,marginBottom:20}}>Korlátlan projekt és értékelő</div>
           <div style={{textAlign:'left',marginBottom:20}}>
-            {['Korlátlan 360° projektek','Résztvevők és értékelők kezelése','Riportok és exportok','AI kérdőív-tervező','Kollaborátor meghívás','Email értesítések','PDF riport'].map((f,i) => (
+            {['Korlátlan 360° projektek','Értékeltek és értékelők kezelése','Riportok és exportok','AI kérdőív-tervező','Kollaborátor meghívás','Email értesítések','PDF riport'].map((f,i) => (
               <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:`1px solid ${BORD}`}}>
                 <span style={{color:GREEN,fontSize:14}}>✓</span>
                 <span style={{fontSize:13,color:TEXT}}>{f}</span>
@@ -2763,7 +2881,7 @@ function SurveyEnterView({ nav, goBack }) {
           mode:'peer', raterCode:t, raterId:ratKey,
           participantId:rat.participantId, projectId:proj.id,
           dims:preset.dims, libraryId:proj.libraryId,
-          surveyTitle:'Értékelés — '+(part ? part.firstName+' '+part.lastName : 'Résztvevő'),
+          surveyTitle:'Értékelés — '+(part ? part.firstName+' '+part.lastName : 'Értékelt'),
         });
         setLoading(false); return;
       }
@@ -3030,6 +3148,78 @@ function NewProjectView({ nav, goBack }) {
   );
 }
 
+// ─── EMAIL SABLONOK MODAL ──────────────────────────────────────
+function EmailTemplatesModal({ project, onClose, onSave }) {
+  const [lang,      setLang]      = useState(project.emailLang || 'hu');
+  const [tmpls,     setTmpls]     = useState(() => (project.emailTemplates && project.emailTemplates[project.emailLang || 'hu']) || DEFAULT_EMAIL_TEMPLATES[project.emailLang || 'hu']);
+  const [activeTab, setActiveTab] = useState('selfInvite');
+
+  function switchLang(l) {
+    setLang(l);
+    setTmpls((project.emailTemplates && project.emailTemplates[l]) || DEFAULT_EMAIL_TEMPLATES[l]);
+  }
+  function update(field, val) {
+    setTmpls(prev => ({ ...prev, [activeTab]: { ...prev[activeTab], [field]: val } }));
+  }
+  async function save() {
+    const updated = { ...project, emailLang: lang, emailTemplates: { ...(project.emailTemplates || {}), [lang]: tmpls } };
+    await onSave(updated);
+    onClose();
+  }
+  const TABS = [
+    { id: 'selfInvite', label: 'Önértékelési meghívó' },
+    { id: 'peerInvite', label: 'Értékelői meghívó' },
+    { id: 'reminder',   label: 'Emlékeztető' },
+  ];
+  const placeholders = ['[Keresztnév]', '[Cég]', '[Értékelt neve]', '[Tanácsadó neve]', '[Határidő]', '[Projekt neve]'];
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:SURF,borderRadius:16,width:'100%',maxWidth:680,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.18)'}}>
+        <div style={{padding:'20px 24px',borderBottom:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{fontSize:15,color:TEXT,fontWeight:700}}>Kimenő email-ek szerkesztése</div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {['hu','en'].map(l => (
+              <button key={l} onClick={() => switchLang(l)}
+                style={{padding:'5px 14px',borderRadius:8,border:`1px solid ${lang===l?GOLD:BORD}`,background:lang===l?`${GOLD}18`:'none',color:lang===l?GOLD:MUTED,fontSize:12,fontWeight:lang===l?700:400,cursor:'pointer'}}>
+                {l === 'hu' ? '🇭🇺 Magyar' : '🇬🇧 English'}
+              </button>
+            ))}
+            <button onClick={onClose} style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:18,padding:4}}>✕</button>
+          </div>
+        </div>
+        <div style={{padding:'0 24px'}}>
+          <div style={{display:'flex',borderBottom:`1px solid ${BORD}`,marginBottom:20}}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)}
+                style={{padding:'12px 16px',border:'none',background:'none',cursor:'pointer',fontSize:13,color:activeTab===t.id?GOLD:MUTED,borderBottom:activeTab===t.id?`2px solid ${GOLD}`:`2px solid transparent`,fontWeight:activeTab===t.id?600:400,fontFamily:"'DM Sans',sans-serif"}}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div style={{background:S2,borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:11,color:MUTED}}>
+            <span style={{fontWeight:600,color:TEXT,marginRight:8}}>Helyőrzők:</span>
+            {placeholders.map(p => <code key={p} style={{background:BORD,borderRadius:4,padding:'1px 6px',marginRight:6,fontSize:11,color:TEXT}}>{p}</code>)}
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Tárgy</div>
+            <input value={tmpls[activeTab]?.subject || ''} onChange={e => update('subject', e.target.value)}
+              style={{width:'100%',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:11,color:MUTED,marginBottom:5,textTransform:'uppercase',letterSpacing:'.08em'}}>Szöveg</div>
+            <textarea value={tmpls[activeTab]?.body || ''} onChange={e => update('body', e.target.value)} rows={14}
+              style={{width:'100%',border:`1px solid ${BORD}`,borderRadius:8,padding:'12px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',resize:'vertical',boxSizing:'border-box',lineHeight:1.6}}/>
+          </div>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end',paddingBottom:24}}>
+            <Btn variant="ghost" onClick={onClose}>Mégse</Btn>
+            <Btn onClick={save}>Mentés</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PROJECT VIEW ──────────────────────────────────────────────
 function ProjectView({ nav, goBack, ctx }) {
   const projectId = ctx.projectId;
@@ -3041,16 +3231,18 @@ function ProjectView({ nav, goBack, ctx }) {
   const [fn, setFn] = useState('');
   const [ln, setLn] = useState('');
   const [em, setEm] = useState('');
-  const [activatedMsg, setActivatedMsg] = useState(false);
-  const [showDeleteProj, setShowDeleteProj] = useState(false);
-  const [editingProj, setEditingProj] = useState(false);
-  const [editName,    setEditName]    = useState('');
-  const [editClient,  setEditClient]  = useState('');
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [deletingPartId, setDeletingPartId] = useState(null);
-  const [collabs, setCollabs] = useState([]);
-  const [collabEmail, setCollabEmail] = useState('');
-  const [collabPerm, setCollabPerm] = useState('view');
+  const [activatedMsg,      setActivatedMsg]      = useState(false);
+  const [showDeleteProj,    setShowDeleteProj]    = useState(false);
+  const [editingProj,       setEditingProj]       = useState(false);
+  const [editName,          setEditName]          = useState('');
+  const [editClient,        setEditClient]        = useState('');
+  const [showArchiveConfirm,setShowArchiveConfirm]= useState(false);
+  const [deletingPartId,    setDeletingPartId]    = useState(null);
+  const [collabs,           setCollabs]           = useState([]);
+  const [collabEmail,       setCollabEmail]       = useState('');
+  const [collabPerm,        setCollabPerm]        = useState('view');
+  const [showEmailTmpls,    setShowEmailTmpls]    = useState(false);
+  const [sendingId,         setSendingId]         = useState(null);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -3069,15 +3261,40 @@ function ProjectView({ nav, goBack, ctx }) {
 
   useEffect(() => { load(); }, [load]);
 
+  async function getConsultantName() {
+    const session = await auth.getSession();
+    return session?.name || session?.email || '';
+  }
+
   async function addPart() {
     if (!fn.trim()) return;
     const id  = 'part:'+uid(10);
     await db.set(id, { id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), created:Date.now() });
     const sc  = uid(12);
     const rid = 'rat:'+uid(10);
-    await db.set(rid, { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), role:'self', code:sc, status:'pending' });
+    const selfRater = { id:rid, participantId:id, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role:'self', code:sc, status:'pending' };
+    await db.set(rid, selfRater);
+    if (em.trim() && proj) {
+      const cn = await getConsultantName();
+      const res = await sendProjectEmail({ to:em.trim(), firstName:fn.trim(), participantName:`${fn.trim()} ${ln.trim()}`.trim(), code:sc, project:proj, templateKey:'selfInvite', consultantName:cn });
+      if (res.ok) await db.set(rid, { ...selfRater, email_sent:true, email_sent_at:Date.now() });
+    }
     setFn(''); setLn(''); setEm('');
     setAddingP(false);
+    load();
+  }
+
+  async function sendEmail(rater, part, templateKey) {
+    if (!rater.email) return;
+    setSendingId(rater.id);
+    const cn = await getConsultantName();
+    const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
+    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cn });
+    if (res.ok) {
+      const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
+      await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
+    }
+    setSendingId(null);
     load();
   }
 
@@ -3086,14 +3303,29 @@ function ProjectView({ nav, goBack, ctx }) {
     await db.set(projectId, updated);
     setProj(updated);
     setActivatedMsg(true);
-    setTimeout(() => setActivatedMsg(false), 3000);
+    setTimeout(() => setActivatedMsg(false), 4000);
+    const cn = await getConsultantName();
+    for (const r of raters) {
+      if (!r.email) continue;
+      const part = parts.find(p => p.id === r.participantId);
+      const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
+      const key = r.role === 'self' ? 'selfInvite' : 'peerInvite';
+      const res = await sendProjectEmail({ to:r.email, firstName:r.firstName, participantName:partName, code:r.code, project:updated, templateKey:key, consultantName:cn });
+      if (res.ok) await db.set(r.id, { ...r, email_sent:true, email_sent_at:Date.now() });
+    }
+    load();
   }
 
   async function saveEdit() {
-    const updated = { ...proj, name: editName.trim() || proj.name, client: editClient.trim() };
+    const updated = { ...proj, name:editName.trim()||proj.name, client:editClient.trim() };
     await db.set(projectId, updated);
     setProj(updated);
     setEditingProj(false);
+  }
+
+  async function saveEmailTemplates(updatedProj) {
+    await db.set(projectId, updatedProj);
+    setProj(updatedProj);
   }
 
   async function archiveProject() {
@@ -3104,31 +3336,26 @@ function ProjectView({ nav, goBack, ctx }) {
   }
 
   async function deleteProject() {
-    // Delete all raters
     const rks = await db.list('rat:');
     const allR = await Promise.all(rks.map(k => db.get(k)));
     for (let i = 0; i < allR.length; i++) {
       if (allR[i] && allR[i].projectId === projectId) await db.del(rks[i]);
     }
-    // Delete all participants
     const pks = await db.list('part:');
     const allP = await Promise.all(pks.map(k => db.get(k)));
     for (let i = 0; i < allP.length; i++) {
       if (allP[i] && allP[i].projectId === projectId) await db.del(pks[i]);
     }
-    // Delete project
     await db.del(projectId);
     nav('admin');
   }
 
   async function deletePart(partId) {
-    // Delete participant's raters
     const rks = await db.list('rat:');
     const allR = await Promise.all(rks.map(k => db.get(k)));
     for (let i = 0; i < allR.length; i++) {
       if (allR[i] && allR[i].participantId === partId) await db.del(rks[i]);
     }
-    // Delete participant
     await db.del(partId);
     setDeletingPartId(null);
     load();
@@ -3153,7 +3380,8 @@ function ProjectView({ nav, goBack, ctx }) {
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
   if (!proj)   return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Projekt nem található.</div>;
 
-  const done = raters.filter(r => r.status === 'done').length;
+  const nonSelfRaters = raters.filter(r => r.role !== 'self');
+  const done = nonSelfRaters.filter(r => r.status === 'done').length;
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
@@ -3171,15 +3399,16 @@ function ProjectView({ nav, goBack, ctx }) {
       <div style={{maxWidth:860,margin:'0 auto',padding:'22px 24px'}}>
         {activatedMsg && (
           <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:GREEN}}>
-            ✓ A projekt sikeresen aktiválva. Az értékelők most már kitölthetik a kérdőívet.
+            ✓ Projekt aktiválva — email meghívók kiküldése folyamatban…
           </div>
         )}
+
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:22}}>
           {[
-            {label:'Résztvevők',val:parts.length, color:GOLD},
-            {label:'Értékelők', val:raters.length,color:BLUE},
-            {label:'Beküldött', val:done,          color:GREEN},
-            {label:'Arány',     val:raters.length>0?Math.round(done/raters.length*100)+'%':'—',color:PURP},
+            {label:'Értékeltek', val:parts.length,                color:GOLD},
+            {label:'Értékelők',  val:nonSelfRaters.length,        color:BLUE},
+            {label:'Beküldött',  val:done,                        color:GREEN},
+            {label:'Arány',      val:nonSelfRaters.length>0 ? Math.round(done/nonSelfRaters.length*100)+'%' : '—', color:PURP},
           ].map(s => (
             <div key={s.label} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'12px 16px'}}>
               <div style={{fontSize:22,fontFamily:"'Instrument Serif',serif",color:s.color}}>{s.val}</div>
@@ -3188,21 +3417,22 @@ function ProjectView({ nav, goBack, ctx }) {
           ))}
         </div>
 
-        <div style={{display:'flex',gap:10,marginBottom:18}}>
-          <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', { projectId })}>📚 Könyvtár kezelése</Btn>
+        <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
+          <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', {projectId})}>📚 Könyvtár szerkesztése</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => setShowEmailTmpls(true)}>✉ Kimenő email-ek szerkesztése</Btn>
         </div>
 
         {/* Kollaborátorok */}
-        <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22,boxShadow:'0 1px 3px rgba(0,0,0,.04)'}}>
+        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
             <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Kollaborátorok</div>
             <Badge color={MUTED}>{collabs.length} fő</Badge>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:10}}>
             <div style={{flex:1}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="kollega@ceg.hu"
-              style={{width:'100%',background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
+              style={{width:'100%',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
             <select value={collabPerm} onChange={e=>setCollabPerm(e.target.value)}
-              style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
+              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
               <option value="view">Olvasás</option>
               <option value="edit">Szerkesztés</option>
             </select>
@@ -3218,9 +3448,10 @@ function ProjectView({ nav, goBack, ctx }) {
           {collabs.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:'center',padding:'8px 0'}}>Hívj meg egy kollégát a projekthez.</div>}
         </div>
 
+        {/* Értékeltek */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-          <div style={{fontSize:12,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em'}}>Résztvevők</div>
-          <Btn variant="ghost" size="sm" onClick={() => setAddingP(!addingP)}>+ Résztvevő</Btn>
+          <div style={{fontSize:12,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em'}}>Értékeltek</div>
+          <Btn variant="ghost" size="sm" onClick={() => setAddingP(!addingP)}>+ Értékelt</Btn>
         </div>
 
         {addingP && (
@@ -3230,6 +3461,7 @@ function ProjectView({ nav, goBack, ctx }) {
               <Input label="Vezetéknév" value={ln} onChange={setLn} placeholder="Nagy"/>
               <Input label="Email"      value={em} onChange={setEm} placeholder="email@ceg.hu"/>
             </div>
+            <div style={{fontSize:11,color:MUTED,marginBottom:10}}>Email megadása esetén az önértékelési meghívó automatikusan kiküldésre kerül.</div>
             <div style={{display:'flex',gap:8}}>
               <Btn onClick={addPart} disabled={!fn.trim()}>Hozzáadás</Btn>
               <Btn variant="ghost" onClick={() => setAddingP(false)}>Mégse</Btn>
@@ -3238,68 +3470,83 @@ function ProjectView({ nav, goBack, ctx }) {
         )}
 
         {parts.length === 0 && !addingP && (
-          <Card style={{textAlign:'center',padding:28,color:MUTED}}>Adj hozzá résztvevőket a projekt indításához.</Card>
+          <Card style={{textAlign:'center',padding:28,color:MUTED}}>Adj hozzá értékelteket a projekt indításához.</Card>
         )}
 
         {parts.map(part => {
-          const pr = raters.filter(r => r.participantId === part.id);
-          const pd = pr.filter(r => r.status === 'done').length;
+          const pr    = raters.filter(r => r.participantId === part.id);
+          const selfR = pr.find(r => r.role === 'self');
+          const peerR = pr.filter(r => r.role !== 'self');
+          const pd    = peerR.filter(r => r.status === 'done').length;
           return (
             <Card key={part.id} style={{marginBottom:10}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8,gap:12}}>
-                <div style={{minWidth:0}}>
-                  <div style={{fontSize:14,color:TEXT,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{part.firstName} {part.lastName}</div>
-                  {part.email && <div style={{fontSize:12,color:MUTED}}>{part.email}</div>}
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2,flexWrap:'wrap'}}>
+                    <span style={{fontSize:14,color:TEXT,fontWeight:600}}>{part.firstName} {part.lastName}</span>
+                    {selfR && (
+                      <div style={{display:'flex',alignItems:'center',gap:4}}>
+                        <StatusDot status={selfR.status}/>
+                        <span style={{fontSize:11,color:MUTED}}>önértékelés</span>
+                      </div>
+                    )}
+                  </div>
+                  {part.email && <div style={{fontSize:12,color:MUTED,marginBottom:6}}>{part.email}</div>}
+                  {selfR && part.email && (
+                    <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
+                      <button onClick={() => sendEmail(selfR, part, 'selfInvite')} disabled={sendingId===selfR.id}
+                        style={{fontSize:11,padding:'3px 10px',borderRadius:6,border:`1px solid ${GOLD}`,background:`${GOLD}14`,color:GOLD,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        {sendingId===selfR.id ? '…' : selfR.email_sent ? '↺ Meghívó újraküldés' : '✉ Meghívó küldése'}
+                      </button>
+                      <button onClick={() => sendEmail(selfR, part, 'reminder')} disabled={sendingId===selfR.id}
+                        style={{fontSize:11,padding:'3px 10px',borderRadius:6,border:`1px solid ${BORD}`,background:'none',color:MUTED,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        🔔 Emlékeztető
+                      </button>
+                      {selfR.email_sent_at && <span style={{fontSize:11,color:MUTED}}>Küldve: {new Date(selfR.email_sent_at).toLocaleDateString('hu-HU')}</span>}
+                    </div>
+                  )}
+                  {peerR.length > 0 && (
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      {peerR.map(r => {
+                        const ri = (proj.roles||DEFAULT_ROLES).find(d => d.id === r.role) || DEFAULT_ROLES[0];
+                        return (
+                          <div key={r.id} style={{display:'flex',alignItems:'center',gap:5,background:S2,borderRadius:20,padding:'3px 10px',border:`1px solid ${BORD}`}}>
+                            <span style={{width:6,height:6,borderRadius:'50%',background:ri.color||MUTED,flexShrink:0}}/>
+                            <span style={{fontSize:11,color:TEXT}}>{r.firstName}</span>
+                            <StatusDot status={r.status}/>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
-                  <span style={{fontSize:12,color:MUTED}}>{pd}/{pr.length} kész</span>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
+                  <span style={{fontSize:12,color:MUTED}}>{pd}/{peerR.length} kész</span>
                   <Btn variant="ghost" size="sm" onClick={() => nav('raters', {projectId, participantId:part.id})}>Értékelők</Btn>
                   {pd >= 1 && <Btn size="sm" onClick={() => nav('report', {projectId, participantId:part.id})}>Riport →</Btn>}
-                  <button onClick={() => setDeletingPartId(part.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:14,padding:4}} title="Résztvevő törlése">✕</button>
+                  <button onClick={() => setDeletingPartId(part.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:14,padding:4}} title="Értékelt törlése">✕</button>
                 </div>
               </div>
-              {pr.length > 0 && (
-                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                  {pr.map(r => {
-                    const ri = (proj.roles||DEFAULT_ROLES).find(d => d.id === r.role) || DEFAULT_ROLES[0];
-                    return (
-                      <div key={r.id} style={{display:'flex',alignItems:'center',gap:5,background:S2,borderRadius:20,padding:'3px 10px',border:`1px solid ${BORD}`}}>
-                        <span style={{width:6,height:6,borderRadius:'50%',background:ri.color||MUTED,flexShrink:0}}/>
-                        <span style={{fontSize:11,color:TEXT}}>{r.firstName}</span>
-                        <StatusDot status={r.status}/>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </Card>
           );
         })}
       </div>
 
+      {showEmailTmpls && <EmailTemplatesModal project={proj} onClose={() => setShowEmailTmpls(false)} onSave={saveEmailTemplates}/>}
+
       {showDeleteProj && (
-        <ConfirmModal
-          title="Projekt törlése"
-          message={'A projekt és az összes résztvevő, értékelő és válasz törlésre kerül. Ez a művelet nem vonható vissza.'}
-          confirmLabel="Igen, törlés"
-          onConfirm={deleteProject}
-          onCancel={() => setShowDeleteProj(false)}
-        />
+        <ConfirmModal title="Projekt törlése"
+          message="A projekt és az összes értékelt, értékelő és válasz törlésre kerül. Ez a művelet nem vonható vissza."
+          confirmLabel="Igen, törlés" onConfirm={deleteProject} onCancel={() => setShowDeleteProj(false)}/>
       )}
-
       {deletingPartId && (
-        <ConfirmModal
-          title="Résztvevő törlése"
-          message="A résztvevő és az összes hozzá tartozó értékelő törlésre kerül. Ez a művelet nem vonható vissza."
-          confirmLabel="Igen, törlés"
-          onConfirm={() => deletePart(deletingPartId)}
-          onCancel={() => setDeletingPartId(null)}
-        />
+        <ConfirmModal title="Értékelt törlése"
+          message="Az értékelt és az összes hozzá tartozó értékelő törlésre kerül. Ez a művelet nem vonható vissza."
+          confirmLabel="Igen, törlés" onConfirm={() => deletePart(deletingPartId)} onCancel={() => setDeletingPartId(null)}/>
       )}
-
       {editingProj && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:30,width:'100%',maxWidth:420,boxShadow:'0 8px 30px rgba(0,0,0,.1)'}}>
             <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:18}}>Projekt szerkesztése</div>
             <Input label="Projekt neve" value={editName} onChange={setEditName} placeholder="Projekt neve"/>
             <Input label="Ügyfél / Szervezet" value={editClient} onChange={setEditClient} placeholder="Ügyfél neve"/>
@@ -3310,21 +3557,17 @@ function ProjectView({ nav, goBack, ctx }) {
           </div>
         </div>
       )}
-
       {showArchiveConfirm && (
         <ConfirmModal
           title={proj.status === 'archived' ? 'Projekt visszaállítása' : 'Projekt archiválása'}
-          message={proj.status === 'archived'
-            ? 'A projekt visszakerül az aktív projektek közé. Folytatod?'
-            : 'Az archivált projekt nem módosítható, de az adatok megmaradnak. Folytatod?'}
+          message={proj.status === 'archived' ? 'A projekt visszakerül az aktív projektek közé. Folytatod?' : 'Az archivált projekt nem módosítható, de az adatok megmaradnak. Folytatod?'}
           confirmLabel={proj.status === 'archived' ? 'Visszaállítás' : 'Archiválás'}
-          onConfirm={archiveProject}
-          onCancel={() => setShowArchiveConfirm(false)}
-        />
+          onConfirm={archiveProject} onCancel={() => setShowArchiveConfirm(false)}/>
       )}
     </div>
   );
 }
+
 
 // ─── RATERS VIEW ───────────────────────────────────────────────
 function RatersView({ nav, goBack, ctx }) {
@@ -3340,6 +3583,7 @@ function RatersView({ nav, goBack, ctx }) {
   const [role,   setRole]   = useState('peer');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkError, setBulkError] = useState('');
+  const [sendingId, setSendingId] = useState(null);
   const bulkRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -3353,6 +3597,21 @@ function RatersView({ nav, goBack, ctx }) {
   }, [projectId, participantId]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function sendRaterEmail(rater, part, templateKey) {
+    if (!rater.email || !proj) return;
+    setSendingId(rater.id);
+    const session = await auth.getSession();
+    const cn = session?.name || session?.email || '';
+    const partName = part ? `${part.firstName} ${part.lastName||''}`.trim() : '';
+    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cn });
+    if (res.ok) {
+      const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
+      await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
+    }
+    setSendingId(null);
+    load();
+  }
 
   async function add() {
     if (!fn.trim()) return;
@@ -3479,6 +3738,17 @@ function RatersView({ nav, goBack, ctx }) {
                 <CopyCode code={r.code}/>
               </div>
               <StatusDot status={r.status}/>
+              {r.email && (
+                <div style={{display:'flex',gap:4,flexShrink:0}}>
+                  <button onClick={() => sendRaterEmail(r, part, 'peerInvite')} disabled={sendingId===r.id}
+                    style={{fontSize:11,padding:'2px 8px',borderRadius:6,border:`1px solid ${GOLD}`,background:`${GOLD}14`,color:GOLD,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                    {sendingId===r.id ? '…' : r.email_sent ? '↺' : '✉'}
+                  </button>
+                  <button onClick={() => sendRaterEmail(r, part, 'reminder')} disabled={sendingId===r.id}
+                    style={{fontSize:11,padding:'2px 8px',borderRadius:6,border:`1px solid ${BORD}`,background:'none',color:MUTED,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}
+                    title="Emlékeztető">🔔</button>
+                </div>
+              )}
               <button onClick={() => rem(r.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:16,padding:4,flexShrink:0}}>✕</button>
             </div>
           );
@@ -3487,6 +3757,7 @@ function RatersView({ nav, goBack, ctx }) {
     </div>
   );
 }
+
 
 // ─── REPORT PAGE VIEW ──────────────────────────────────────────
 function ReportPageView({ nav, goBack, ctx }) {
