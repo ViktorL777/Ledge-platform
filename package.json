@@ -1,6 +1,6 @@
 {
-  "name": "ledge-360",
-  "version": "3.1.0",
+  "name": "ledge-platform",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,18 +10,19 @@
   },
   "dependencies": {
     "next": "^14.2.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "rss-parser": "^3.13.0",
     "recharts": "^2.12.0",
-    "xlsx": "^0.18.5",
-    "@supabase/supabase-js": "^2.42.0",
-    "resend": "^3.2.0"
+    "resend": "^3.2.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0",
     "@types/react": "^18.3.0",
     "typescript": "^5.4.0"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }
