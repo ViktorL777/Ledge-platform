@@ -69,6 +69,7 @@
 // 🔵 PULSE fázis-integráció, AI debrief, Multi-tenant
 // ═══════════════════════════════════════════════════════════════
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, Legend
@@ -518,11 +519,44 @@ const DEFAULT_ROLES = [
 ];
 
 // ─── STORAGE ───────────────────────────────────────────────────
+// Dual-mode: claude.ai sandbox (window.storage) vs Vercel (Supabase)
+const _sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const _sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const _supabase = _sbUrl && _sbKey ? createClient(_sbUrl, _sbKey) : null;
+
 const db = {
-  async get(k)       { try { const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; } catch(e) { return null; } },
-  async set(k, v)    { try { await window.storage.set(k, JSON.stringify(v)); return true; } catch(e) { return false; } },
-  async del(k)       { try { await window.storage.delete(k); return true; } catch(e) { return false; } },
-  async list(prefix) { try { const r = await window.storage.list(prefix); return r ? (r.keys || []) : []; } catch(e) { return []; } },
+  async get(k) {
+    try {
+      if (typeof window !== 'undefined' && window.storage) {
+        const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null;
+      }
+      if (_supabase) { const { data } = await _supabase.from('kv_store').select('value').eq('key', k).single(); return data ? JSON.parse(data.value) : null; }
+    } catch(e) {} return null;
+  },
+  async set(k, v) {
+    try {
+      if (typeof window !== 'undefined' && window.storage) {
+        await window.storage.set(k, JSON.stringify(v)); return true;
+      }
+      if (_supabase) { const { error } = await _supabase.from('kv_store').upsert({ key: k, value: JSON.stringify(v), updated_at: new Date().toISOString() }, { onConflict: 'key' }); return !error; }
+    } catch(e) {} return false;
+  },
+  async del(k) {
+    try {
+      if (typeof window !== 'undefined' && window.storage) {
+        await window.storage.delete(k); return true;
+      }
+      if (_supabase) { const { error } = await _supabase.from('kv_store').delete().eq('key', k); return !error; }
+    } catch(e) {} return false;
+  },
+  async list(prefix) {
+    try {
+      if (typeof window !== 'undefined' && window.storage) {
+        const r = await window.storage.list(prefix); return r ? (r.keys || []) : [];
+      }
+      if (_supabase) { const { data } = await _supabase.from('kv_store').select('key').like('key', prefix + '%'); return data ? data.map(d => d.key) : []; }
+    } catch(e) {} return [];
+  },
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────
