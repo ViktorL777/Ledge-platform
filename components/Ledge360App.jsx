@@ -1053,12 +1053,6 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
-                {hasOthers && (
-                  <div style={{fontSize:12,color:MUTED,lineHeight:1.6,marginTop:10,padding:'10px 14px',background:S2,borderRadius:10,border:`1px solid ${BORD}`}}>
-                    <span style={{color:GOLD,fontWeight:600}}>Önértékelés</span> — a saját kitöltésed eredménye.<br/>
-                    <span style={{color:BLUE,fontWeight:600}}>Értékelőid átlaga</span> — az összes Téged értékelő személy válaszainak átlaga. Ez személyenként eltér, mert minden értékeltnek saját értékelői köre van.
-                  </div>
-                )}
                 <div style={{width:250,flexShrink:0,marginTop:40}}>
                   {hoveredDim ? (
                     <div style={{background:S2,border:`1px solid ${hoveredDim.color||GOLD}55`,borderRadius:14,padding:'16px 18px'}}>
@@ -1085,6 +1079,12 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 </div>
               </div>
             </div>
+            {hasOthers && (
+              <div style={{fontSize:12,color:MUTED,lineHeight:1.6,marginBottom:18,padding:'10px 16px',background:S2,borderRadius:10,border:`1px solid ${BORD}`}}>
+                <span style={{color:GOLD,fontWeight:600}}>Önértékelés</span> — a saját kitöltésed eredménye. &nbsp;·&nbsp;
+                <span style={{color:BLUE,fontWeight:600}}>Értékelőid átlaga</span> — az összes Téged értékelő személy válaszainak átlaga. Ez személyenként eltér, mert minden értékeltnek saját értékelői köre van.
+              </div>
+            )}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:14,textTransform:'uppercase',letterSpacing:'.1em'}}>Dimenzió átlagok</div>
               <ResponsiveContainer width="100%" height={dims.length * 38 + 24}>
