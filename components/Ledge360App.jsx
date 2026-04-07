@@ -1459,16 +1459,29 @@ function SurveyView({ nav, goBack, ctx }) {
   }, [scores, comment, activeDim, draftKey, draftLoaded]);
 
   // Auto-advance: when current dim is fully scored, move to next after 500ms
+  // Does NOT fire when user navigated backwards (prevDim > activeDim)
   const autoTimer = useRef(null);
+  const prevDimRef = useRef(0);
+  const manualBackRef = useRef(false);
+
   useEffect(() => {
     if (!draftLoaded) return;
     const safeDimsLocal = dims || [];
     const curDimLocal   = safeDimsLocal[activeDim];
     if (!curDimLocal) return;
-    // Only auto-advance if not on last dim and current dim is done
+
+    // Detect manual backward navigation
+    if (activeDim < prevDimRef.current) { manualBackRef.current = true; }
+    else if (activeDim > prevDimRef.current) { manualBackRef.current = false; }
+    prevDimRef.current = activeDim;
+
+    // Don't auto-advance if user just went back
+    if (manualBackRef.current) return;
+
     if (activeDim < safeDimsLocal.length - 1 && curDimLocal.items.every(i => (scores[i.id] || 0) > 0)) {
       if (autoTimer.current) clearTimeout(autoTimer.current);
       autoTimer.current = setTimeout(() => {
+        manualBackRef.current = false;
         setActiveDim(prev => prev + 1);
         if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
       }, 450);
@@ -4176,6 +4189,27 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
 }
 
 // ─── AI GROUP REPORT VIEW ─────────────────────────────────────
+// Inline markdown: **bold**, *italic*, `code`
+function renderInline(text) {
+  if (!text) return text;
+  const parts = [];
+  let remaining = text;
+  let key = 0;
+  while (remaining.length > 0) {
+    const boldMatch  = remaining.match(/^(.*?)\*\*(.+?)\*\*/s);
+    const italMatch  = !boldMatch && remaining.match(/^(.*?)\*(.+?)\*/s);
+    const codeMatch  = !boldMatch && !italMatch && remaining.match(/^(.*?)`(.+?)`/s);
+    const m = boldMatch || italMatch || codeMatch;
+    if (!m) { parts.push(<span key={key++}>{remaining}</span>); break; }
+    if (m[1]) parts.push(<span key={key++}>{m[1]}</span>);
+    if (boldMatch) parts.push(<strong key={key++} style={{fontWeight:700,color:TEXT}}>{m[2]}</strong>);
+    else if (italMatch) parts.push(<em key={key++} style={{fontStyle:'italic'}}>{m[2]}</em>);
+    else parts.push(<code key={key++} style={{background:S2,borderRadius:4,padding:'1px 5px',fontSize:12,fontFamily:'monospace'}}>{m[2]}</code>);
+    remaining = remaining.slice(m[0].length);
+  }
+  return parts;
+}
+
 function AIGroupReportView({ nav, goBack, ctx }) {
   const projectId = ctx.projectId;
   const [proj,    setProj]    = useState(null);
@@ -4226,12 +4260,15 @@ function AIGroupReportView({ nav, goBack, ctx }) {
   // Simple markdown-ish renderer
   function renderText(t) {
     return t.split('\n').map((line, i) => {
-      if (line.startsWith('**') && line.endsWith('**')) return <div key={i} style={{fontSize:15,fontWeight:700,color:TEXT,marginTop:20,marginBottom:6}}>{line.replace(/\*\*/g,'')}</div>;
-      if (line.startsWith('# '))  return <div key={i} style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,fontWeight:400,marginBottom:12}}>{line.slice(2)}</div>;
-      if (line.startsWith('## ')) return <div key={i} style={{fontSize:16,fontWeight:700,color:GOLD,marginTop:18,marginBottom:8}}>{line.slice(3)}</div>;
-      if (line.startsWith('- ') || line.startsWith('• ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7,paddingLeft:16,position:'relative'}}><span style={{position:'absolute',left:0,color:GOLD}}>·</span>{line.slice(2)}</div>;
-      if (line.trim() === '') return <div key={i} style={{height:8}}/>;
-      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7}}>{line}</div>;
+      const tr = line.trim();
+      if (tr === '' || tr === '---') return <div key={i} style={{height: tr === '---' ? 0 : 8, borderTop: tr === '---' ? `1px solid ${BORD}` : 'none', margin: tr === '---' ? '16px 0' : 0}}/>;
+      if (line.startsWith('# '))   return <div key={i} style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,fontWeight:400,marginTop:24,marginBottom:10}}>{renderInline(line.slice(2))}</div>;
+      if (line.startsWith('## '))  return <div key={i} style={{fontSize:16,fontWeight:700,color:GOLD,marginTop:22,marginBottom:8}}>{renderInline(line.slice(3))}</div>;
+      if (line.startsWith('### ')) return <div key={i} style={{fontSize:14,fontWeight:700,color:TEXT,marginTop:16,marginBottom:6}}>{renderInline(line.slice(4))}</div>;
+      if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,paddingLeft:18,position:'relative',marginBottom:2}}><span style={{position:'absolute',left:4,color:GOLD,fontWeight:700}}>·</span>{renderInline(line.slice(2))}</div>;
+      if (line.startsWith('> ')) return <div key={i} style={{fontSize:14,color:MUTED,lineHeight:1.7,paddingLeft:14,borderLeft:`3px solid ${GOLD}`,marginBottom:4,fontStyle:'italic'}}>{renderInline(line.slice(2))}</div>;
+      if (tr.startsWith('|')) return null; // skip table rows — too complex for inline renderer
+      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,marginBottom:2}}>{renderInline(line)}</div>;
     });
   }
 
@@ -4760,12 +4797,16 @@ function ReportPageView({ nav, goBack, ctx }) {
   }
 
   function renderAiText(t) {
-    return t.split('\n').map((line,i) => {
-      if (line.startsWith('**') && line.endsWith('**')) return <div key={i} style={{fontSize:15,fontWeight:700,color:TEXT,marginTop:18,marginBottom:6}}>{line.replace(/\*\*/g,'')}</div>;
-      if (line.startsWith('## ')) return <div key={i} style={{fontSize:15,fontWeight:700,color:GOLD,marginTop:18,marginBottom:6}}>{line.slice(3)}</div>;
-      if (line.startsWith('- ') || line.startsWith('• ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7,paddingLeft:14,position:'relative'}}><span style={{position:'absolute',left:0,color:GOLD}}>·</span>{line.slice(2)}</div>;
-      if (line.trim()==='') return <div key={i} style={{height:6}}/>;
-      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7}}>{line}</div>;
+    return t.split('\n').map((line, i) => {
+      const tr = line.trim();
+      if (tr === '' || tr === '---') return <div key={i} style={{height: tr === '---' ? 0 : 6, borderTop: tr === '---' ? `1px solid ${BORD}` : 'none', margin: tr === '---' ? '14px 0' : 0}}/>;
+      if (line.startsWith('# '))   return <div key={i} style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,fontWeight:400,marginTop:22,marginBottom:8}}>{renderInline(line.slice(2))}</div>;
+      if (line.startsWith('## '))  return <div key={i} style={{fontSize:15,fontWeight:700,color:GOLD,marginTop:20,marginBottom:6}}>{renderInline(line.slice(3))}</div>;
+      if (line.startsWith('### ')) return <div key={i} style={{fontSize:14,fontWeight:700,color:TEXT,marginTop:14,marginBottom:4}}>{renderInline(line.slice(4))}</div>;
+      if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,paddingLeft:18,position:'relative',marginBottom:2}}><span style={{position:'absolute',left:4,color:GOLD,fontWeight:700}}>·</span>{renderInline(line.slice(2))}</div>;
+      if (line.startsWith('> ')) return <div key={i} style={{fontSize:14,color:MUTED,lineHeight:1.7,paddingLeft:14,borderLeft:`3px solid ${GOLD}`,marginBottom:4,fontStyle:'italic'}}>{renderInline(line.slice(2))}</div>;
+      if (tr.startsWith('|')) return null;
+      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,marginBottom:2}}>{renderInline(line)}</div>;
     });
   }
 
