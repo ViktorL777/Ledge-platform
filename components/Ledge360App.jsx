@@ -620,9 +620,12 @@ const getPreset  = (id) => PRESETS.find(p => p.id === id) || PRESETS[0];
 function resolvePreset(libraryId, storedDims) {
   const preset = PRESETS.find(p => p.id === libraryId);
   if (preset) return preset;
-  if (storedDims && storedDims.length > 0) {
-    const totalItems = storedDims.reduce((s,d) => s + d.items.length, 0);
-    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims: storedDims, itemCount: totalItems };
+  // Guard: storedDims must be a real array (backward compat: old data may return as JSON string)
+  let dims = storedDims;
+  if (typeof dims === 'string') { try { dims = JSON.parse(dims); } catch { dims = null; } }
+  if (Array.isArray(dims) && dims.length > 0) {
+    const totalItems = dims.reduce((s,d) => s + (Array.isArray(d.items) ? d.items.length : 0), 0);
+    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims, itemCount: totalItems };
   }
   return PRESETS[0];
 }
@@ -1044,7 +1047,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <PolarGrid stroke={BORD2}/>
                       <PolarAngleAxis dataKey="dim" tick={<RadarTick/>} tickLine={false}/>
                       <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                      {hasSelf && <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:4}}/>}
+                      <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={hasSelf ? 0.18 : 0} strokeWidth={hasSelf ? 2 : 0} dot={hasSelf ? {fill:GOLD,r:4} : false}/>
                       {hasOthers && <Radar name="Értékelőid átlaga" dataKey="Értékelőid átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
                       {(hasSelf || hasOthers) && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
                     </RadarChart>
