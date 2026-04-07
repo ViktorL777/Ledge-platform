@@ -4238,18 +4238,56 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
           </div>
         ) : (
           <>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:24}}>
               <Badge color={GOLD}>{selfScores.length} önértékelés</Badge>
               <Badge color={BLUE}>{peerScores.length} peer visszajelzés</Badge>
               <Badge color={GREEN}>{partCount} értékelt</Badge>
             </div>
-            <ReportView
-              dims={preset.dims}
-              selfScores={mergeAll(selfScores)}
-              groups={peerScores.length > 0 ? [{ id:'all', name:'Összes értékelő', color:BLUE, scores: peerScores }] : []}
-              comments={[]}
-              scaleMax={getScaleMax((proj&&proj.scaleId)||'5pt')}
-            />
+            {/* Group summary: merged averages per dimension */}
+            {(() => {
+              const selfAvg = mergeAll(selfScores);
+              const peerAvg = mergeAll(peerScores);
+              const hasSelf = selfScores.length > 0;
+              const hasPeer = peerScores.length > 0;
+              const barData = (preset?.dims||[]).map(d => ({
+                name: d.label || d.id,
+                color: d.color || GOLD,
+                self: hasSelf ? dimAvg(selfAvg, d) : null,
+                peer: hasPeer ? dimAvg(peerAvg, d) : null,
+              }));
+              return (
+                <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
+                  <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:20}}>Csoport összesített eredmények</div>
+                  <div style={{display:'flex',gap:16,marginBottom:16,fontSize:12,color:MUTED}}>
+                    {hasSelf && <span><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:GOLD,marginRight:4,verticalAlign:'middle'}}/>Csoport önértékelés átlaga ({selfScores.length} fő)</span>}
+                    {hasPeer && <span><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:BLUE+'88',marginRight:4,verticalAlign:'middle'}}/>Csoport peer átlaga ({peerScores.length} értékelés)</span>}
+                  </div>
+                  {barData.map(row => (
+                    <div key={row.name} style={{marginBottom:14}}>
+                      <div style={{fontSize:12,color:row.color,fontWeight:600,marginBottom:5}}>{row.name}</div>
+                      {hasSelf && (
+                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:3}}>
+                          <div style={{width:80,fontSize:11,color:MUTED,textAlign:'right',flexShrink:0}}>Önértékelés</div>
+                          <div style={{flex:1,height:16,background:'#F0EDE8',borderRadius:8,overflow:'hidden'}}>
+                            <div style={{height:'100%',width:`${Math.round((row.self||0)/5*100)}%`,background:GOLD,borderRadius:8,transition:'width .4s'}}/>
+                          </div>
+                          <div style={{width:32,fontSize:12,color:TEXT,fontWeight:700,flexShrink:0}}>{row.self>0?row.self.toFixed(1):'—'}</div>
+                        </div>
+                      )}
+                      {hasPeer && (
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:80,fontSize:11,color:MUTED,textAlign:'right',flexShrink:0}}>Peer átlag</div>
+                          <div style={{flex:1,height:16,background:'#F0EDE8',borderRadius:8,overflow:'hidden'}}>
+                            <div style={{height:'100%',width:`${Math.round((row.peer||0)/5*100)}%`,background:BLUE+'88',borderRadius:8,transition:'width .4s'}}/>
+                          </div>
+                          <div style={{width:32,fontSize:12,color:TEXT,fontWeight:700,flexShrink:0}}>{row.peer>0?row.peer.toFixed(1):'—'}</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>
@@ -4477,21 +4515,36 @@ function ProjectStatusView({ nav, goBack, ctx }) {
     );
   }
 
-  function Section({ title, color, list, actionLabel }) {
+  function Section({ title, color, list }) {
     if (!list.length) return null;
     const selectable = list.filter(e => e.rater.email && e.rater.status !== 'done');
+    const allSelected = selectable.length > 0 && selectable.every(e => selected[e.rater.id]);
+    const someSelected = selectable.some(e => selected[e.rater.id]);
+    function toggleSection() {
+      if (allSelected) {
+        const s = {...selected};
+        selectable.forEach(e => { delete s[e.rater.id]; });
+        setSelected(s);
+      } else {
+        selectAll(selectable);
+      }
+    }
     return (
       <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,marginBottom:16,overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'14px 16px',borderBottom:`1px solid ${BORD}`,background:S2}}>
+          {selectable.length > 0 ? (
+            <input type="checkbox"
+              checked={allSelected}
+              ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+              onChange={toggleSection}
+              style={{width:16,height:16,accentColor:GOLD,cursor:'pointer',flexShrink:0}}
+            />
+          ) : (
+            <span style={{width:16,flexShrink:0}}/>
+          )}
           <span style={{width:10,height:10,borderRadius:'50%',background:color,flexShrink:0,display:'inline-block'}}/>
           <span style={{fontSize:13,fontWeight:700,color:TEXT,flex:1}}>{title}</span>
           <Badge color={color}>{list.length} fő</Badge>
-          {selectable.length > 0 && (
-            <button onClick={() => selectAll(selectable)}
-              style={{fontSize:11,color:GOLD,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
-              Összes kijelölése
-            </button>
-          )}
         </div>
         {list.map((e,i) => <EntryRow key={e.rater.id} e={e}/>)}
       </div>
@@ -4648,18 +4701,18 @@ function ProjectCompareView({ nav, goBack, ctx }) {
         )}
 
         {activeParts.length > 0 && dims.length > 0 && (
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',minWidth: 400 + activeParts.length * 140}}>
-              <thead>
+          <div style={{overflowX:'auto',borderRadius:12,border:`1px solid ${BORD}`}}>
+            <table style={{width:'100%',borderCollapse:'collapse',minWidth: 240 + activeParts.length * 160}}>
+              <thead style={{position:'sticky',top:0,zIndex:3}}>
                 <tr>
-                  <th style={{textAlign:'left',padding:'10px 14px',fontSize:12,color:MUTED,background:S2,border:`1px solid ${BORD}`,minWidth:180,position:'sticky',left:0,zIndex:2}}>
+                  <th style={{textAlign:'left',padding:'10px 16px',fontSize:12,color:MUTED,background:S2,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,minWidth:180}}>
                     Kompetencia {mode==='item' ? '/ Item' : ''}
                   </th>
                   {activeParts.map((part, i) => {
                     const col = COLORS[parts.indexOf(part) % COLORS.length];
                     const d = partData[part.id];
                     return (
-                      <th key={part.id} style={{padding:'10px 14px',background:S2,border:`1px solid ${BORD}`,minWidth:140,textAlign:'center'}}>
+                      <th key={part.id} style={{padding:'10px 14px',background:S2,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,minWidth:160,textAlign:'center'}}>
                         <div style={{fontSize:13,color:col,fontWeight:700}}>{part.firstName} {part.lastName}</div>
                         <div style={{fontSize:10,color:MUTED,marginTop:2,fontWeight:400}}>
                           {d?.selfDone ? '✓ önért.' : '○'} · {d?.peerDone||0} értékelő
@@ -4669,68 +4722,63 @@ function ProjectCompareView({ nav, goBack, ctx }) {
                   })}
                 </tr>
                 <tr>
-                  <th style={{textAlign:'left',padding:'6px 14px',fontSize:10,color:MUTED,background:S3,border:`1px solid ${BORD}`,position:'sticky',left:0,zIndex:2}}>
+                  <th style={{textAlign:'left',padding:'5px 16px',fontSize:10,color:MUTED,background:S3,borderBottom:`2px solid ${BORD}`,borderRight:`1px solid ${BORD}`}}>
                     <span style={{color:GOLD}}>■ Önértékelés</span> · <span style={{color:BLUE}}>■ Értékelők átlaga</span>
                   </th>
                   {activeParts.map(part => (
-                    <th key={part.id} style={{padding:'6px 14px',background:S3,border:`1px solid ${BORD}`,textAlign:'center',fontSize:10,color:MUTED,fontWeight:400}}>
+                    <th key={part.id} style={{padding:'5px 14px',background:S3,borderBottom:`2px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center',fontSize:10,color:MUTED,fontWeight:400}}>
                       Én · Értékelők
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {dims.map((d, di) => {
-                  const rows = mode === 'item' ? d.items : [null];
-                  return (
-                    <React.Fragment key={d.id}>
-                      {/* Dimension header row */}
-                      <tr style={{background:`${d.color||GOLD}0A`}}>
-                        <td style={{padding:'8px 14px',fontWeight:700,fontSize:12,color:d.color||GOLD,border:`1px solid ${BORD}`,position:'sticky',left:0,background:`${d.color||GOLD}12`,zIndex:1}}>
-                          {d.label || d.id}
+                {dims.map((d, di) => (
+                  <React.Fragment key={d.id}>
+                    <tr style={{background:`${d.color||GOLD}0A`}}>
+                      <td style={{padding:'8px 16px',fontWeight:700,fontSize:12,color:d.color||GOLD,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,background:`${d.color||GOLD}14`}}>
+                        {d.label || d.id}
+                      </td>
+                      {activeParts.map(part => {
+                        const pd = partData[part.id];
+                        if (!pd) return <td key={part.id} style={{borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center',color:MUTED,fontSize:12}}>—</td>;
+                        const selfVal = pd.selfScores ? dimAvg(pd.selfScores, d) : 0;
+                        const peerVal = pd.peerAvg ? dimAvg(pd.peerAvg, d) : 0;
+                        return (
+                          <td key={part.id} style={{padding:'8px 14px',borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center'}}>
+                            <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
+                              {scoreCell(selfVal, sMax)}
+                              <span style={{color:MUTED,fontSize:10}}>·</span>
+                              {scoreCell(peerVal, sMax)}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {mode === 'item' && d.items.map((item, ii) => (
+                      <tr key={item.id} style={{background: ii%2===0 ? 'transparent' : S2+'66'}}>
+                        <td style={{padding:'6px 16px 6px 28px',fontSize:12,color:MUTED,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,lineHeight:1.4}}>
+                          {item.text}
                         </td>
                         {activeParts.map(part => {
                           const pd = partData[part.id];
-                          if (!pd) return <td key={part.id} style={{border:`1px solid ${BORD}`,textAlign:'center'}}>—</td>;
-                          const selfVal = pd.selfScores ? dimAvg(pd.selfScores, d) : 0;
-                          const peerVal = dimAvg(pd.peerAvg, d);
+                          if (!pd) return <td key={part.id} style={{borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center',color:MUTED,fontSize:12}}>—</td>;
+                          const sv = pd.selfScores ? (pd.selfScores[item.id]||0) : 0;
+                          const pv = pd.peerAvg ? (pd.peerAvg[item.id]||0) : 0;
                           return (
-                            <td key={part.id} style={{padding:'8px 14px',border:`1px solid ${BORD}`,textAlign:'center'}}>
+                            <td key={part.id} style={{padding:'6px 14px',borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center'}}>
                               <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
-                                {scoreCell(selfVal, sMax)}
+                                {scoreCell(sv, sMax)}
                                 <span style={{color:MUTED,fontSize:10}}>·</span>
-                                {scoreCell(peerVal, sMax)}
+                                {scoreCell(pv, sMax)}
                               </div>
                             </td>
                           );
                         })}
                       </tr>
-                      {/* Item rows if item mode */}
-                      {mode === 'item' && d.items.map((item, ii) => (
-                        <tr key={item.id} style={{background: ii%2===0 ? 'transparent' : S2+'66'}}>
-                          <td style={{padding:'7px 14px 7px 26px',fontSize:12,color:MUTED,border:`1px solid ${BORD}`,position:'sticky',left:0,background: ii%2===0 ? SURF : S2,zIndex:1,lineHeight:1.4}}>
-                            {item.text}
-                          </td>
-                          {activeParts.map(part => {
-                            const pd = partData[part.id];
-                            if (!pd) return <td key={part.id} style={{border:`1px solid ${BORD}`,textAlign:'center'}}>—</td>;
-                            const sv = pd.selfScores ? (pd.selfScores[item.id]||0) : 0;
-                            const pv = pd.peerAvg[item.id]||0;
-                            return (
-                              <td key={part.id} style={{padding:'7px 14px',border:`1px solid ${BORD}`,textAlign:'center'}}>
-                                <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
-                                  {scoreCell(sv, sMax)}
-                                  <span style={{color:MUTED,fontSize:10}}>·</span>
-                                  {scoreCell(pv, sMax)}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  );
-                })}
+                    ))}
+                  </React.Fragment>
+                ))}
               </tbody>
             </table>
           </div>
