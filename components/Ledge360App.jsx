@@ -1038,9 +1038,9 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <PolarGrid stroke={BORD2}/>
                       <PolarAngleAxis dataKey="dim" tick={<RadarTick/>} tickLine={false}/>
                       <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                      <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:4}}/>
+                      {hasSelf && <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:4}}/>}
                       {hasOthers && <Radar name="Értékelőid átlaga" dataKey="Értékelőid átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
-                      {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
+                      {(hasSelf || hasOthers) && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
@@ -3652,6 +3652,7 @@ function ProjectView({ nav, goBack, ctx }) {
           <Btn variant="ghost" size="sm" onClick={() => setShowEmailTmpls(true)}>✉ Kimenő email-ek szerkesztése</Btn>
           <Btn variant="ghost" size="sm" onClick={() => nav('project_summary', {projectId})}>📊 Összesítő riport</Btn>
           <Btn variant="ghost" size="sm" onClick={() => nav('project_compare', {projectId})}>⇄ Összehasonlító riport</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => nav('project_status', {projectId})}>📋 Státusz</Btn>
         </div>
 
         {/* Kollaborátorok */}
@@ -4092,13 +4093,15 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
   );
 }
 
-// ─── PROJECT COMPARE VIEW — egyéni riportok összehasonlítása ──
-function ProjectCompareView({ nav, goBack, ctx }) {
+// ─── PROJECT STATUS VIEW — kitöltési státusz + csoportos emlékeztető ──
+function ProjectStatusView({ nav, goBack, ctx }) {
   const projectId = ctx.projectId;
-  const [proj,    setProj]    = useState(null);
-  const [parts,   setParts]   = useState([]);
-  const [raters,  setRaters]  = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [proj,     setProj]     = useState(null);
+  const [entries,  setEntries]  = useState([]); // { rater, part, type:'self'|'peer' }
+  const [selected, setSelected] = useState({}); // rater.id → true
+  const [sending,  setSending]  = useState(false);
+  const [sentMsg,  setSentMsg]  = useState('');
+  const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -4106,61 +4109,346 @@ function ProjectCompareView({ nav, goBack, ctx }) {
       setProj(p);
       const pks = await db.list('part:');
       const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
-      setParts(ps);
       const rks = await db.list('rat:');
       const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
-      setRaters(rs);
+      const list = [];
+      for (const part of ps) {
+        const pr = rs.filter(r => r.participantId === part.id);
+        for (const rater of pr) {
+          list.push({ rater, part, type: rater.role === 'self' ? 'self' : 'peer' });
+        }
+      }
+      setEntries(list);
+      setLoading(false);
+    })();
+  }, [projectId]);
+
+  const notStarted  = entries.filter(e => e.rater.status === 'pending');
+  const inProgress  = entries.filter(e => e.rater.status === 'in_progress');
+  const done        = entries.filter(e => e.rater.status === 'done');
+
+  function toggleSelect(id) { setSelected(prev => ({...prev, [id]: !prev[id]})); }
+  function selectAll(list) { const s = {}; list.forEach(e => { if (e.rater.email) s[e.rater.id] = true; }); setSelected(s); }
+  function clearAll() { setSelected({}); }
+
+  const selectedEntries = entries.filter(e => selected[e.rater.id]);
+
+  async function sendReminders() {
+    if (!selectedEntries.length) return;
+    setSending(true);
+    const cs = await db.get('collab:'+projectId) || [];
+    const contact = cs.find(c => c.permission === 'contact');
+    const session = await auth.getSession();
+    const cc = contact
+      ? { name: contact.name||'', email: contact.email||'', phone: contact.phone||'' }
+      : { name: session?.name||session?.email||'', email:'', phone:'' };
+    let ok = 0;
+    for (const e of selectedEntries) {
+      if (!e.rater.email) continue;
+      const partName = `${e.part.firstName} ${e.part.lastName||''}`.trim();
+      const res = await sendProjectEmail({ to:e.rater.email, firstName:e.rater.firstName, participantName:partName, code:e.rater.code, project:proj, templateKey:'reminder', consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
+      if (res.ok) {
+        await db.set(e.rater.id, { ...e.rater, reminder_sent_at: Date.now() });
+        ok++;
+      }
+    }
+    setSending(false);
+    setSentMsg(`✓ ${ok} emlékeztető elküldve`);
+    setTimeout(() => setSentMsg(''), 4000);
+    clearAll();
+  }
+
+  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
+
+  function EntryRow({ e }) {
+    const r = e.rater;
+    const hasEmail = !!r.email;
+    const isSelected = !!selected[r.id];
+    const statusColor = r.status==='done' ? GREEN : r.status==='in_progress' ? ORAN : MUTED;
+    const statusLabel = r.status==='done' ? 'Kész' : r.status==='in_progress' ? 'Folyamatban' : 'Nem kezdte el';
+    return (
+      <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderBottom:`1px solid ${BORD}`,
+        background: isSelected ? `${GOLD}0A` : 'transparent'}}>
+        {r.status !== 'done' && hasEmail && (
+          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)}
+            style={{width:16,height:16,accentColor:GOLD,cursor:'pointer',flexShrink:0}}/>
+        )}
+        {(r.status === 'done' || !hasEmail) && <div style={{width:16,flexShrink:0}}/>}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,color:TEXT,fontWeight:500}}>
+            {r.firstName} {r.lastName}
+            {e.type === 'self' && <span style={{fontSize:10,color:GOLD,marginLeft:6,fontWeight:700}}>ÖNÉRTÉKELÉS</span>}
+            {e.type === 'peer' && <span style={{fontSize:10,color:BLUE,marginLeft:6}}>→ {e.part.firstName} {e.part.lastName}</span>}
+          </div>
+          {r.email
+            ? <div style={{fontSize:11,color:MUTED}}>{r.email}</div>
+            : <div style={{fontSize:11,color:RED}}>⚠ Nincs email cím</div>}
+        </div>
+        {r.reminder_sent_at && <span style={{fontSize:10,color:MUTED}}>⏰ {new Date(r.reminder_sent_at).toLocaleDateString('hu-HU')}</span>}
+        <div style={{width:8,height:8,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
+        <span style={{fontSize:12,color:statusColor,fontWeight:600,width:90,textAlign:'right',flexShrink:0}}>{statusLabel}</span>
+      </div>
+    );
+  }
+
+  function Section({ title, color, list, actionLabel }) {
+    if (!list.length) return null;
+    const selectable = list.filter(e => e.rater.email && e.rater.status !== 'done');
+    return (
+      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,marginBottom:16,overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:'14px 16px',borderBottom:`1px solid ${BORD}`,background:S2}}>
+          <span style={{width:10,height:10,borderRadius:'50%',background:color,flexShrink:0,display:'inline-block'}}/>
+          <span style={{fontSize:13,fontWeight:700,color:TEXT,flex:1}}>{title}</span>
+          <Badge color={color}>{list.length} fő</Badge>
+          {selectable.length > 0 && (
+            <button onClick={() => selectAll(selectable)}
+              style={{fontSize:11,color:GOLD,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+              Összes kijelölése
+            </button>
+          )}
+        </div>
+        {list.map((e,i) => <EntryRow key={e.rater.id} e={e}/>)}
+      </div>
+    );
+  }
+
+  const selCount = selectedEntries.length;
+
+  return (
+    <div style={{background:BG,minHeight:'100vh'}}>
+      <TopBar title={(proj?proj.name:'') + ' — Státusz'} subtitle={proj?proj.client:''} back onBack={goBack}/>
+      <div style={{maxWidth:760,margin:'0 auto',padding:'22px 24px'}}>
+
+        {/* Summary */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:22}}>
+          {[
+            {label:'Kész', val:done.length, color:GREEN},
+            {label:'Folyamatban', val:inProgress.length, color:ORAN},
+            {label:'Nem kezdte el', val:notStarted.length, color:MUTED},
+          ].map(s => (
+            <div key={s.label} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'14px 18px',textAlign:'center'}}>
+              <div style={{fontSize:28,fontFamily:"'Instrument Serif',serif",color:s.color,fontWeight:600}}>{s.val}</div>
+              <div style={{fontSize:11,color:MUTED,marginTop:4}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sticky reminder bar */}
+        {selCount > 0 && (
+          <div style={{position:'sticky',top:12,zIndex:10,background:SURF,border:`1px solid ${GOLD}`,borderRadius:12,
+            padding:'12px 18px',marginBottom:16,display:'flex',alignItems:'center',gap:12,boxShadow:'0 4px 16px rgba(0,0,0,.1)'}}>
+            <span style={{fontSize:13,color:TEXT,flex:1}}><b style={{color:GOLD}}>{selCount} fő</b> kijelölve emlékeztetőre</span>
+            <Btn variant="ghost" size="sm" onClick={clearAll}>Törlés</Btn>
+            <Btn size="sm" onClick={sendReminders} disabled={sending}>
+              {sending ? 'Küldés...' : `✉ Emlékeztető küldése`}
+            </Btn>
+          </div>
+        )}
+        {sentMsg && (
+          <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'10px 16px',marginBottom:16,fontSize:13,color:GREEN}}>{sentMsg}</div>
+        )}
+
+        <Section title="Nem kezdte el" color={MUTED} list={notStarted}/>
+        <Section title="Folyamatban" color={ORAN} list={inProgress}/>
+        <Section title="Kész" color={GREEN} list={done}/>
+
+        {entries.length === 0 && (
+          <div style={{textAlign:'center',padding:48,color:MUTED}}>Még nincs értékelt vagy értékelő a projektben.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PROJECT COMPARE VIEW — összehasonlító táblázat ──────────
+function ProjectCompareView({ nav, goBack, ctx }) {
+  const projectId = ctx.projectId;
+  const [proj,     setProj]     = useState(null);
+  const [parts,    setParts]    = useState([]);
+  const [selected, setSelected] = useState({}); // partId → true/false
+  const [partData, setPartData] = useState({}); // partId → { selfScores, peerAvg, selfDone, peerDone }
+  const [preset,   setPreset]   = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [mode,     setMode]     = useState('dim'); // 'dim' | 'item'
+
+  useEffect(() => {
+    (async () => {
+      const p = await db.get(projectId);
+      setProj(p);
+      const pr = resolvePreset(p ? p.libraryId : null, p ? p.customDims : null);
+      setPreset(pr);
+      const pks = await db.list('part:');
+      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
+      setParts(ps);
+      // Default: all selected
+      const sel = {};
+      ps.forEach(p => { sel[p.id] = true; });
+      setSelected(sel);
+      // Load each participant's data
+      const rks = await db.list('rat:');
+      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
+      const pd = {};
+      for (const part of ps) {
+        const pr2   = rs.filter(r => r.participantId === part.id);
+        const selfR = pr2.find(r => r.role === 'self');
+        const peerR = pr2.filter(r => r.role !== 'self' && r.status === 'done');
+        const selfResp = selfR ? await db.get('resp:'+selfR.code) : null;
+        const peerResps = await Promise.all(peerR.map(r => db.get('resp:'+r.code)));
+        const peerScores = peerResps.filter(Boolean).map(r => r.scores||{});
+        pd[part.id] = {
+          selfScores: selfResp ? selfResp.scores : null,
+          peerAvg:    mergeScoresets(peerScores),
+          selfDone:   selfR && selfR.status === 'done',
+          peerDone:   peerR.length,
+        };
+      }
+      setPartData(pd);
       setLoading(false);
     })();
   }, [projectId]);
 
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
 
+  const activeParts = parts.filter(p => selected[p.id]);
+  const dims = preset ? (preset.dims || []) : [];
+
+  const COLORS = [GOLD, BLUE, GREEN, PURP, ORAN, '#7E5EA0', '#4A7A9E', '#A06A48'];
+
+  function scoreCell(val, max) {
+    if (!val || val <= 0) return <span style={{color:DIM,fontSize:12}}>—</span>;
+    const color = scoreColor(val, max || 5);
+    return (
+      <span style={{background:`${color}22`,color,borderRadius:6,padding:'2px 9px',fontSize:13,fontWeight:700,display:'inline-block'}}>
+        {val.toFixed ? val.toFixed(1) : val}
+      </span>
+    );
+  }
+
+  const sMax = 5;
+
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar title={(proj?proj.name:'') + ' — Összehasonlító riport'} subtitle={proj?proj.client:''} back onBack={goBack}/>
-      <div style={{maxWidth:900,margin:'0 auto',padding:'22px 24px'}}>
-        <div style={{fontSize:13,color:MUTED,marginBottom:20}}>Kattints egy értékeltre az egyéni riportjához.</div>
-        {parts.length === 0 && (
-          <div style={{textAlign:'center',padding:48,color:MUTED}}>Még nincs értékelt a projektben.</div>
+      <div style={{maxWidth:'100%',padding:'22px 32px'}}>
+
+        {/* Participant selector chips */}
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Értékeltek — kattints a be/ki kapcsoláshoz</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {parts.map((part, i) => {
+              const on = !!selected[part.id];
+              const col = COLORS[i % COLORS.length];
+              return (
+                <button key={part.id}
+                  onClick={() => setSelected(prev => ({...prev, [part.id]: !prev[part.id]}))}
+                  style={{padding:'7px 16px',borderRadius:20,border:`2px solid ${on ? col : BORD}`,
+                    background: on ? `${col}18` : 'transparent',
+                    color: on ? col : MUTED, fontWeight: on ? 700 : 400,
+                    cursor:'pointer',fontSize:13,fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
+                  {part.firstName} {part.lastName}
+                </button>
+              );
+            })}
+            <button onClick={() => setMode(m => m === 'dim' ? 'item' : 'dim')}
+              style={{padding:'7px 16px',borderRadius:20,border:`1px solid ${BORD}`,background:'transparent',
+                color:MUTED,cursor:'pointer',fontSize:12,fontFamily:"'DM Sans',sans-serif",marginLeft:'auto'}}>
+              {mode === 'dim' ? 'Kompetencia szint' : 'Item szint'} ↕
+            </button>
+          </div>
+        </div>
+
+        {activeParts.length === 0 && (
+          <div style={{textAlign:'center',padding:48,color:MUTED}}>Válassz ki legalább egy értékeltet.</div>
         )}
-        {parts.map(part => {
-          const pr      = raters.filter(r => r.participantId === part.id);
-          const selfR   = pr.find(r => r.role === 'self');
-          const peerR   = pr.filter(r => r.role !== 'self');
-          const done    = peerR.filter(r => r.status === 'done').length;
-          const selfDone = selfR && selfR.status === 'done';
-          return (
-            <div key={part.id}
-              onClick={() => nav('report', { projectId, participantId: part.id })}
-              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'16px 20px',marginBottom:10,
-                cursor:'pointer',display:'flex',alignItems:'center',gap:14,transition:'border-color .15s'}}
-              onMouseEnter={e => e.currentTarget.style.borderColor = GOLD}
-              onMouseLeave={e => e.currentTarget.style.borderColor = BORD}>
-              <div style={{width:40,height:40,borderRadius:'50%',background:`${GOLD}22`,border:`1px solid ${GDIM}`,
-                display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,color:GOLD,flexShrink:0,
-                fontFamily:"'Instrument Serif',serif",fontWeight:600}}>
-                {part.firstName[0]}{part.lastName?part.lastName[0]:''}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:15,color:TEXT,fontWeight:600}}>{part.firstName} {part.lastName}</div>
-                <div style={{fontSize:12,color:MUTED,marginTop:2}}>
-                  {selfDone ? '✓ Önértékelés' : '○ Önértékelés hiányzik'}
-                  <span style={{margin:'0 8px'}}>·</span>
-                  {done}/{peerR.length} értékelő beküldött
-                </div>
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                {done === 0 && !selfDone
-                  ? <Badge color={MUTED}>Nincs adat</Badge>
-                  : done < 2
-                    ? <Badge color={ORAN}>Részleges</Badge>
-                    : <Badge color={GREEN}>Kész</Badge>}
-                <span style={{fontSize:18,color:GOLD}}>→</span>
-              </div>
-            </div>
-          );
-        })}
+
+        {activeParts.length > 0 && dims.length > 0 && (
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',minWidth: 400 + activeParts.length * 140}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign:'left',padding:'10px 14px',fontSize:12,color:MUTED,background:S2,border:`1px solid ${BORD}`,minWidth:180,position:'sticky',left:0,zIndex:2}}>
+                    Kompetencia {mode==='item' ? '/ Item' : ''}
+                  </th>
+                  {activeParts.map((part, i) => {
+                    const col = COLORS[parts.indexOf(part) % COLORS.length];
+                    const d = partData[part.id];
+                    return (
+                      <th key={part.id} style={{padding:'10px 14px',background:S2,border:`1px solid ${BORD}`,minWidth:140,textAlign:'center'}}>
+                        <div style={{fontSize:13,color:col,fontWeight:700}}>{part.firstName} {part.lastName}</div>
+                        <div style={{fontSize:10,color:MUTED,marginTop:2,fontWeight:400}}>
+                          {d?.selfDone ? '✓ önért.' : '○'} · {d?.peerDone||0} értékelő
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+                <tr>
+                  <th style={{textAlign:'left',padding:'6px 14px',fontSize:10,color:MUTED,background:S3,border:`1px solid ${BORD}`,position:'sticky',left:0,zIndex:2}}>
+                    <span style={{color:GOLD}}>■ Önértékelés</span> · <span style={{color:BLUE}}>■ Értékelők átlaga</span>
+                  </th>
+                  {activeParts.map(part => (
+                    <th key={part.id} style={{padding:'6px 14px',background:S3,border:`1px solid ${BORD}`,textAlign:'center',fontSize:10,color:MUTED,fontWeight:400}}>
+                      Én · Értékelők
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dims.map((d, di) => {
+                  const rows = mode === 'item' ? d.items : [null];
+                  return (
+                    <React.Fragment key={d.id}>
+                      {/* Dimension header row */}
+                      <tr style={{background:`${d.color||GOLD}0A`}}>
+                        <td style={{padding:'8px 14px',fontWeight:700,fontSize:12,color:d.color||GOLD,border:`1px solid ${BORD}`,position:'sticky',left:0,background:`${d.color||GOLD}12`,zIndex:1}}>
+                          {d.label || d.id}
+                        </td>
+                        {activeParts.map(part => {
+                          const pd = partData[part.id];
+                          if (!pd) return <td key={part.id} style={{border:`1px solid ${BORD}`,textAlign:'center'}}>—</td>;
+                          const selfVal = pd.selfScores ? dimAvg(pd.selfScores, d) : 0;
+                          const peerVal = dimAvg(pd.peerAvg, d);
+                          return (
+                            <td key={part.id} style={{padding:'8px 14px',border:`1px solid ${BORD}`,textAlign:'center'}}>
+                              <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
+                                {scoreCell(selfVal, sMax)}
+                                <span style={{color:MUTED,fontSize:10}}>·</span>
+                                {scoreCell(peerVal, sMax)}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {/* Item rows if item mode */}
+                      {mode === 'item' && d.items.map((item, ii) => (
+                        <tr key={item.id} style={{background: ii%2===0 ? 'transparent' : S2+'66'}}>
+                          <td style={{padding:'7px 14px 7px 26px',fontSize:12,color:MUTED,border:`1px solid ${BORD}`,position:'sticky',left:0,background: ii%2===0 ? SURF : S2,zIndex:1,lineHeight:1.4}}>
+                            {item.text}
+                          </td>
+                          {activeParts.map(part => {
+                            const pd = partData[part.id];
+                            if (!pd) return <td key={part.id} style={{border:`1px solid ${BORD}`,textAlign:'center'}}>—</td>;
+                            const sv = pd.selfScores ? (pd.selfScores[item.id]||0) : 0;
+                            const pv = pd.peerAvg[item.id]||0;
+                            return (
+                              <td key={part.id} style={{padding:'7px 14px',border:`1px solid ${BORD}`,textAlign:'center'}}>
+                                <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
+                                  {scoreCell(sv, sMax)}
+                                  <span style={{color:MUTED,fontSize:10}}>·</span>
+                                  {scoreCell(pv, sMax)}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -5021,8 +5309,9 @@ export default function App() {
     project:          <ProjectView       nav={nav} goBack={goBack} ctx={ctx}/>,
     raters:           <RatersView        nav={nav} goBack={goBack} ctx={ctx}/>,
     report:           <ReportPageView     nav={nav} goBack={goBack} ctx={ctx}/>,
-    project_summary:  <ProjectSummaryView nav={nav} goBack={goBack} ctx={ctx}/>,
-    project_compare:  <ProjectCompareView nav={nav} goBack={goBack} ctx={ctx}/>,
+    project_summary:  <ProjectSummaryView  nav={nav} goBack={goBack} ctx={ctx}/>,
+    project_compare:  <ProjectCompareView  nav={nav} goBack={goBack} ctx={ctx}/>,
+    project_status:   <ProjectStatusView   nav={nav} goBack={goBack} ctx={ctx}/>,
     library_manager:  <LibraryManagerView nav={nav} goBack={goBack} ctx={ctx}/>,
   };
 
