@@ -1662,7 +1662,43 @@ function SurveyView({ nav, goBack, ctx }) {
           </div>
         )}
 
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20}}>
+        {/* Submit card — only on last dimension, all items filled */}
+        {activeDim === safeDims.length - 1 && filled >= totalItems && (
+          <div style={{marginTop:28,background:`linear-gradient(135deg, ${GOLD}18 0%, ${GREEN}12 100%)`,border:`2px solid ${GOLD}55`,borderRadius:16,padding:'28px 28px',textAlign:'center'}}>
+            <div style={{fontSize:28,marginBottom:10}}>✅</div>
+            <div style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,fontWeight:400,marginBottom:8}}>
+              Minden kérdést megválaszoltál!
+            </div>
+            <div style={{fontSize:14,color:MUTED,marginBottom:22,lineHeight:1.6}}>
+              Ha mindent rendben találsz, küldd be az értékelést.<br/>
+              <span style={{fontSize:12}}>Az értékelés beküldése után az eredmények azonnal megjelennek a riportban.</span>
+            </div>
+            <button
+              onClick={handleSubmit}
+              disabled={saving}
+              style={{
+                background: saving ? MUTED : GOLD,
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: 12,
+                padding: '16px 48px',
+                fontSize: 17,
+                fontWeight: 700,
+                fontFamily: "'DM Sans',sans-serif",
+                cursor: saving ? 'default' : 'pointer',
+                letterSpacing: '.02em',
+                boxShadow: saving ? 'none' : `0 4px 18px ${GOLD}55`,
+                transition: 'all .2s',
+              }}
+              onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#B8973A'; }}
+              onMouseLeave={e => { if (!saving) e.currentTarget.style.background = GOLD; }}
+            >
+              {saving ? 'Beküldés folyamatban…' : '📤 Az értékelés beküldése'}
+            </button>
+          </div>
+        )}
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:16}}>
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
             {'← Előző'}
           </Btn>
@@ -1671,9 +1707,9 @@ function SurveyView({ nav, goBack, ctx }) {
               ? <span style={{fontSize:12,color:GREEN}}>✓ Továbblépés automatikusan…</span>
               : <span style={{fontSize:12,color:MUTED}}>Értékelj be minden itemet a továbblépéshez</span>
           ) : (
-            <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
-              {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
-            </Btn>
+            filled < totalItems
+              ? <span style={{fontSize:12,color:MUTED}}>Még {totalItems - filled} kérdés van hátra</span>
+              : null
           )}
         </div>
       </div>
