@@ -3118,18 +3118,16 @@ function SurveyEnterView({ nav, goBack, ctx }) {
       }
     }
 
-    // 2. Search consultant projects — FIX: list rats once outside loop
-    const projKeys  = await db.list('proj:');
-    const ratKeys   = await db.list('rat:');
-    const allRats   = await Promise.all(ratKeys.map(k => db.get(k)));
+    // 2. Search consultant projects — keresés közvetlenül a rat: rekordokban
+    const ratKeys = await db.list('rat:');
+    const allRats = await Promise.all(ratKeys.map(k => db.get(k)));
+    const ratIdx  = allRats.findIndex(r => r && r.code === t);
 
-    for (const pk of projKeys) {
-      const proj = await db.get(pk);
-      if (!proj) continue;
-      const ratIdx = allRats.findIndex(r => r && r.projectId === proj.id && r.code === t);
-      if (ratIdx >= 0) {
-        const rat    = allRats[ratIdx];
-        const ratKey = ratKeys[ratIdx];
+    if (ratIdx >= 0) {
+      const rat    = allRats[ratIdx];
+      const ratKey = ratKeys[ratIdx];
+      const proj   = await db.get(rat.projectId);
+      if (proj) {
         const preset = resolvePreset(proj.libraryId, proj.customDims);
         const part   = await db.get(rat.participantId);
         await db.set(ratKey, { ...rat, status: rat.status==='done' ? 'done' : 'in_progress' });
