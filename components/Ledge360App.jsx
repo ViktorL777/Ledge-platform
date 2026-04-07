@@ -1460,9 +1460,11 @@ function SurveyView({ nav, goBack, ctx }) {
 
   // Auto-advance: when current dim is fully scored, move to next after 500ms
   // Does NOT fire when user navigated backwards (prevDim > activeDim)
+  // DOES fire again if user actively changes a score after going back
   const autoTimer = useRef(null);
   const prevDimRef = useRef(0);
   const manualBackRef = useRef(false);
+  const prevScoresRef = useRef({});
 
   useEffect(() => {
     if (!draftLoaded) return;
@@ -1470,12 +1472,23 @@ function SurveyView({ nav, goBack, ctx }) {
     const curDimLocal   = safeDimsLocal[activeDim];
     if (!curDimLocal) return;
 
-    // Detect manual backward navigation
-    if (activeDim < prevDimRef.current) { manualBackRef.current = true; }
-    else if (activeDim > prevDimRef.current) { manualBackRef.current = false; }
+    // Detect manual backward navigation by dim change
+    if (activeDim < prevDimRef.current) {
+      manualBackRef.current = true;
+    } else if (activeDim > prevDimRef.current) {
+      manualBackRef.current = false;
+    }
     prevDimRef.current = activeDim;
 
-    // Don't auto-advance if user just went back
+    // If user changed a score on current dim after going back → re-enable auto-advance
+    const curItems = curDimLocal.items.map(i => i.id);
+    const prevScores = prevScoresRef.current;
+    const scoreChanged = curItems.some(id => scores[id] !== prevScores[id]);
+    if (scoreChanged) {
+      manualBackRef.current = false;
+    }
+    prevScoresRef.current = { ...scores };
+
     if (manualBackRef.current) return;
 
     if (activeDim < safeDimsLocal.length - 1 && curDimLocal.items.every(i => (scores[i.id] || 0) > 0)) {
