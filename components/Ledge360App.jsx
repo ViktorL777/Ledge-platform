@@ -906,6 +906,46 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
 }
 
 // Kétlépéses törlés megerősítés — először rákérdez, majd második körben szöveget kér
+// ─── AI LOADER ─────────────────────────────────────────────────
+function AILoader({ label }) {
+  const [dots, setDots] = React.useState(0);
+  const [phase, setPhase] = React.useState(0);
+  const phases = [
+    'Adatok előkészítése…',
+    'Kompetenciák elemzése…',
+    'Mintázatok azonosítása…',
+    'Szöveg összeállítása…',
+    'Finomítás…',
+  ];
+  React.useEffect(() => {
+    const t1 = setInterval(() => setDots(d => (d + 1) % 4), 400);
+    const t2 = setInterval(() => setPhase(p => (p + 1) % phases.length), 2200);
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, []);
+  const dotStr = '.'.repeat(dots);
+  return (
+    <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'48px 32px',textAlign:'center'}}>
+      {/* Animated ring */}
+      <div style={{position:'relative',width:64,height:64,margin:'0 auto 24px'}}>
+        <svg width="64" height="64" viewBox="0 0 64 64" style={{position:'absolute',inset:0,animation:'spin 1.4s linear infinite'}}>
+          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+          <circle cx="32" cy="32" r="26" fill="none" stroke={BORD} strokeWidth="4"/>
+          <circle cx="32" cy="32" r="26" fill="none" stroke={GOLD} strokeWidth="4"
+            strokeDasharray="40 124" strokeLinecap="round"/>
+        </svg>
+        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>🤖</div>
+      </div>
+      <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:8}}>
+        {label || 'AI riport készül'}
+      </div>
+      <div style={{fontSize:13,color:GOLD,fontWeight:500,marginBottom:6,minHeight:20}}>
+        {phases[phase]}{dotStr}
+      </div>
+      <div style={{fontSize:12,color:MUTED}}>Ez 10–30 másodpercet vehet igénybe</div>
+    </div>
+  );
+}
+
 function DoubleConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   const [step, setStep] = React.useState(1);
   const [inputVal, setInputVal] = React.useState('');
@@ -4214,13 +4254,8 @@ function AIGroupReportView({ nav, goBack, ctx }) {
             {!hasData && <span style={{fontSize:12,color:MUTED}}>Nincs elegendő adat a generáláshoz.</span>}
           </div>
         </div>
+        {genning && <AILoader label="Csoportriport generálása"/>}
         {error && <div style={{background:`${RED}18`,border:`1px solid ${RED}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:RED}}>{error}</div>}
-        {genning && (
-          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:40,textAlign:'center',color:MUTED}}>
-            <div style={{fontSize:24,marginBottom:12}}>🤖</div>
-            <div>Az AI elemzi az adatokat és összefoglaló riportot készít…</div>
-          </div>
-        )}
         {text && !genning && (
           <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'28px 32px'}}>
             <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:20}}>AI-generált csoportriport · {new Date().toLocaleDateString('hu-HU')}</div>
@@ -4782,21 +4817,21 @@ function ReportPageView({ nav, goBack, ctx }) {
         )}
         {pageTab === 'ai' && (
           <div>
-            {/* Generate button */}
-            {!aiText && (
+            {/* Generate button — only show if not generating and no text yet */}
+            {!aiText && !aiGenning && (
               <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
                 <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:8}}>AI Fejlesztési terv</div>
                 <div style={{fontSize:13,color:MUTED,lineHeight:1.6,marginBottom:16}}>
                   Az AI elemzi {part?.firstName} eredményeit — erősségeket, vak foltokat, rejtett erősségeket — és személyes, cselekvésorientált fejlesztési tervet készít. Utána kérdezhetsz, pontosíthatsz.
                 </div>
                 {aiError && <div style={{fontSize:12,color:RED,marginBottom:12}}>{aiError}</div>}
-                <Btn onClick={generateAI} disabled={aiGenning}>
-                  {aiGenning ? '⏳ Generálás...' : '🤖 Fejlesztési terv generálása'}
-                </Btn>
+                <Btn onClick={generateAI}>🤖 Fejlesztési terv generálása</Btn>
               </div>
             )}
+            {/* Loader */}
+            {aiGenning && <AILoader label={`${part?.firstName} fejlesztési tervének elkészítése`}/>}
             {/* Generated plan */}
-            {aiText && (
+            {aiText && !aiGenning && (
               <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
                   <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em'}}>AI Fejlesztési terv · {part?.firstName} {part?.lastName}</div>
@@ -4806,7 +4841,7 @@ function ReportPageView({ nav, goBack, ctx }) {
               </div>
             )}
             {/* Chat */}
-            {aiText && (
+            {aiText && !aiGenning && (
               <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,overflow:'hidden'}}>
                 <div style={{padding:'14px 20px',borderBottom:`1px solid ${BORD}`,fontSize:13,color:MUTED}}>💬 Folytasd a párbeszédet — kérdezz, pontosíts</div>
                 <div style={{maxHeight:320,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
@@ -4817,7 +4852,15 @@ function ReportPageView({ nav, goBack, ctx }) {
                       </div>
                     </div>
                   ))}
-                  {chatSending && <div style={{fontSize:12,color:MUTED}}>⏳ Az AI gondolkodik…</div>}
+                  {chatSending && (
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <svg width="20" height="20" viewBox="0 0 20 20" style={{animation:'spin 1s linear infinite',flexShrink:0}}>
+                        <circle cx="10" cy="10" r="7" fill="none" stroke={BORD} strokeWidth="2.5"/>
+                        <circle cx="10" cy="10" r="7" fill="none" stroke={GOLD} strokeWidth="2.5" strokeDasharray="14 30" strokeLinecap="round"/>
+                      </svg>
+                      <span style={{fontSize:12,color:MUTED}}>Az AI gondolkodik…</span>
+                    </div>
+                  )}
                 </div>
                 <div style={{display:'flex',gap:8,padding:'12px 16px',borderTop:`1px solid ${BORD}`}}>
                   <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
