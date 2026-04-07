@@ -950,13 +950,13 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
 
   const radarData = dims.map(d => {
     const row = { dim: d.id, 'Önértékelés': dimAvg(ss, d) };
-    if (hasOthers) row['Mások átlaga'] = dimAvg(othersAvg, d);
+    if (hasOthers) row['Értékelőid átlaga'] = dimAvg(othersAvg, d);
     return row;
   });
   const barData = dims.map(d => ({
     name: d.label, dimId: d.id, color: d.color,
     'Önértékelés': dimAvg(ss, d),
-    ...(hasOthers ? { 'Mások átlaga': dimAvg(othersAvg, d) } : {}),
+    ...(hasOthers ? { 'Értékelőid átlaga': dimAvg(othersAvg, d) } : {}),
   }));
 
   const allItems   = dims.flatMap(d => d.items.map(i => ({ ...i, dimLabel: d.label, dimColor: d.color })));
@@ -1039,11 +1039,17 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <PolarAngleAxis dataKey="dim" tick={<RadarTick/>} tickLine={false}/>
                       <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
                       <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:4}}/>
-                      {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
+                      {hasOthers && <Radar name="Értékelőid átlaga" dataKey="Értékelőid átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
                       {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
+                {hasOthers && (
+                  <div style={{fontSize:12,color:MUTED,lineHeight:1.6,marginTop:10,padding:'10px 14px',background:S2,borderRadius:10,border:`1px solid ${BORD}`}}>
+                    <span style={{color:GOLD,fontWeight:600}}>Önértékelés</span> — a saját kitöltésed eredménye.<br/>
+                    <span style={{color:BLUE,fontWeight:600}}>Értékelőid átlaga</span> — az összes Téged értékelő személy válaszainak átlaga. Ez személyenként eltér, mert minden értékeltnek saját értékelői köre van.
+                  </div>
+                )}
                 <div style={{width:250,flexShrink:0,marginTop:40}}>
                   {hoveredDim ? (
                     <div style={{background:S2,border:`1px solid ${hoveredDim.color||GOLD}55`,borderRadius:14,padding:'16px 18px'}}>
@@ -1080,7 +1086,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                   <Bar dataKey="Önértékelés" radius={4} barSize={14}>
                     {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
                   </Bar>
-                  {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.4} radius={4} barSize={14}/>}
+                  {hasOthers && <Bar dataKey="Értékelőid átlaga" fill={BLUE} fillOpacity={0.4} radius={4} barSize={14}/>}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1098,7 +1104,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <button
                         onClick={() => setExpanded(prev => ({ ...prev, [g.id]: !prev[g.id] }))}
                         style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
-                        <span style={{fontSize:20}}>{g.emoji}</span>
+                        <span style={{width:10,height:10,borderRadius:'50%',background:g.color||GOLD,flexShrink:0,display:'inline-block'}}/>
                         <span style={{fontSize:14,color:TEXT,flex:1,fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>{g.name}</span>
                         {done === 0
                           ? <span style={{fontSize:12,color:MUTED}}>Még nincs adat</span>
@@ -1176,10 +1182,10 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                     <tr>
                       <th style={{textAlign:'left',padding:'6px 10px',color:MUTED,fontSize:11,background:S2}}>Kompetencia</th>
                       <th style={{textAlign:'center',padding:'6px 10px',color:GOLD,fontSize:11,background:S2,width:70}}>Én</th>
-                      {hasOthers && <th style={{textAlign:'center',padding:'6px 10px',color:BLUE,fontSize:11,background:S2,width:80}}>Mások</th>}
+                      {hasOthers && <th style={{textAlign:'center',padding:'6px 10px',color:BLUE,fontSize:11,background:S2,width:80}}>Értékelőid</th>}
                       {groupAvgs.map(g => (
                         <th key={g.id} style={{textAlign:'center',padding:'6px 10px',color:g.color||GOLD,fontSize:11,background:S2,width:80}}>
-                          {g.emoji} {g.name}
+                          {g.name}
                         </th>
                       ))}
                       {hasOthers && <th style={{textAlign:'center',padding:'6px 10px',color:MUTED,fontSize:11,background:S2,width:55}}>{'Δ'}</th>}
@@ -1276,7 +1282,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 {hasOthers && (
                   <div>
                     <div style={{fontSize:12,color:RED,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
-                      ▲ Vak foltok <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(én {'≥'}1 {'>'} mások)</span>
+                      ▲ Vak foltok <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(én {'≥'}1 {'>'} értékelőid)</span>
                     </div>
                     {blindSpots.length === 0
                       ? <div style={{color:MUTED,fontSize:13}}>Nincs detektált vak folt.</div>
@@ -1284,7 +1290,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                           <div key={item.id} style={{padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
                             <div style={{fontSize:13,color:TEXT}}>{item.text}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:2}}>
-                              Én: <b style={{color:RED}}>{item.self}</b> · Mások: <b>{item.others.toFixed(1)}</b>
+                              Én: <b style={{color:RED}}>{item.self}</b> · Értékelőid: <b>{item.others.toFixed(1)}</b>
                             </div>
                           </div>
                         ))
@@ -1294,7 +1300,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 {hasOthers && (
                   <div>
                     <div style={{fontSize:12,color:GREEN,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
-                      ▼ Rejtett erősségek <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(mások {'≥'}1 {'>'} én)</span>
+                      ▼ Rejtett erősségek <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(értékelőid {'≥'}1 {'>'} én)</span>
                     </div>
                     {hiddenStr.length === 0
                       ? <div style={{color:MUTED,fontSize:13}}>Nincs detektált rejtett erősség.</div>
@@ -1302,7 +1308,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                           <div key={item.id} style={{padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
                             <div style={{fontSize:13,color:TEXT}}>{item.text}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:2}}>
-                              Én: <b>{item.self}</b> · Mások: <b style={{color:GREEN}}>{item.others.toFixed(1)}</b>
+                              Én: <b>{item.self}</b> · Értékelőid: <b style={{color:GREEN}}>{item.others.toFixed(1)}</b>
                             </div>
                           </div>
                         ))
@@ -1328,7 +1334,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 {allComments.map((c, i) => (
                   <div key={i} style={{background:S2,border:`1px solid ${BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:10}}>
                     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                      {c.emoji && <span style={{fontSize:16}}>{c.emoji}</span>}
+                      <span style={{width:8,height:8,borderRadius:'50%',background:c.color||MUTED,flexShrink:0,display:'inline-block'}}/>
                       <span style={{fontSize:12,color:c.color||MUTED,fontWeight:600}}>{c.groupName || c.roleName || 'Értékelő'}</span>
                       {c.timestamp && <span style={{fontSize:11,color:DIM,marginLeft:'auto'}}>{new Date(c.timestamp).toLocaleDateString('hu-HU')}</span>}
                     </div>
@@ -3644,6 +3650,8 @@ function ProjectView({ nav, goBack, ctx }) {
         <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
           <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', {projectId})}>📚 Könyvtár szerkesztése</Btn>
           <Btn variant="ghost" size="sm" onClick={() => setShowEmailTmpls(true)}>✉ Kimenő email-ek szerkesztése</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => nav('project_summary', {projectId})}>📊 Összesítő riport</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => nav('project_compare', {projectId})}>⇄ Összehasonlító riport</Btn>
         </div>
 
         {/* Kollaborátorok */}
@@ -3765,7 +3773,7 @@ function ProjectView({ nav, goBack, ctx }) {
                 <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
                   <span style={{fontSize:12,color:MUTED}}>{pd}/{peerR.length} kész</span>
                   <Btn variant="ghost" size="sm" onClick={() => nav('raters', {projectId, participantId:part.id})}>Értékelők</Btn>
-                  {pd >= 1 && <Btn size="sm" onClick={() => nav('report', {projectId, participantId:part.id})}>Riport →</Btn>}
+                  <Btn size="sm" onClick={() => nav('report', {projectId, participantId:part.id})}>Riport →</Btn>
                   <button onClick={() => setDeletingPartId(part.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:14,padding:4}} title="Értékelt törlése">✕</button>
                 </div>
               </div>
@@ -4011,6 +4019,153 @@ function RatersView({ nav, goBack, ctx }) {
 
 
 // ─── REPORT PAGE VIEW ──────────────────────────────────────────
+// ─── PROJECT SUMMARY VIEW — aggregált csoportriport ───────────
+function ProjectSummaryView({ nav, goBack, ctx }) {
+  const projectId = ctx.projectId;
+  const [proj,    setProj]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [gdata,   setGdata]   = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const p = await db.get(projectId);
+      setProj(p);
+      const pks = await db.list('part:');
+      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
+      const rks = await db.list('rat:');
+      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
+      const preset = resolvePreset(p ? p.libraryId : null, p ? p.customDims : null);
+      const selfScores = [], peerScores = [];
+      for (const part of ps) {
+        const pr    = rs.filter(r => r.participantId === part.id);
+        const selfR = pr.find(r => r.role === 'self');
+        const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
+        if (selfR) { const resp = await db.get('resp:'+selfR.code); if (resp) selfScores.push(resp.scores||{}); }
+        for (const r of peerR) { const resp = await db.get('resp:'+r.code); if (resp) peerScores.push(resp.scores||{}); }
+      }
+      setGdata({ preset, selfScores, peerScores, partCount: ps.length });
+      setLoading(false);
+    })();
+  }, [projectId]);
+
+  function mergeAll(list) {
+    if (!list || !list.length) return {};
+    const totals = {}, counts = {};
+    for (const sc of list) for (const [k,v] of Object.entries(sc)) { totals[k]=(totals[k]||0)+v; counts[k]=(counts[k]||0)+1; }
+    const out = {};
+    for (const k of Object.keys(totals)) out[k] = totals[k] / counts[k];
+    return out;
+  }
+
+  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
+
+  const { preset, selfScores, peerScores, partCount } = gdata;
+  const hasData = selfScores.length > 0 || peerScores.length > 0;
+
+  return (
+    <div style={{background:BG,minHeight:'100vh'}}>
+      <TopBar title={(proj?proj.name:'') + ' — Összesítő riport'} subtitle={proj?proj.client:''} back onBack={goBack}/>
+      <div style={{maxWidth:960,margin:'0 auto',padding:'22px 24px'}}>
+        {!hasData ? (
+          <div style={{textAlign:'center',padding:60,color:MUTED}}>
+            <div style={{fontSize:40,marginBottom:14}}>📊</div>
+            <div>Még nincs beérkezett adat az összesítő riporthoz.</div>
+          </div>
+        ) : (
+          <>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>
+              <Badge color={GOLD}>{selfScores.length} önértékelés</Badge>
+              <Badge color={BLUE}>{peerScores.length} peer visszajelzés</Badge>
+              <Badge color={GREEN}>{partCount} értékelt</Badge>
+            </div>
+            <ReportView
+              dims={preset.dims}
+              selfScores={mergeAll(selfScores)}
+              groups={peerScores.length > 0 ? [{ id:'all', name:'Összes értékelő', color:BLUE, scores: peerScores }] : []}
+              comments={[]}
+              scaleMax={getScaleMax((proj&&proj.scaleId)||'5pt')}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PROJECT COMPARE VIEW — egyéni riportok összehasonlítása ──
+function ProjectCompareView({ nav, goBack, ctx }) {
+  const projectId = ctx.projectId;
+  const [proj,    setProj]    = useState(null);
+  const [parts,   setParts]   = useState([]);
+  const [raters,  setRaters]  = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const p = await db.get(projectId);
+      setProj(p);
+      const pks = await db.list('part:');
+      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
+      setParts(ps);
+      const rks = await db.list('rat:');
+      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
+      setRaters(rs);
+      setLoading(false);
+    })();
+  }, [projectId]);
+
+  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
+
+  return (
+    <div style={{background:BG,minHeight:'100vh'}}>
+      <TopBar title={(proj?proj.name:'') + ' — Összehasonlító riport'} subtitle={proj?proj.client:''} back onBack={goBack}/>
+      <div style={{maxWidth:900,margin:'0 auto',padding:'22px 24px'}}>
+        <div style={{fontSize:13,color:MUTED,marginBottom:20}}>Kattints egy értékeltre az egyéni riportjához.</div>
+        {parts.length === 0 && (
+          <div style={{textAlign:'center',padding:48,color:MUTED}}>Még nincs értékelt a projektben.</div>
+        )}
+        {parts.map(part => {
+          const pr      = raters.filter(r => r.participantId === part.id);
+          const selfR   = pr.find(r => r.role === 'self');
+          const peerR   = pr.filter(r => r.role !== 'self');
+          const done    = peerR.filter(r => r.status === 'done').length;
+          const selfDone = selfR && selfR.status === 'done';
+          return (
+            <div key={part.id}
+              onClick={() => nav('report', { projectId, participantId: part.id })}
+              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'16px 20px',marginBottom:10,
+                cursor:'pointer',display:'flex',alignItems:'center',gap:14,transition:'border-color .15s'}}
+              onMouseEnter={e => e.currentTarget.style.borderColor = GOLD}
+              onMouseLeave={e => e.currentTarget.style.borderColor = BORD}>
+              <div style={{width:40,height:40,borderRadius:'50%',background:`${GOLD}22`,border:`1px solid ${GDIM}`,
+                display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,color:GOLD,flexShrink:0,
+                fontFamily:"'Instrument Serif',serif",fontWeight:600}}>
+                {part.firstName[0]}{part.lastName?part.lastName[0]:''}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:15,color:TEXT,fontWeight:600}}>{part.firstName} {part.lastName}</div>
+                <div style={{fontSize:12,color:MUTED,marginTop:2}}>
+                  {selfDone ? '✓ Önértékelés' : '○ Önértékelés hiányzik'}
+                  <span style={{margin:'0 8px'}}>·</span>
+                  {done}/{peerR.length} értékelő beküldött
+                </div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                {done === 0 && !selfDone
+                  ? <Badge color={MUTED}>Nincs adat</Badge>
+                  : done < 2
+                    ? <Badge color={ORAN}>Részleges</Badge>
+                    : <Badge color={GREEN}>Kész</Badge>}
+                <span style={{fontSize:18,color:GOLD}}>→</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ReportPageView({ nav, goBack, ctx }) {
   const projectId     = ctx.projectId;
   const participantId = ctx.participantId;
@@ -4865,7 +5020,9 @@ export default function App() {
     new_project:      <NewProjectView    nav={nav} navReplace={navReplace} goBack={goBack} ctx={ctx}/>,
     project:          <ProjectView       nav={nav} goBack={goBack} ctx={ctx}/>,
     raters:           <RatersView        nav={nav} goBack={goBack} ctx={ctx}/>,
-    report:           <ReportPageView    nav={nav} goBack={goBack} ctx={ctx}/>,
+    report:           <ReportPageView     nav={nav} goBack={goBack} ctx={ctx}/>,
+    project_summary:  <ProjectSummaryView nav={nav} goBack={goBack} ctx={ctx}/>,
+    project_compare:  <ProjectCompareView nav={nav} goBack={goBack} ctx={ctx}/>,
     library_manager:  <LibraryManagerView nav={nav} goBack={goBack} ctx={ctx}/>,
   };
 
