@@ -3136,47 +3136,58 @@ function SurveyEnterView({ nav, goBack, ctx }) {
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handle() {
+  // Auto-trigger if code was prefilled from URL ?code= param
+  const didAutoRef = React.useRef(false);
+  React.useEffect(() => {
+    if (ctx && ctx.prefillCode && !didAutoRef.current) {
+      didAutoRef.current = true;
+      setTimeout(() => handle(false), 400); // slight delay so state is settled
+    }
+  }, []);
+
+  async function handle(isRetry) {
     const t = code.trim().toUpperCase();
     if (t.length < 6) { setError('Az azonosító legalább 6 karakter.'); return; }
     setLoading(true); setError('');
 
-    // 1. Search leader groups
-    const grps = await db.get('leader_groups') || [];
-    for (const g of grps) {
-      const m = (g.members||[]).find(x => x.code === t);
-      if (m) {
-        // Use group's own library if set, fallback to leader_self
-        let preset;
-        if (g.customDims) {
-          preset = resolvePreset(g.libraryId || 'custom', g.customDims);
-        } else if (g.libraryId) {
-          preset = getPreset(g.libraryId);
-        } else {
-          const sd = await db.get('leader_self');
-          preset = resolvePreset(sd ? sd.libraryId : null, sd ? sd.dims : null);
+    // Inner search function — called once, retried once after 2s if nothing found
+    async function doSearch() {
+      // 1. Search leader groups
+      const grps = await db.get('leader_groups') || [];
+      for (const g of grps) {
+        const m = (g.members||[]).find(x => x.code === t);
+        if (m) {
+          let preset;
+          if (g.customDims) {
+            preset = resolvePreset(g.libraryId || 'custom', g.customDims);
+          } else if (g.libraryId) {
+            preset = getPreset(g.libraryId);
+          } else {
+            const sd = await db.get('leader_self');
+            preset = resolvePreset(sd ? sd.libraryId : null, sd ? sd.dims : null);
+          }
+          const updated = grps.map(gr =>
+            gr.id === g.id
+              ? { ...gr, members: gr.members.map(x => (x.code===t && x.status!=='done') ? {...x,status:'in_progress'} : x) }
+              : gr
+          );
+          await db.set('leader_groups', updated);
+          nav('survey', { mode:'peer', raterCode:t, groupId:g.id, dims:preset.dims, libraryId:preset.id, surveyTitle:g.emoji+' '+g.name+' — értékelés' });
+          return 'found';
         }
-        const updated = grps.map(gr =>
-          gr.id === g.id
-            ? { ...gr, members: gr.members.map(x => (x.code===t && x.status!=='done') ? {...x,status:'in_progress'} : x) }
-            : gr
-        );
-        await db.set('leader_groups', updated);
-        nav('survey', { mode:'peer', raterCode:t, groupId:g.id, dims:preset.dims, libraryId:preset.id, surveyTitle:g.emoji+' '+g.name+' — értékelés' });
-        setLoading(false); return;
       }
-    }
 
-    // 2. Search consultant projects — keresés közvetlenül a rat: rekordokban
-    const ratKeys = await db.list('rat:');
-    const allRats = await Promise.all(ratKeys.map(k => db.get(k)));
-    const ratIdx  = allRats.findIndex(r => r && r.code === t);
+      // 2. Search rat: records directly by code
+      const ratKeys = await db.list('rat:');
+      const allRats = await Promise.all(ratKeys.map(k => db.get(k)));
+      const ratIdx  = allRats.findIndex(r => r && r.code === t);
 
-    if (ratIdx >= 0) {
-      const rat    = allRats[ratIdx];
-      const ratKey = ratKeys[ratIdx];
-      const proj   = await db.get(rat.projectId);
-      if (proj) {
+      if (ratIdx >= 0) {
+        const rat    = allRats[ratIdx];
+        const ratKey = ratKeys[ratIdx];
+        if (!rat.projectId) return 'no_project';
+        const proj = await db.get(rat.projectId);
+        if (!proj) return 'no_project';
         const preset = resolvePreset(proj.libraryId, proj.customDims);
         const part   = await db.get(rat.participantId);
         await db.set(ratKey, { ...rat, status: rat.status==='done' ? 'done' : 'in_progress' });
@@ -3186,11 +3197,48 @@ function SurveyEnterView({ nav, goBack, ctx }) {
           dims:preset.dims, libraryId:proj.libraryId,
           surveyTitle:'Értékelés — '+(part ? part.firstName+' '+part.lastName : 'Értékelt'),
         });
-        setLoading(false); return;
+        return 'found';
       }
+
+      return 'not_found';
     }
 
-    setError('Érvénytelen azonosító. Ellenőrizd a kapott kódot.');
+    try {
+      const result = await doSearch();
+
+      if (result === 'found') { setLoading(false); return; }
+
+      if (result === 'no_project') {
+        // Rat found but project missing — likely temporary DB issue, retry once
+        if (!isRetry) {
+          setError('Azonosító megtalálva, de a projekt betöltése sikertelen. Újrapróbálás...');
+          setTimeout(() => handle(true), 2500);
+          return;
+        }
+        setError('A projekt ideiglenesen nem érhető el. Kérjük, próbáld újra néhány másodperc múlva.');
+        setLoading(false);
+        return;
+      }
+
+      // not_found — retry once in case of race condition (e.g. rat: just written to DB)
+      if (!isRetry) {
+        setError('Keresés folyamatban, egy pillanat...');
+        setTimeout(() => handle(true), 2000);
+        return;
+      }
+
+      setError('Érvénytelen azonosító. Ellenőrizd a kapott kódot, és próbáld újra.');
+
+    } catch(e) {
+      console.error('[SurveyEnter] handle error:', e);
+      if (!isRetry) {
+        setError('Kapcsolódási hiba, újrapróbálás...');
+        setTimeout(() => handle(true), 2000);
+        return;
+      }
+      setError('Kapcsolódási hiba. Ellenőrizd az internetkapcsolatodat, és próbáld újra.');
+    }
+
     setLoading(false);
   }
 
