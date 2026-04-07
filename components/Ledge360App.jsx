@@ -3760,17 +3760,28 @@ function ProjectView({ nav, goBack, ctx }) {
           const selfR = pr.find(r => r.role === 'self');
           const peerR = pr.filter(r => r.role !== 'self');
           const pd    = peerR.filter(r => r.status === 'done').length;
+
+          const selfStatusColor = !selfR ? MUTED : selfR.status === 'done' ? GREEN : selfR.status === 'in_progress' ? GOLD : MUTED;
+          const selfStatusLabel = !selfR ? 'Nincs kód' : selfR.status === 'done' ? 'Kész' : selfR.status === 'in_progress' ? 'Folyamatban' : 'Vár';
+
           return (
             <Card key={part.id} style={{marginBottom:10}}>
               <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2,flexWrap:'wrap'}}>
                     <span style={{fontSize:14,color:TEXT,fontWeight:600}}>{part.firstName} {part.lastName}</span>
-                    {selfR && (
-                      <div style={{display:'flex',alignItems:'center',gap:4}}>
-                        <StatusDot status={selfR.status}/>
-                        <span style={{fontSize:11,color:MUTED}}>önértékelés</span>
-                      </div>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{width:7,height:7,borderRadius:'50%',background:selfStatusColor,flexShrink:0,display:'inline-block'}}/>
+                      <span style={{fontSize:11,color:selfStatusColor,fontWeight:selfR&&selfR.status==='done'?600:400}}>{selfStatusLabel} önértékelés</span>
+                    </div>
+                    {!selfR && (
+                      <button onClick={async () => {
+                        const sc = uid(12); const rid = 'rat:'+uid(10);
+                        const sr = { id:rid, participantId:part.id, projectId, firstName:part.firstName, lastName:part.lastName||'', email:part.email||'', role:'self', code:sc, status:'pending' };
+                        await db.set(rid, sr); load();
+                      }} style={{fontSize:10,padding:'2px 8px',borderRadius:5,border:`1px solid ${GOLD}`,background:`${GOLD}14`,color:GOLD,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+                        + Kód generálása
+                      </button>
                     )}
                   </div>
                   {part.email && <div style={{fontSize:12,color:MUTED,marginBottom:6}}>{part.email}</div>}
