@@ -204,24 +204,34 @@ Thank you for your cooperation!
 
 function renderTemplate(template, vars) {
   return template
-    .replace(/\[Keresztnév\]/g,     vars.firstName       || '')
-    .replace(/\[Cég\]/g,            vars.company         || '')
-    .replace(/\[Értékelt neve\]/g,  vars.participantName || '')
-    .replace(/\[Tanácsadó neve\]/g, vars.consultantName  || '')
-    .replace(/\[Projekt neve\]/g,   vars.projectName     || '')
-    .replace(/\[Határidő\]/g,       vars.deadline        || '…');
+    .replace(/\[Keresztnév\]/g,        vars.firstName         || '')
+    .replace(/\[Cég\]/g,               vars.company           || '')
+    .replace(/\[Értékelt neve\]/g,     vars.participantName   || '')
+    .replace(/\[Tanácsadó neve\]/g,    vars.consultantName    || '')
+    .replace(/\[Tanácsadó email\]/g,   vars.consultantEmail   || '')
+    .replace(/\[Tanácsadó telefon\]/g, vars.consultantPhone   || '')
+    .replace(/\[Projekt neve\]/g,      vars.projectName       || '')
+    .replace(/\[Határidő\]/g,          vars.deadline          || '…');
 }
 
-async function sendProjectEmail({ to, firstName, participantName, code, project, templateKey, consultantName }) {
+async function sendProjectEmail({ to, firstName, participantName, code, project, templateKey, consultantName, consultantEmail, consultantPhone }) {
   if (!to || !code) return { ok: false, error: 'Hiányzó email vagy kód' };
   const lang  = project.emailLang || 'hu';
   const tmpls = (project.emailTemplates && project.emailTemplates[lang]) || DEFAULT_EMAIL_TEMPLATES[lang];
   const tmpl  = tmpls[templateKey];
   if (!tmpl) return { ok: false, error: 'Sablon nem található' };
-  const vars = { firstName, participantName, code, company: project.client || project.name || '', consultantName: consultantName || '', projectName: project.name || '' };
+  const vars = { firstName, participantName, code, company: project.client || project.name || '', consultantName: consultantName || '', consultantEmail: consultantEmail || '', consultantPhone: consultantPhone || '', projectName: project.name || '' };
   const subject  = renderTemplate(tmpl.subject, vars);
   const bodyText = renderTemplate(tmpl.body,    vars);
   const surveyUrl = `https://www.ledge.news/360?code=${code}`;
+  // Contact block in footer — only if contact consultant data available
+  const contactBlock = (consultantName || consultantEmail || consultantPhone) ? `
+    <div style="background:#F5F3EF;border:1px solid #E2DED6;border-radius:10px;padding:14px 18px;margin:20px 0;font-size:13px;color:#4A4A48;">
+      <div style="font-size:11px;color:#8A8478;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;">Kapcsolattartó tanácsadó</div>
+      ${consultantName ? `<div style="font-weight:600;margin-bottom:2px;">${consultantName}</div>` : ''}
+      ${consultantEmail ? `<div><a href="mailto:${consultantEmail}" style="color:#A68542;text-decoration:none;">${consultantEmail}</a></div>` : ''}
+      ${consultantPhone ? `<div style="margin-top:2px;">${consultantPhone}</div>` : ''}
+    </div>` : '';
   const htmlBody = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#1A1A18;">
     <div style="text-align:center;margin-bottom:28px;"><span style="font-family:Georgia,serif;font-size:16px;color:#8A8478;letter-spacing:.04em;">LEDGE <span style="color:#A68542">360°</span></span></div>
     ${bodyText.split('\n\n').map(p => `<p style="font-size:15px;line-height:1.7;color:#4A4A48;margin:0 0 18px;">${p.replace(/\n/g,'<br>')}</p>`).join('')}
@@ -230,6 +240,7 @@ async function sendProjectEmail({ to, firstName, participantName, code, project,
       <div style="font-size:12px;color:#8A8478;margin-bottom:6px;">Azonosítód</div>
       <div style="font-family:monospace;font-size:20px;font-weight:700;letter-spacing:.15em;color:#A68542;">${code}</div>
     </div>
+    ${contactBlock}
     <hr style="border:none;border-top:1px solid #E2DED6;margin:28px 0;">
     <p style="font-size:11px;color:#C5C0B8;text-align:center;">LEDGE 360° — ZEL Group · Bizalmas értékelési rendszer</p>
   </div>`;
@@ -3108,6 +3119,7 @@ function SurveyDoneView({ nav, goBack, ctx }) {
 function AdminView({ nav, goBack }) {
   const [projects, setProjects] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [deletingProjId, setDeletingProjId] = useState(null);
 
   useEffect(() => {
     db.list('proj:').then(async keys => {
@@ -3116,6 +3128,24 @@ function AdminView({ nav, goBack }) {
       setLoading(false);
     });
   }, []);
+
+  async function deleteProjectById(id) {
+    // delete all raters for this project
+    const rks = await db.list('rat:');
+    const allR = await Promise.all(rks.map(k => db.get(k)));
+    for (let i = 0; i < allR.length; i++) {
+      if (allR[i] && allR[i].projectId === id) await db.del(rks[i]);
+    }
+    // delete all participants
+    const pks = await db.list('part:');
+    const allP = await Promise.all(pks.map(k => db.get(k)));
+    for (let i = 0; i < allP.length; i++) {
+      if (allP[i] && allP[i].projectId === id) await db.del(pks[i]);
+    }
+    await db.del(id);
+    setProjects(prev => prev.filter(p => p.id !== id));
+    setDeletingProjId(null);
+  }
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
@@ -3151,15 +3181,31 @@ function AdminView({ nav, goBack }) {
                     {preset.name}
                   </div>
                 </div>
-                <div style={{textAlign:'right',flexShrink:0}}>
-                  <Badge color={p.status==='active'?GREEN:MUTED}>{p.status==='active'?'Aktív':p.status==='draft'?'Piszkozat':'Lezárt'}</Badge>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{new Date(p.created).toLocaleDateString('hu-HU')}</div>
+                <div style={{textAlign:'right',flexShrink:0,display:'flex',alignItems:'center',gap:10}}>
+                  <div>
+                    <Badge color={p.status==='active'?GREEN:MUTED}>{p.status==='active'?'Aktív':p.status==='draft'?'Piszkozat':'Lezárt'}</Badge>
+                    <div style={{fontSize:11,color:MUTED,marginTop:4}}>{new Date(p.created).toLocaleDateString('hu-HU')}</div>
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); setDeletingProjId(p.id); }}
+                    style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:16,padding:'4px 6px',borderRadius:6,lineHeight:1,flexShrink:0}}
+                    onMouseEnter={e => e.currentTarget.style.color = RED}
+                    onMouseLeave={e => e.currentTarget.style.color = MUTED}
+                    title="Projekt törlése">🗑</button>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+      {deletingProjId && (
+        <DoubleConfirmModal
+          title="Projekt törlése"
+          message={`A projekt és az összes értékelt, értékelő és válasz törlésre kerül.`}
+          confirmLabel="Igen, törlés"
+          onConfirm={() => deleteProjectById(deletingProjId)}
+          onCancel={() => setDeletingProjId(null)}/>
+      )}
     </div>
   );
 }
@@ -3397,6 +3443,8 @@ function ProjectView({ nav, goBack, ctx }) {
   const [deletingPartId,    setDeletingPartId]    = useState(null);
   const [collabs,           setCollabs]           = useState([]);
   const [collabEmail,       setCollabEmail]       = useState('');
+  const [collabName,        setCollabName]        = useState('');
+  const [collabPhone,       setCollabPhone]       = useState('');
   const [collabPerm,        setCollabPerm]        = useState('view');
   const [showEmailTmpls,    setShowEmailTmpls]    = useState(false);
   const [sendingId,         setSendingId]         = useState(null);
@@ -3433,9 +3481,13 @@ function ProjectView({ nav, goBack, ctx }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function getConsultantName() {
+  async function getContactConsultant() {
+    // Returns { name, email, phone } from the contact-marked collab, fallback to session user
+    const cs = await db.get('collab:'+projectId) || [];
+    const contact = cs.find(c => c.permission === 'contact');
+    if (contact) return { name: contact.name || '', email: contact.email || '', phone: contact.phone || '' };
     const session = await auth.getSession();
-    return session?.name || session?.email || '';
+    return { name: session?.name || session?.email || '', email: '', phone: '' };
   }
 
   async function addPart() {
@@ -3455,9 +3507,9 @@ function ProjectView({ nav, goBack, ctx }) {
   async function sendEmail(rater, part, templateKey) {
     if (!rater.email) return;
     setSendingId(rater.id);
-    const cn = await getConsultantName();
+    const cc = await getContactConsultant();
     const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
-    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cn });
+    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
     if (res.ok) {
       const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
       await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
@@ -3472,13 +3524,15 @@ function ProjectView({ nav, goBack, ctx }) {
     setProj(updated);
     setActivatedMsg(true);
     setTimeout(() => setActivatedMsg(false), 4000);
-    const cn = await getConsultantName();
+    const cc = await getContactConsultant();
     for (const r of raters) {
-      if (!r.email) continue;
+      // For self-raters: fallback to participant email if rater.email empty
+      const emailTo = r.email || (r.role === 'self' ? parts.find(p => p.id === r.participantId)?.email : null);
+      if (!emailTo) continue;
       const part = parts.find(p => p.id === r.participantId);
       const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
       const key = r.role === 'self' ? 'selfInvite' : 'peerInvite';
-      const res = await sendProjectEmail({ to:r.email, firstName:r.firstName, participantName:partName, code:r.code, project:updated, templateKey:key, consultantName:cn });
+      const res = await sendProjectEmail({ to:emailTo, firstName:r.firstName, participantName:partName, code:r.code, project:updated, templateKey:key, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
       if (res.ok) await db.set(r.id, { ...r, email_sent:true, email_sent_at:Date.now() });
     }
     load();
@@ -3532,10 +3586,10 @@ function ProjectView({ nav, goBack, ctx }) {
   async function addCollab() {
     if (!collabEmail.trim()) return;
     const session = await auth.getSession();
-    const c = { id:'col_'+uid(8), email:collabEmail.trim(), permission:collabPerm, addedBy:session?.id, status:'active', created:Date.now() };
+    const c = { id:'col_'+uid(8), email:collabEmail.trim(), name:collabName.trim(), phone:collabPhone.trim(), permission:collabPerm, addedBy:session?.id, status:'active', created:Date.now() };
     const all = [...collabs, c];
     await db.set('collab:'+projectId, all);
-    setCollabs(all); setCollabEmail('');
+    setCollabs(all); setCollabEmail(''); setCollabName(''); setCollabPhone(''); setCollabPerm('view');
     await audit('collab_add', session?.id, {projectId, email:c.email});
   }
 
@@ -3595,27 +3649,49 @@ function ProjectView({ nav, goBack, ctx }) {
         {/* Kollaborátorok */}
         <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Kollaborátorok</div>
+            <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Tanácsadók / Kollaborátorok</div>
             <Badge color={MUTED}>{collabs.length} fő</Badge>
           </div>
-          <div style={{display:'flex',gap:8,marginBottom:10}}>
-            <div style={{flex:1}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="kollega@ceg.hu"
+          {/* Add form */}
+          <div style={{display:'flex',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+            <div style={{flex:2,minWidth:140}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="email@ceg.hu"
               style={{width:'100%',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
             <select value={collabPerm} onChange={e=>setCollabPerm(e.target.value)}
-              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
+              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer',flexShrink:0}}>
               <option value="view">Olvasás</option>
               <option value="edit">Szerkesztés</option>
+              <option value="contact">Kapcsolattartó</option>
             </select>
-            <Btn size="sm" onClick={addCollab} disabled={!collabEmail.trim()}>+ Meghívás</Btn>
+            <Btn size="sm" onClick={addCollab} disabled={!collabEmail.trim()}>+ Hozzáadás</Btn>
           </div>
+          {/* Extra fields for contact */}
+          {collabPerm === 'contact' && (
+            <div style={{display:'flex',gap:8,marginBottom:10}}>
+              <input value={collabName} onChange={e=>setCollabName(e.target.value)} placeholder="Teljes név (kötelező kapcsolattartónak)"
+                style={{flex:2,background:SURF,border:`1px solid ${GDIM}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
+              <input value={collabPhone} onChange={e=>setCollabPhone(e.target.value)} placeholder="+36 30 … (opcionális)"
+                style={{flex:1,background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
+            </div>
+          )}
+          {/* List */}
           {collabs.map(c => (
             <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
-              <div style={{flex:1,fontSize:13,color:TEXT}}>{c.email}</div>
-              <Badge color={c.permission==='edit'?GOLD:BLUE}>{c.permission==='edit'?'Szerkesztés':'Olvasás'}</Badge>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {c.name ? <><span style={{fontWeight:600}}>{c.name}</span> <span style={{color:MUTED}}>{c.email}</span></> : c.email}
+                </div>
+                {c.phone && <div style={{fontSize:11,color:MUTED}}>{c.phone}</div>}
+              </div>
+              <Badge color={c.permission==='contact'?GREEN:c.permission==='edit'?GOLD:BLUE}>
+                {c.permission==='contact'?'Kapcsolattartó':c.permission==='edit'?'Szerkesztés':'Olvasás'}
+              </Badge>
               <button onClick={() => removeCollab(c.id)} style={{background:'none',border:'none',color:RED,cursor:'pointer',fontSize:14,padding:4}}>✕</button>
             </div>
           ))}
-          {collabs.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:'center',padding:'8px 0'}}>Hívj meg egy kollégát a projekthez.</div>}
+          {collabs.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:'center',padding:'8px 0'}}>Hívj meg egy kollégát vagy jelölj meg kapcsolattartót.</div>}
+          {collabs.some(c => c.permission === 'contact') && (
+            <div style={{fontSize:11,color:GREEN,marginTop:8}}>✓ A kapcsolattartó adatai megjelennek a kimenő emailekben.</div>
+          )}
         </div>
 
         {/* Értékeltek */}
@@ -3779,10 +3855,14 @@ function RatersView({ nav, goBack, ctx }) {
   async function sendRaterEmail(rater, part, templateKey) {
     if (!rater.email || !proj) return;
     setSendingId(rater.id);
+    const cs = await db.get('collab:'+projectId) || [];
+    const contact = cs.find(c => c.permission === 'contact');
     const session = await auth.getSession();
-    const cn = session?.name || session?.email || '';
+    const cc = contact
+      ? { name: contact.name || '', email: contact.email || '', phone: contact.phone || '' }
+      : { name: session?.name || session?.email || '', email: '', phone: '' };
     const partName = part ? `${part.firstName} ${part.lastName||''}`.trim() : '';
-    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cn });
+    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
     if (res.ok) {
       const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
       await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
