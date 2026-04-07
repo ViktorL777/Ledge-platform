@@ -60,7 +60,7 @@ async function callAnthropic(system, messages) {
       'x-api-key': process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: 2000, system, messages }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 4000, system, messages }),
   });
   if (!res.ok) {
     const err = await res.text();
