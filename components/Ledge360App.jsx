@@ -2993,8 +2993,8 @@ function GroupManageView({ nav, goBack, ctx }) {
 }
 
 // ─── SURVEY ENTER VIEW ─────────────────────────────────────────
-function SurveyEnterView({ nav, goBack }) {
-  const [code,    setCode]    = useState('');
+function SurveyEnterView({ nav, goBack, ctx }) {
+  const [code,    setCode]    = useState((ctx && ctx.prefillCode) || '');
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -4776,9 +4776,22 @@ export default function App() {
   const historyRef = useRef([]);
 
   useEffect(() => {
+    // Check for ?code= in URL — if present, go straight to survey_enter regardless of session
+    const urlCode = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('code')
+      : null;
+
     auth.getSession().then(session => {
-      if (session) { setCurrentUser(session); setCtx({user:session}); setView('home'); }
-      else { setView('login'); }
+      if (urlCode) {
+        // Prefill code and go directly to survey entry — skip login/home
+        if (session) { setCurrentUser(session); setCtx({user:session, prefillCode: urlCode.trim().toUpperCase()}); }
+        else { setCtx({ prefillCode: urlCode.trim().toUpperCase() }); }
+        setView('survey_enter');
+      } else if (session) {
+        setCurrentUser(session); setCtx({user:session}); setView('home');
+      } else {
+        setView('login');
+      }
     });
   }, []);
 
