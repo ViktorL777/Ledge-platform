@@ -537,8 +537,9 @@ const _supabase = _sbUrl && _sbKey ? createClient(_sbUrl, _sbKey) : null;
 
 const db = {
   // ── claude.ai sandbox: window.storage stores strings → JSON.stringify/parse needed
-  // ── Vercel/Supabase: kv_store.value is jsonb → PostgREST returns already-parsed
-  //    objects, so do NOT JSON.stringify on set or JSON.parse on get (would double-encode)
+  // ── Vercel/Supabase: kv_store.value is jsonb → PostgREST returns already-parsed objects
+  // ── Backward compat: old rows were stored with JSON.stringify → value is a JSON string
+  //    New rows store the object directly. We handle both formats.
   async get(k) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
@@ -547,7 +548,12 @@ const db = {
       if (_supabase) {
         const { data, error } = await _supabase.from('kv_store').select('value').eq('key', k).single();
         if (error && error.code !== 'PGRST116') console.error('[db.get] Supabase error:', k, error.message, error.code);
-        return data ? data.value : null;  // jsonb → already a JS object, no JSON.parse
+        if (!data) return null;
+        const val = data.value;
+        // Old data stored as JSON string (e.g. '{"scores":{...}}') → parse it
+        // New data stored as jsonb object → return as-is
+        if (typeof val === 'string') { try { return JSON.parse(val); } catch { return val; } }
+        return val;
       }
     } catch(e) { console.error('[db.get] exception:', k, e); } return null;
   },
