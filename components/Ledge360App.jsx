@@ -4201,14 +4201,28 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
       const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
       const preset = resolvePreset(p ? p.libraryId : null, p ? p.customDims : null);
       const selfScores = [], peerScores = [];
+      const roleMap = {}; // role → [scores]
       for (const part of ps) {
         const pr    = rs.filter(r => r.participantId === part.id);
         const selfR = pr.find(r => r.role === 'self');
         const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
         if (selfR) { const resp = await db.get('resp:'+selfR.code); if (resp) selfScores.push(resp.scores||{}); }
-        for (const r of peerR) { const resp = await db.get('resp:'+r.code); if (resp) peerScores.push(resp.scores||{}); }
+        for (const r of peerR) {
+          const resp = await db.get('resp:'+r.code);
+          if (resp) {
+            peerScores.push(resp.scores||{});
+            if (!roleMap[r.role]) roleMap[r.role] = [];
+            roleMap[r.role].push(resp.scores||{});
+          }
+        }
       }
-      setGdata({ preset, selfScores, peerScores, partCount: ps.length });
+      // Build role groups with label+color from project roles
+      const projRoles = p && p.roles ? p.roles : DEFAULT_ROLES;
+      const roleGroups = Object.entries(roleMap).map(([roleId, scores]) => {
+        const rd = projRoles.find(r => r.id === roleId) || DEFAULT_ROLES.find(r => r.id === roleId);
+        return { id: roleId, name: rd ? rd.label : roleId, color: rd ? rd.color : MUTED, scores };
+      });
+      setGdata({ preset, selfScores, peerScores, partCount: ps.length, roleGroups });
       setLoading(false);
     })();
   }, [projectId]);
@@ -4224,8 +4238,23 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
 
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
 
-  const { preset, selfScores, peerScores, partCount } = gdata;
+  const { preset, selfScores, peerScores, partCount, roleGroups } = gdata;
   const hasData = selfScores.length > 0 || peerScores.length > 0;
+  const selfAvg = mergeAll(selfScores);
+  const peerAvg = mergeAll(peerScores);
+  const hasSelf = selfScores.length > 0;
+  const hasPeer = peerScores.length > 0;
+  const summaryBars = (preset?.dims||[]).map(d => ({
+    id: d.id,
+    name: d.label || d.id,
+    color: d.color || GOLD,
+    self: hasSelf ? dimAvg(selfAvg, d) : null,
+    peer: hasPeer ? dimAvg(peerAvg, d) : null,
+    byRole: (roleGroups||[]).map(rg => ({
+      name: rg.name, color: rg.color, count: rg.scores.length,
+      avg: dimAvg(mergeAll(rg.scores), d),
+    })),
+  }));
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
@@ -4242,52 +4271,40 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
               <Badge color={GOLD}>{selfScores.length} önértékelés</Badge>
               <Badge color={BLUE}>{peerScores.length} peer visszajelzés</Badge>
               <Badge color={GREEN}>{partCount} értékelt</Badge>
+              {(roleGroups||[]).map(rg => <Badge key={rg.id} color={rg.color}>{rg.name}: {rg.scores.length} értékelés</Badge>)}
             </div>
-            {/* Group summary: merged averages per dimension */}
-            {(() => {
-              const selfAvg = mergeAll(selfScores);
-              const peerAvg = mergeAll(peerScores);
-              const hasSelf = selfScores.length > 0;
-              const hasPeer = peerScores.length > 0;
-              const barData = (preset?.dims||[]).map(d => ({
-                name: d.label || d.id,
-                color: d.color || GOLD,
-                self: hasSelf ? dimAvg(selfAvg, d) : null,
-                peer: hasPeer ? dimAvg(peerAvg, d) : null,
-              }));
-              return (
-                <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
-                  <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:20}}>Csoport összesített eredmények</div>
-                  <div style={{display:'flex',gap:16,marginBottom:16,fontSize:12,color:MUTED}}>
-                    {hasSelf && <span><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:GOLD,marginRight:4,verticalAlign:'middle'}}/>Csoport önértékelés átlaga ({selfScores.length} fő)</span>}
-                    {hasPeer && <span><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:BLUE+'88',marginRight:4,verticalAlign:'middle'}}/>Csoport peer átlaga ({peerScores.length} értékelés)</span>}
-                  </div>
-                  {barData.map(row => (
-                    <div key={row.name} style={{marginBottom:14}}>
-                      <div style={{fontSize:12,color:row.color,fontWeight:600,marginBottom:5}}>{row.name}</div>
-                      {hasSelf && (
-                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:3}}>
-                          <div style={{width:80,fontSize:11,color:MUTED,textAlign:'right',flexShrink:0}}>Önértékelés</div>
-                          <div style={{flex:1,height:16,background:'#F0EDE8',borderRadius:8,overflow:'hidden'}}>
-                            <div style={{height:'100%',width:`${Math.round((row.self||0)/5*100)}%`,background:GOLD,borderRadius:8,transition:'width .4s'}}/>
-                          </div>
-                          <div style={{width:32,fontSize:12,color:TEXT,fontWeight:700,flexShrink:0}}>{row.self>0?row.self.toFixed(1):'—'}</div>
-                        </div>
-                      )}
-                      {hasPeer && (
-                        <div style={{display:'flex',alignItems:'center',gap:10}}>
-                          <div style={{width:80,fontSize:11,color:MUTED,textAlign:'right',flexShrink:0}}>Peer átlag</div>
-                          <div style={{flex:1,height:16,background:'#F0EDE8',borderRadius:8,overflow:'hidden'}}>
-                            <div style={{height:'100%',width:`${Math.round((row.peer||0)/5*100)}%`,background:BLUE+'88',borderRadius:8,transition:'width .4s'}}/>
-                          </div>
-                          <div style={{width:32,fontSize:12,color:TEXT,fontWeight:700,flexShrink:0}}>{row.peer>0?row.peer.toFixed(1):'—'}</div>
-                        </div>
-                      )}
+            <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
+              <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:16}}>Csoport összesített eredmények</div>
+              <div style={{display:'flex',gap:20,marginBottom:20,fontSize:12,color:MUTED,flexWrap:'wrap'}}>
+                {hasSelf && <span><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:GOLD,marginRight:6,verticalAlign:'middle'}}/>Önértékelés ({selfScores.length} fő)</span>}
+                {(roleGroups||[]).map(rg => (
+                  <span key={rg.id}><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:rg.color,marginRight:6,verticalAlign:'middle'}}/>{rg.name} ({rg.scores.length})</span>
+                ))}
+              </div>
+              {summaryBars.map(row => (
+                <div key={row.id} style={{marginBottom:18}}>
+                  <div style={{fontSize:12,color:row.color,fontWeight:600,marginBottom:6}}>{row.name}</div>
+                  {hasSelf && (
+                    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                      <div style={{width:90,fontSize:11,color:MUTED,textAlign:'right',flexShrink:0}}>Önértékelés</div>
+                      <div style={{flex:1,height:14,background:'#EDE9E2',borderRadius:7,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${Math.round((row.self||0)/5*100)}%`,background:GOLD,borderRadius:7}}/>
+                      </div>
+                      <div style={{width:36,fontSize:13,color:TEXT,fontWeight:700,flexShrink:0}}>{(row.self||0)>0?(row.self).toFixed(1):'—'}</div>
+                    </div>
+                  )}
+                  {row.byRole.map(rg => rg.count > 0 && (
+                    <div key={rg.name} style={{display:'flex',alignItems:'center',gap:10,marginBottom:3}}>
+                      <div style={{width:90,fontSize:11,color:rg.color,textAlign:'right',flexShrink:0,fontWeight:500}}>{rg.name}</div>
+                      <div style={{flex:1,height:14,background:'#EDE9E2',borderRadius:7,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${Math.round((rg.avg||0)/5*100)}%`,background:rg.color,borderRadius:7}}/>
+                      </div>
+                      <div style={{width:36,fontSize:13,color:TEXT,fontWeight:700,flexShrink:0}}>{(rg.avg||0)>0?(rg.avg).toFixed(1):'—'}</div>
                     </div>
                   ))}
                 </div>
-              );
-            })()}
+              ))}
+            </div>
           </>
         )}
       </div>
@@ -4518,8 +4535,8 @@ function ProjectStatusView({ nav, goBack, ctx }) {
   function Section({ title, color, list }) {
     if (!list.length) return null;
     const selectable = list.filter(e => e.rater.email && e.rater.status !== 'done');
-    const allSelected = selectable.length > 0 && selectable.every(e => selected[e.rater.id]);
-    const someSelected = selectable.some(e => selected[e.rater.id]);
+    const allSelected = selectable.length > 0 && selectable.every(e => !!selected[e.rater.id]);
+    const someSelected = !allSelected && selectable.some(e => !!selected[e.rater.id]);
     function toggleSection() {
       if (allSelected) {
         const s = {...selected};
@@ -4535,9 +4552,9 @@ function ProjectStatusView({ nav, goBack, ctx }) {
           {selectable.length > 0 ? (
             <input type="checkbox"
               checked={allSelected}
-              ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
               onChange={toggleSection}
-              style={{width:16,height:16,accentColor:GOLD,cursor:'pointer',flexShrink:0}}
+              style={{width:16,height:16,accentColor:GOLD,cursor:'pointer',flexShrink:0,
+                opacity: someSelected ? 0.6 : 1}}
             />
           ) : (
             <span style={{width:16,flexShrink:0}}/>
