@@ -1409,6 +1409,24 @@ function SurveyView({ nav, goBack, ctx }) {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [scores, comment, activeDim, draftKey, draftLoaded]);
 
+  // Auto-advance: when current dim is fully scored, move to next after 500ms
+  const autoTimer = useRef(null);
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const safeDimsLocal = dims || [];
+    const curDimLocal   = safeDimsLocal[activeDim];
+    if (!curDimLocal) return;
+    // Only auto-advance if not on last dim and current dim is done
+    if (activeDim < safeDimsLocal.length - 1 && curDimLocal.items.every(i => (scores[i.id] || 0) > 0)) {
+      if (autoTimer.current) clearTimeout(autoTimer.current);
+      autoTimer.current = setTimeout(() => {
+        setActiveDim(prev => prev + 1);
+        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 450);
+    }
+    return () => { if (autoTimer.current) clearTimeout(autoTimer.current); };
+  }, [scores, activeDim, draftLoaded]);
+
   const safeDims   = dims || [];
   const totalItems = allIds(safeDims).length;
   const filled     = countFilled(scores, safeDims);
@@ -1573,12 +1591,15 @@ function SurveyView({ nav, goBack, ctx }) {
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
             {'← Előző'}
           </Btn>
-          {activeDim < safeDims.length - 1
-            ? <Btn variant="ghost" onClick={() => setActiveDim(prev => prev+1)}>{'Következő →'}</Btn>
-            : <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
-                {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
-              </Btn>
-          }
+          {activeDim < safeDims.length - 1 ? (
+            dimDone(curDim)
+              ? <span style={{fontSize:12,color:GREEN}}>✓ Továbblépés automatikusan…</span>
+              : <span style={{fontSize:12,color:MUTED}}>Értékelj be minden itemet a továbblépéshez</span>
+          ) : (
+            <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
+              {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
+            </Btn>
+          )}
         </div>
       </div>
     </div>
@@ -3653,6 +3674,7 @@ function ProjectView({ nav, goBack, ctx }) {
           <Btn variant="ghost" size="sm" onClick={() => nav('project_summary', {projectId})}>📊 Összesítő riport</Btn>
           <Btn variant="ghost" size="sm" onClick={() => nav('project_compare', {projectId})}>⇄ Összehasonlító riport</Btn>
           <Btn variant="ghost" size="sm" onClick={() => nav('project_status', {projectId})}>📋 Státusz</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => nav('ai_group_report', {projectId})}>🤖 AI Csoportriport</Btn>
         </div>
 
         {/* Kollaborátorok */}
@@ -4093,6 +4115,103 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
   );
 }
 
+// ─── AI GROUP REPORT VIEW ─────────────────────────────────────
+function AIGroupReportView({ nav, goBack, ctx }) {
+  const projectId = ctx.projectId;
+  const [proj,    setProj]    = useState(null);
+  const [gdata,   setGdata]   = useState(null);
+  const [text,    setText]    = useState('');
+  const [loading, setLoading] = useState(true);
+  const [genning, setGenning] = useState(false);
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const p = await db.get(projectId);
+      setProj(p);
+      const preset = resolvePreset(p?.libraryId, p?.customDims);
+      const pks = await db.list('part:');
+      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
+      const rks = await db.list('rat:');
+      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
+      const selfAll = [], peerAll = [];
+      for (const part of ps) {
+        const pr    = rs.filter(r => r.participantId === part.id);
+        const selfR = pr.find(r => r.role === 'self');
+        const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
+        if (selfR) { const resp = await db.get('resp:'+selfR.code); if (resp) selfAll.push(resp.scores||{}); }
+        for (const r of peerR) { const resp = await db.get('resp:'+r.code); if (resp) peerAll.push(resp.scores||{}); }
+      }
+      setGdata({ preset, selfAll, peerAll, partCount: ps.length });
+      setLoading(false);
+    })();
+  }, [projectId]);
+
+  async function generate() {
+    if (!gdata || genning) return;
+    setGenning(true); setError('');
+    const selfAvg = mergeScoresets(gdata.selfAll);
+    const peerAvg = mergeScoresets(gdata.peerAll);
+    try {
+      const res = await fetch('/api/generate-report', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ type:'group', projectName: proj?.name, dimsData: gdata.preset?.dims, selfAvg, peerAvg, scaleMax: 5 })
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error); } else { setText(data.text); }
+    } catch(e) { setError(e.message); }
+    setGenning(false);
+  }
+
+  // Simple markdown-ish renderer
+  function renderText(t) {
+    return t.split('\n').map((line, i) => {
+      if (line.startsWith('**') && line.endsWith('**')) return <div key={i} style={{fontSize:15,fontWeight:700,color:TEXT,marginTop:20,marginBottom:6}}>{line.replace(/\*\*/g,'')}</div>;
+      if (line.startsWith('# '))  return <div key={i} style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,fontWeight:400,marginBottom:12}}>{line.slice(2)}</div>;
+      if (line.startsWith('## ')) return <div key={i} style={{fontSize:16,fontWeight:700,color:GOLD,marginTop:18,marginBottom:8}}>{line.slice(3)}</div>;
+      if (line.startsWith('- ') || line.startsWith('• ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7,paddingLeft:16,position:'relative'}}><span style={{position:'absolute',left:0,color:GOLD}}>·</span>{line.slice(2)}</div>;
+      if (line.trim() === '') return <div key={i} style={{height:8}}/>;
+      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7}}>{line}</div>;
+    });
+  }
+
+  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
+
+  const hasData = gdata && (gdata.selfAll.length > 0 || gdata.peerAll.length > 0);
+
+  return (
+    <div style={{background:BG,minHeight:'100vh'}}>
+      <TopBar title={(proj?.name||'') + ' — AI Csoportriport'} subtitle={proj?.client||''} back onBack={goBack}/>
+      <div style={{maxWidth:800,margin:'0 auto',padding:'22px 24px'}}>
+        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:20}}>
+          <div style={{fontSize:13,color:MUTED,lineHeight:1.6}}>
+            Az AI összefoglaló a projekt összes értékeltjének aggregált eredményei alapján készül. <b>Személyes nevek nem szerepelnek.</b> {gdata?.partCount} értékelt, {gdata?.selfAll.length} önértékelés, {gdata?.peerAll.length} peer visszajelzés alapján.
+          </div>
+          <div style={{marginTop:14,display:'flex',gap:10,alignItems:'center'}}>
+            <Btn onClick={generate} disabled={!hasData||genning}>
+              {genning ? '⏳ Generálás...' : text ? '↺ Újragenerálás' : '🤖 Csoportriport generálása'}
+            </Btn>
+            {!hasData && <span style={{fontSize:12,color:MUTED}}>Nincs elegendő adat a generáláshoz.</span>}
+          </div>
+        </div>
+        {error && <div style={{background:`${RED}18`,border:`1px solid ${RED}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:RED}}>{error}</div>}
+        {genning && (
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:40,textAlign:'center',color:MUTED}}>
+            <div style={{fontSize:24,marginBottom:12}}>🤖</div>
+            <div>Az AI elemzi az adatokat és összefoglaló riportot készít…</div>
+          </div>
+        )}
+        {text && !genning && (
+          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'28px 32px'}}>
+            <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:20}}>AI-generált csoportriport · {new Date().toLocaleDateString('hu-HU')}</div>
+            {renderText(text)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── PROJECT STATUS VIEW — kitöltési státusz + csoportos emlékeztető ──
 function ProjectStatusView({ nav, goBack, ctx }) {
   const projectId = ctx.projectId;
@@ -4457,8 +4576,19 @@ function ProjectCompareView({ nav, goBack, ctx }) {
 function ReportPageView({ nav, goBack, ctx }) {
   const projectId     = ctx.projectId;
   const participantId = ctx.participantId;
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data,       setData]      = useState(null);
+  const [loading,    setLoading]   = useState(true);
+  const [pageTab,    setPageTab]   = useState('report'); // 'report' | 'ai'
+  // AI dev plan state
+  const [aiText,     setAiText]    = useState('');
+  const [aiGenning,  setAiGenning] = useState(false);
+  const [aiError,    setAiError]   = useState('');
+  const [chatMsgs,   setChatMsgs]  = useState([]); // {role,content}
+  const [chatInput,  setChatInput] = useState('');
+  const [chatSending,setChatSending]=useState(false);
+  // Share state
+  const [sharing,    setSharing]   = useState(false);
+  const [shareMsg,   setShareMsg]  = useState('');
 
   useEffect(() => {
     (async () => {
@@ -4481,19 +4611,108 @@ function ReportPageView({ nav, goBack, ctx }) {
         }
         if (otherResps[i]) roleGroups[k].scores.push(otherResps[i].scores || {});
       });
-      // Collect comments from all rater responses
       const allResps = [selfResp, ...otherResps].filter(Boolean);
       const collectedComments = allResps.filter(r => r.comment).map(r => ({
         text: r.comment,
         groupName: r.raterCode === (selfR && selfR.code) ? 'Önértékelés' : 'Értékelő',
-        emoji: r.raterCode === (selfR && selfR.code) ? '🪞' : '👤',
         color: r.raterCode === (selfR && selfR.code) ? GOLD : BLUE,
         timestamp: r.timestamp,
       }));
-      setData({ proj, part, preset, selfScores:selfResp?selfResp.scores:{}, groups:Object.values(roleGroups), raters:pr, comments:collectedComments });
+      setData({ proj, part, preset, selfScores:selfResp?selfResp.scores:{}, groups:Object.values(roleGroups), raters:pr, comments:collectedComments, peerAvg: mergeScoresets(otherResps.filter(Boolean).map(r=>r.scores||{})) });
       setLoading(false);
     })();
   }, [projectId, participantId]);
+
+  async function generateAI() {
+    if (!data || aiGenning) return;
+    setAiGenning(true); setAiError('');
+    const { proj, part, preset, selfScores, peerAvg } = data;
+    const allItems = (preset?.dims||[]).flatMap(d => d.items.map(i=>({...i,dimLabel:d.label})));
+    const selfArr  = allItems.map(i=>({...i, self:selfScores[i.id]||0, others:peerAvg[i.id]||0})).filter(i=>i.self>0);
+    const bs = selfArr.filter(i=>i.others>0 && i.self-i.others>=1.0);
+    const hs = selfArr.filter(i=>i.others>0 && i.others-i.self>=1.0);
+    try {
+      const res = await fetch('/api/generate-report', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ type:'individual', projectName:proj?.name, partName:`${part?.firstName} ${part?.lastName||''}`.trim(), dimsData:preset?.dims, selfAvg:selfScores, peerAvg, scaleMax:5, blindSpots:bs, hiddenStr:hs })
+      });
+      const d = await res.json();
+      if (d.error) { setAiError(d.error); } else {
+        setAiText(d.text);
+        setChatMsgs([
+          { role:'user', content: `Értékelt: ${part?.firstName} ${part?.lastName||''}. Fejlesztési terv generálva.` },
+          { role:'assistant', content: d.text }
+        ]);
+      }
+    } catch(e) { setAiError(e.message); }
+    setAiGenning(false);
+  }
+
+  async function sendChat() {
+    if (!chatInput.trim() || chatSending) return;
+    const newMsg = { role:'user', content: chatInput.trim() };
+    const updatedMsgs = [...chatMsgs, newMsg];
+    setChatMsgs(updatedMsgs); setChatInput(''); setChatSending(true);
+    try {
+      const res = await fetch('/api/generate-report', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ type:'chat', chatMessages: updatedMsgs })
+      });
+      const d = await res.json();
+      if (d.text) setChatMsgs(prev => [...prev, { role:'assistant', content: d.text }]);
+    } catch(e) {}
+    setChatSending(false);
+  }
+
+  async function shareWithParticipant() {
+    if (!data || sharing) return;
+    const { proj, part, preset, selfScores, peerAvg } = data;
+    if (!part?.email) { setShareMsg('⚠ Az értékelt email-je nem ismert.'); setTimeout(()=>setShareMsg(''),4000); return; }
+    setSharing(true);
+    const dims = preset?.dims || [];
+    // Build score summary HTML
+    const scoreRows = dims.map(d => {
+      const sv = dimAvg(selfScores, d);
+      const pv = dimAvg(peerAvg, d);
+      return `<tr><td style="padding:6px 10px;font-size:13px;color:#4A4A48;">${d.label}</td><td style="padding:6px 10px;text-align:center;font-weight:700;color:#A68542;">${sv>0?sv.toFixed(1):'—'}</td><td style="padding:6px 10px;text-align:center;font-weight:700;color:#4A7A9E;">${pv>0?pv.toFixed(1):'—'}</td></tr>`;
+    }).join('');
+    const aiSection = aiText ? `<div style="margin-top:24px;padding:20px;background:#F5F3EF;border-radius:10px;"><div style="font-size:12px;color:#8A8478;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em;">AI-fejlesztési terv</div><div style="font-size:14px;color:#4A4A48;line-height:1.7;white-space:pre-wrap;">${aiText.replace(/\*\*/g,'').replace(/</g,'&lt;')}</div></div>` : '';
+    const htmlBody = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;color:#1A1A18;">
+      <div style="text-align:center;margin-bottom:28px;"><span style="font-family:Georgia,serif;font-size:16px;color:#8A8478;">LEDGE <span style="color:#A68542">360°</span></span></div>
+      <h1 style="font-family:Georgia,serif;font-size:22px;font-weight:400;margin:0 0 8px;">Kedves ${part.firstName}!</h1>
+      <p style="font-size:14px;color:#4A4A48;line-height:1.7;">Az alábbiakban megtalálod a <b>${proj?.name||'360°-os értékelés'}</b> személyes eredményeidet.</p>
+      <table style="width:100%;border-collapse:collapse;margin:20px 0;border:1px solid #E2DED6;border-radius:8px;overflow:hidden;">
+        <thead><tr style="background:#F5F3EF;">
+          <th style="padding:8px 10px;text-align:left;font-size:11px;color:#8A8478;text-transform:uppercase;">Kompetencia</th>
+          <th style="padding:8px 10px;text-align:center;font-size:11px;color:#A68542;text-transform:uppercase;">Önértékelés</th>
+          <th style="padding:8px 10px;text-align:center;font-size:11px;color:#4A7A9E;text-transform:uppercase;">Értékelőid</th>
+        </tr></thead>
+        <tbody>${scoreRows}</tbody>
+      </table>
+      ${aiSection}
+      <hr style="border:none;border-top:1px solid #E2DED6;margin:28px 0;">
+      <p style="font-size:11px;color:#C5C0B8;text-align:center;">LEDGE 360° — ${proj?.client||'ZEL Group'} · Bizalmas értékelési anyag</p>
+    </div>`;
+    try {
+      const res = await fetch('/api/send-invite', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ to:part.email, code:'—', raterName:part.firstName, htmlBody, subject:`${proj?.name||'360°'} — személyes eredményeid`, surveyTitle:proj?.name })
+      });
+      setShareMsg(res.ok ? `✓ Elküldve: ${part.email}` : '⚠ Küldési hiba');
+    } catch(e) { setShareMsg('⚠ Küldési hiba'); }
+    setSharing(false);
+    setTimeout(()=>setShareMsg(''),5000);
+  }
+
+  function renderAiText(t) {
+    return t.split('\n').map((line,i) => {
+      if (line.startsWith('**') && line.endsWith('**')) return <div key={i} style={{fontSize:15,fontWeight:700,color:TEXT,marginTop:18,marginBottom:6}}>{line.replace(/\*\*/g,'')}</div>;
+      if (line.startsWith('## ')) return <div key={i} style={{fontSize:15,fontWeight:700,color:GOLD,marginTop:18,marginBottom:6}}>{line.slice(3)}</div>;
+      if (line.startsWith('- ') || line.startsWith('• ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7,paddingLeft:14,position:'relative'}}><span style={{position:'absolute',left:0,color:GOLD}}>·</span>{line.slice(2)}</div>;
+      if (line.trim()==='') return <div key={i} style={{height:6}}/>;
+      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.7}}>{line}</div>;
+    });
+  }
 
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
   if (!data)   return <div style={{padding:40,color:MUTED,background:BG,minHeight:'100vh'}}>Nincs adat.</div>;
@@ -4501,24 +4720,101 @@ function ReportPageView({ nav, goBack, ctx }) {
   const { proj, part, preset, selfScores, groups, raters, comments } = data;
   const totalDone = raters.filter(r => r.status === 'done').length;
 
+  const TAB_BTN = (id, label) => (
+    <button onClick={() => setPageTab(id)} style={{padding:'10px 22px',border:'none',background:'none',cursor:'pointer',
+      fontSize:14,fontFamily:"'DM Sans',sans-serif",color:pageTab===id?GOLD:MUTED,
+      borderBottom:pageTab===id?`2px solid ${GOLD}`:'2px solid transparent',
+      fontWeight:pageTab===id?600:400,transition:'all .15s'}}>
+      {label}
+    </button>
+  );
+
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar
         title={(part?part.firstName+' '+part.lastName:'') + ' — riport'}
         subtitle={proj?proj.name:''}
         back onBack={goBack}
+        right={
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {shareMsg && <span style={{fontSize:12,color:shareMsg.startsWith('✓')?GREEN:ORAN}}>{shareMsg}</span>}
+            <Btn size="sm" variant="ghost" onClick={shareWithParticipant} disabled={sharing}>
+              {sharing ? '...' : '📤 Megosztás'}
+            </Btn>
+          </div>
+        }
       />
+      {/* Page-level tab bar */}
+      <div style={{borderBottom:`1px solid ${BORD}`,background:SURF,display:'flex',paddingLeft:24}}>
+        {TAB_BTN('report', '📊 Eredmények')}
+        {TAB_BTN('ai', '🤖 AI Fejlesztési terv')}
+      </div>
       <div style={{maxWidth:960,margin:'0 auto',padding:'22px 24px'}}>
-        <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:18}}>
-          <Badge color={GOLD}>{preset.name}</Badge>
-          <Badge color={BLUE}>{totalDone}/{raters.length} beküldött</Badge>
-          {groups.length === 0 && <span style={{fontSize:13,color:ORAN}}>⚠ Még nincs peer visszajelzés</span>}
-        </div>
-        <ReportView dims={preset.dims} selfScores={selfScores} groups={groups} comments={comments} scaleMax={getScaleMax((data.proj && data.proj.scaleId) || '5pt')}/>
+        {pageTab === 'report' && (
+          <>
+            <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:18}}>
+              <Badge color={GOLD}>{preset.name}</Badge>
+              <Badge color={BLUE}>{totalDone}/{raters.length} beküldött</Badge>
+              {groups.length === 0 && <span style={{fontSize:13,color:ORAN}}>⚠ Még nincs peer visszajelzés</span>}
+            </div>
+            <ReportView dims={preset.dims} selfScores={selfScores} groups={groups} comments={comments} scaleMax={getScaleMax((data.proj && data.proj.scaleId) || '5pt')}/>
+          </>
+        )}
+        {pageTab === 'ai' && (
+          <div>
+            {/* Generate button */}
+            {!aiText && (
+              <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
+                <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:8}}>AI Fejlesztési terv</div>
+                <div style={{fontSize:13,color:MUTED,lineHeight:1.6,marginBottom:16}}>
+                  Az AI elemzi {part?.firstName} eredményeit — erősségeket, vak foltokat, rejtett erősségeket — és személyes, cselekvésorientált fejlesztési tervet készít. Utána kérdezhetsz, pontosíthatsz.
+                </div>
+                {aiError && <div style={{fontSize:12,color:RED,marginBottom:12}}>{aiError}</div>}
+                <Btn onClick={generateAI} disabled={aiGenning}>
+                  {aiGenning ? '⏳ Generálás...' : '🤖 Fejlesztési terv generálása'}
+                </Btn>
+              </div>
+            )}
+            {/* Generated plan */}
+            {aiText && (
+              <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                  <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em'}}>AI Fejlesztési terv · {part?.firstName} {part?.lastName}</div>
+                  <button onClick={generateAI} disabled={aiGenning} style={{fontSize:11,color:MUTED,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>↺ Újra</button>
+                </div>
+                {renderAiText(aiText)}
+              </div>
+            )}
+            {/* Chat */}
+            {aiText && (
+              <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,overflow:'hidden'}}>
+                <div style={{padding:'14px 20px',borderBottom:`1px solid ${BORD}`,fontSize:13,color:MUTED}}>💬 Folytasd a párbeszédet — kérdezz, pontosíts</div>
+                <div style={{maxHeight:320,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
+                  {chatMsgs.slice(2).map((m,i) => (
+                    <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
+                      <div style={{maxWidth:'80%',background:m.role==='user'?`${GOLD}22`:S2,border:`1px solid ${m.role==='user'?GDIM:BORD}`,borderRadius:12,padding:'10px 14px',fontSize:13,color:TEXT,lineHeight:1.6}}>
+                        {m.content}
+                      </div>
+                    </div>
+                  ))}
+                  {chatSending && <div style={{fontSize:12,color:MUTED}}>⏳ Az AI gondolkodik…</div>}
+                </div>
+                <div style={{display:'flex',gap:8,padding:'12px 16px',borderTop:`1px solid ${BORD}`}}>
+                  <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}}
+                    placeholder="Írj egy kérdést… (Enter = küldés)"
+                    style={{flex:1,background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none'}}/>
+                  <Btn size="sm" onClick={sendChat} disabled={chatSending||!chatInput.trim()}>Küldés</Btn>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 
 // ─── SHARE MODAL ──────────────────────────────────────────────
 function ShareModal({ onClose, libraryId, dims, customName }) {
@@ -5312,6 +5608,7 @@ export default function App() {
     project_summary:  <ProjectSummaryView  nav={nav} goBack={goBack} ctx={ctx}/>,
     project_compare:  <ProjectCompareView  nav={nav} goBack={goBack} ctx={ctx}/>,
     project_status:   <ProjectStatusView   nav={nav} goBack={goBack} ctx={ctx}/>,
+    ai_group_report:  <AIGroupReportView   nav={nav} goBack={goBack} ctx={ctx}/>,
     library_manager:  <LibraryManagerView nav={nav} goBack={goBack} ctx={ctx}/>,
   };
 
