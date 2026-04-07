@@ -3605,14 +3605,20 @@ function ProjectView({ nav, goBack, ctx }) {
   }
 
   async function sendEmail(rater, part, templateKey) {
-    if (!rater.email) return;
+    // Fallback: self-rater may have empty rater.email but part has email
+    const emailTo = rater.email || (rater.role === 'self' ? part?.email : null);
+    if (!emailTo) return;
+    // Ensure correct template: self-rater always gets selfInvite (not peerInvite)
+    const resolvedKey = rater.role === 'self' && templateKey === 'peerInvite' ? 'selfInvite' : templateKey;
     setSendingId(rater.id);
     const cc = await getContactConsultant();
     const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
-    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
+    const res = await sendProjectEmail({ to:emailTo, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey:resolvedKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
     if (res.ok) {
-      const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
+      const field = resolvedKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
       await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
+    } else {
+      console.error('[sendEmail] failed:', emailTo, rater.code, res.error);
     }
     setSendingId(null);
     load();
@@ -3625,15 +3631,25 @@ function ProjectView({ nav, goBack, ctx }) {
     setActivatedMsg(true);
     setTimeout(() => setActivatedMsg(false), 4000);
     const cc = await getContactConsultant();
+    const errors = [];
     for (const r of raters) {
-      // For self-raters: fallback to participant email if rater.email empty
+      // self-rater: fallback to participant email if rater.email empty
       const emailTo = r.email || (r.role === 'self' ? parts.find(p => p.id === r.participantId)?.email : null);
       if (!emailTo) continue;
       const part = parts.find(p => p.id === r.participantId);
-      const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
+      const partName = part ? `${part.firstName} ${part.lastName||''}`.trim() : '';
+      // self always selfInvite, everyone else peerInvite
       const key = r.role === 'self' ? 'selfInvite' : 'peerInvite';
       const res = await sendProjectEmail({ to:emailTo, firstName:r.firstName, participantName:partName, code:r.code, project:updated, templateKey:key, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
-      if (res.ok) await db.set(r.id, { ...r, email_sent:true, email_sent_at:Date.now() });
+      if (res.ok) {
+        await db.set(r.id, { ...r, email_sent:true, email_sent_at:Date.now() });
+      } else {
+        errors.push(emailTo);
+        console.error('[activate] email failed:', emailTo, r.code, r.role, res.error);
+      }
+    }
+    if (errors.length > 0) {
+      console.error('[activate] failed emails:', errors);
     }
     load();
   }
@@ -3968,7 +3984,11 @@ function RatersView({ nav, goBack, ctx }) {
   useEffect(() => { load(); }, [load]);
 
   async function sendRaterEmail(rater, part, templateKey) {
-    if (!rater.email || !proj) return;
+    // Fallback email for self-raters
+    const emailTo = rater.email || (rater.role === 'self' ? part?.email : null);
+    if (!emailTo || !proj) return;
+    // Ensure correct template: self-rater always selfInvite
+    const resolvedKey = rater.role === 'self' && templateKey === 'peerInvite' ? 'selfInvite' : templateKey;
     setSendingId(rater.id);
     const cs = await db.get('collab:'+projectId) || [];
     const contact = cs.find(c => c.permission === 'contact');
@@ -3977,10 +3997,12 @@ function RatersView({ nav, goBack, ctx }) {
       ? { name: contact.name || '', email: contact.email || '', phone: contact.phone || '' }
       : { name: session?.name || session?.email || '', email: '', phone: '' };
     const partName = part ? `${part.firstName} ${part.lastName||''}`.trim() : '';
-    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
+    const res = await sendProjectEmail({ to:emailTo, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey:resolvedKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
     if (res.ok) {
-      const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
+      const field = resolvedKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
       await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
+    } else {
+      console.error('[sendRaterEmail] failed:', emailTo, rater.code, rater.role, res.error);
     }
     setSendingId(null);
     load();
@@ -4366,12 +4388,18 @@ function ProjectStatusView({ nav, goBack, ctx }) {
       : { name: session?.name||session?.email||'', email:'', phone:'' };
     let ok = 0;
     for (const e of selectedEntries) {
-      if (!e.rater.email) continue;
+      // Fallback: self-rater may have empty rater.email but part has email
+      const emailTo = e.rater.email || (e.rater.role === 'self' ? e.part?.email : null);
+      if (!emailTo) continue;
+      // self-rater reminder uses selfInvite template (not peerInvite)
+      const templateKey = e.rater.role === 'self' ? 'selfInvite' : 'reminder';
       const partName = `${e.part.firstName} ${e.part.lastName||''}`.trim();
-      const res = await sendProjectEmail({ to:e.rater.email, firstName:e.rater.firstName, participantName:partName, code:e.rater.code, project:proj, templateKey:'reminder', consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
+      const res = await sendProjectEmail({ to:emailTo, firstName:e.rater.firstName, participantName:partName, code:e.rater.code, project:proj, templateKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
       if (res.ok) {
         await db.set(e.rater.id, { ...e.rater, reminder_sent_at: Date.now() });
         ok++;
+      } else {
+        console.error('[sendReminders] failed:', emailTo, e.rater.code, e.rater.role);
       }
     }
     setSending(false);
