@@ -4616,80 +4616,88 @@ function ProjectStatusView({ nav, goBack, ctx }) {
   );
 }
 
-// ─── PROJECT COMPARE VIEW — összehasonlító táblázat ──────────
+// ─── PROJECT COMPARE VIEW — összehasonlító nézet ──────────
 function ProjectCompareView({ nav, goBack, ctx }) {
   const projectId = ctx.projectId;
   const [proj,     setProj]     = useState(null);
   const [parts,    setParts]    = useState([]);
-  const [selected, setSelected] = useState({}); // partId → true/false
-  const [partData, setPartData] = useState({}); // partId → { selfScores, peerAvg, selfDone, peerDone }
+  const [selected, setSelected] = useState({});
+  const [partData, setPartData] = useState({});
   const [preset,   setPreset]   = useState(null);
   const [loading,  setLoading]  = useState(true);
-  const [mode,     setMode]     = useState('dim'); // 'dim' | 'item'
+  const [error,    setError]    = useState('');
 
   useEffect(() => {
+    if (!projectId) { setError('Hiányzó projekt azonosító.'); setLoading(false); return; }
     (async () => {
-      const p = await db.get(projectId);
-      setProj(p);
-      const pr = resolvePreset(p ? p.libraryId : null, p ? p.customDims : null);
-      setPreset(pr);
-      const pks = await db.list('part:');
-      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
-      setParts(ps);
-      // Default: all selected
-      const sel = {};
-      ps.forEach(p => { sel[p.id] = true; });
-      setSelected(sel);
-      // Load each participant's data
-      const rks = await db.list('rat:');
-      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
-      const pd = {};
-      for (const part of ps) {
-        const pr2   = rs.filter(r => r.participantId === part.id);
-        const selfR = pr2.find(r => r.role === 'self');
-        const peerR = pr2.filter(r => r.role !== 'self' && r.status === 'done');
-        const selfResp = selfR ? await db.get('resp:'+selfR.code) : null;
-        const peerResps = await Promise.all(peerR.map(r => db.get('resp:'+r.code)));
-        const peerScores = peerResps.filter(Boolean).map(r => r.scores||{});
-        pd[part.id] = {
-          selfScores: selfResp ? selfResp.scores : null,
-          peerAvg:    mergeScoresets(peerScores),
-          selfDone:   selfR && selfR.status === 'done',
-          peerDone:   peerR.length,
-        };
+      try {
+        const p = await db.get(projectId);
+        if (!p) { setError('A projekt nem található.'); setLoading(false); return; }
+        setProj(p);
+        setPreset(resolvePreset(p.libraryId, p.customDims));
+        const pks = await db.list('part:');
+        const allParts = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
+        setParts(allParts);
+        const sel = {};
+        allParts.forEach(p => { sel[p.id] = true; });
+        setSelected(sel);
+        const rks = await db.list('rat:');
+        const allRats = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
+        const pd = {};
+        for (const part of allParts) {
+          const pr = allRats.filter(r => r && r.participantId === part.id);
+          const selfR = pr.find(r => r.role === 'self');
+          const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
+          const selfResp = selfR ? await db.get('resp:'+selfR.code) : null;
+          const peerResps = (await Promise.all(peerR.map(r => db.get('resp:'+r.code)))).filter(Boolean);
+          pd[part.id] = {
+            selfScores: (selfResp && selfResp.scores) ? selfResp.scores : null,
+            peerAvg:    mergeScoresets(peerResps.map(r => r.scores||{})),
+            selfDone:   !!(selfR && selfR.status === 'done'),
+            peerDone:   peerR.length,
+          };
+        }
+        setPartData(pd);
+      } catch(e) {
+        console.error('[CompareView] error:', e);
+        setError('Betöltési hiba: ' + e.message);
       }
-      setPartData(pd);
       setLoading(false);
     })();
   }, [projectId]);
 
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
-
-  const activeParts = parts.filter(p => selected[p.id]);
-  const dims = preset ? (preset.dims || []) : [];
+  if (error)   return <div style={{padding:40,color:RED,textAlign:'center',background:BG,minHeight:'100vh'}}>{error}</div>;
 
   const COLORS = [GOLD, BLUE, GREEN, PURP, ORAN, '#7E5EA0', '#4A7A9E', '#A06A48'];
+  const dims = (preset && Array.isArray(preset.dims)) ? preset.dims : [];
+  const activeParts = parts.filter(p => selected[p.id]);
 
-  function scoreCell(val, max) {
-    if (!val || val <= 0) return <span style={{color:DIM,fontSize:12}}>—</span>;
-    const color = scoreColor(val, max || 5);
+  function ScoreBar({ val, color, max }) {
+    const m = max || 5;
+    const pct = (val && val > 0) ? Math.min(100, Math.round(val / m * 100)) : 0;
     return (
-      <span style={{background:`${color}22`,color,borderRadius:6,padding:'2px 9px',fontSize:13,fontWeight:700,display:'inline-block'}}>
-        {val.toFixed ? val.toFixed(1) : val}
-      </span>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <div style={{flex:1,height:10,background:'#EDE9E2',borderRadius:5,overflow:'hidden'}}>
+          <div style={{height:'100%',width:pct+'%',background:color,borderRadius:5}}/>
+        </div>
+        <span style={{width:28,fontSize:12,fontWeight:700,color:val&&val>0?color:MUTED,flexShrink:0,textAlign:'right'}}>
+          {val && val > 0 ? val.toFixed(1) : '—'}
+        </span>
+      </div>
     );
   }
-
-  const sMax = 5;
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar title={(proj?proj.name:'') + ' — Összehasonlító riport'} subtitle={proj?proj.client:''} back onBack={goBack}/>
-      <div style={{maxWidth:'100%',padding:'22px 32px'}}>
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'22px 24px'}}>
 
-        {/* Participant selector chips */}
-        <div style={{marginBottom:20}}>
-          <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>Értékeltek — kattints a be/ki kapcsoláshoz</div>
+        {/* Selector chips */}
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>
+            Értékeltek — kattints a be/ki kapcsoláshoz
+          </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             {parts.map((part, i) => {
               const on = !!selected[part.id];
@@ -4697,19 +4705,14 @@ function ProjectCompareView({ nav, goBack, ctx }) {
               return (
                 <button key={part.id}
                   onClick={() => setSelected(prev => ({...prev, [part.id]: !prev[part.id]}))}
-                  style={{padding:'7px 16px',borderRadius:20,border:`2px solid ${on ? col : BORD}`,
-                    background: on ? `${col}18` : 'transparent',
-                    color: on ? col : MUTED, fontWeight: on ? 700 : 400,
-                    cursor:'pointer',fontSize:13,fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
+                  style={{padding:'7px 16px',borderRadius:20,border:`2px solid ${on?col:BORD}`,
+                    background:on?`${col}18`:'transparent',color:on?col:MUTED,
+                    fontWeight:on?700:400,cursor:'pointer',fontSize:13,
+                    fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
                   {part.firstName} {part.lastName}
                 </button>
               );
             })}
-            <button onClick={() => setMode(m => m === 'dim' ? 'item' : 'dim')}
-              style={{padding:'7px 16px',borderRadius:20,border:`1px solid ${BORD}`,background:'transparent',
-                color:MUTED,cursor:'pointer',fontSize:12,fontFamily:"'DM Sans',sans-serif",marginLeft:'auto'}}>
-              {mode === 'dim' ? 'Kompetencia szint' : 'Item szint'} ↕
-            </button>
           </div>
         </div>
 
@@ -4717,93 +4720,51 @@ function ProjectCompareView({ nav, goBack, ctx }) {
           <div style={{textAlign:'center',padding:48,color:MUTED}}>Válassz ki legalább egy értékeltet.</div>
         )}
 
-        {activeParts.length > 0 && dims.length > 0 && (
-          <div style={{overflowX:'auto',borderRadius:12,border:`1px solid ${BORD}`}}>
-            <table style={{width:'100%',borderCollapse:'collapse',minWidth: 240 + activeParts.length * 160}}>
-              <thead style={{position:'sticky',top:0,zIndex:3}}>
-                <tr>
-                  <th style={{textAlign:'left',padding:'10px 16px',fontSize:12,color:MUTED,background:S2,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,minWidth:180}}>
-                    Kompetencia {mode==='item' ? '/ Item' : ''}
-                  </th>
-                  {activeParts.map((part, i) => {
-                    const col = COLORS[parts.indexOf(part) % COLORS.length];
-                    const d = partData[part.id];
-                    return (
-                      <th key={part.id} style={{padding:'10px 14px',background:S2,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,minWidth:160,textAlign:'center'}}>
-                        <div style={{fontSize:13,color:col,fontWeight:700}}>{part.firstName} {part.lastName}</div>
-                        <div style={{fontSize:10,color:MUTED,marginTop:2,fontWeight:400}}>
-                          {d?.selfDone ? '✓ önért.' : '○'} · {d?.peerDone||0} értékelő
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-                <tr>
-                  <th style={{textAlign:'left',padding:'5px 16px',fontSize:10,color:MUTED,background:S3,borderBottom:`2px solid ${BORD}`,borderRight:`1px solid ${BORD}`}}>
-                    <span style={{color:GOLD}}>■ Önértékelés</span> · <span style={{color:BLUE}}>■ Értékelők átlaga</span>
-                  </th>
-                  {activeParts.map(part => (
-                    <th key={part.id} style={{padding:'5px 14px',background:S3,borderBottom:`2px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center',fontSize:10,color:MUTED,fontWeight:400}}>
-                      Én · Értékelők
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {dims.map((d, di) => (
-                  <React.Fragment key={d.id}>
-                    <tr style={{background:`${d.color||GOLD}0A`}}>
-                      <td style={{padding:'8px 16px',fontWeight:700,fontSize:12,color:d.color||GOLD,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,background:`${d.color||GOLD}14`}}>
-                        {d.label || d.id}
-                      </td>
-                      {activeParts.map(part => {
-                        const pd = partData[part.id];
-                        if (!pd) return <td key={part.id} style={{borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center',color:MUTED,fontSize:12}}>—</td>;
-                        const selfVal = pd.selfScores ? dimAvg(pd.selfScores, d) : 0;
-                        const peerVal = pd.peerAvg ? dimAvg(pd.peerAvg, d) : 0;
-                        return (
-                          <td key={part.id} style={{padding:'8px 14px',borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center'}}>
-                            <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
-                              {scoreCell(selfVal, sMax)}
-                              <span style={{color:MUTED,fontSize:10}}>·</span>
-                              {scoreCell(peerVal, sMax)}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    {mode === 'item' && d.items.map((item, ii) => (
-                      <tr key={item.id} style={{background: ii%2===0 ? 'transparent' : S2+'66'}}>
-                        <td style={{padding:'6px 16px 6px 28px',fontSize:12,color:MUTED,borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,lineHeight:1.4}}>
-                          {item.text}
-                        </td>
-                        {activeParts.map(part => {
-                          const pd = partData[part.id];
-                          if (!pd) return <td key={part.id} style={{borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center',color:MUTED,fontSize:12}}>—</td>;
-                          const sv = pd.selfScores ? (pd.selfScores[item.id]||0) : 0;
-                          const pv = pd.peerAvg ? (pd.peerAvg[item.id]||0) : 0;
-                          return (
-                            <td key={part.id} style={{padding:'6px 14px',borderBottom:`1px solid ${BORD}`,borderRight:`1px solid ${BORD}`,textAlign:'center'}}>
-                              <div style={{display:'flex',gap:8,justifyContent:'center',alignItems:'center'}}>
-                                {scoreCell(sv, sMax)}
-                                <span style={{color:MUTED,fontSize:10}}>·</span>
-                                {scoreCell(pv, sMax)}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+        {/* Dimension cards */}
+        {activeParts.length > 0 && dims.map(d => (
+          <div key={d.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,marginBottom:14,overflow:'hidden'}}>
+            {/* Dim header */}
+            <div style={{padding:'12px 20px',background:`${d.color||GOLD}14`,borderBottom:`1px solid ${BORD}`}}>
+              <span style={{fontSize:13,fontWeight:700,color:d.color||GOLD}}>{d.label||d.id}</span>
+            </div>
+            {/* Participants side by side */}
+            <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(activeParts.length, 4)}, 1fr)`,gap:0}}>
+              {activeParts.map((part, i) => {
+                const col = COLORS[parts.indexOf(part) % COLORS.length];
+                const pd = partData[part.id] || {};
+                const selfVal = pd.selfScores ? dimAvg(pd.selfScores, d) : 0;
+                const peerVal = pd.peerAvg ? dimAvg(pd.peerAvg, d) : 0;
+                return (
+                  <div key={part.id} style={{padding:'14px 18px',borderRight: i < activeParts.length-1 ? `1px solid ${BORD}` : 'none'}}>
+                    <div style={{fontSize:12,color:col,fontWeight:700,marginBottom:10}}>
+                      {part.firstName} {part.lastName}
+                      <span style={{fontSize:10,color:MUTED,fontWeight:400,marginLeft:6}}>
+                        {pd.selfDone?'✓':'○'} · {pd.peerDone||0} értékelő
+                      </span>
+                    </div>
+                    <div style={{marginBottom:6}}>
+                      <div style={{fontSize:10,color:MUTED,marginBottom:3}}>Önértékelés</div>
+                      <ScoreBar val={selfVal} color={GOLD} max={5}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,color:MUTED,marginBottom:3}}>Értékelők átlaga</div>
+                      <ScoreBar val={peerVal} color={col} max={5}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        ))}
+
+        {activeParts.length > 0 && dims.length === 0 && (
+          <div style={{textAlign:'center',padding:48,color:MUTED}}>Nincs kompetencia adat ehhez a projekthez.</div>
         )}
       </div>
     </div>
   );
 }
+
 
 function ReportPageView({ nav, goBack, ctx }) {
   const projectId     = ctx.projectId;
