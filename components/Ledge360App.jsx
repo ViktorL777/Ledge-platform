@@ -3975,7 +3975,7 @@ function RatersView({ nav, goBack, ctx }) {
         )}
 
         {raters.map(r => {
-          const ri = roles.find(d => d.id === r.role) || roles[0];
+          const ri = r.role === 'self' ? { label:'Önértékelés', color: GOLD } : (roles.find(d => d.id === r.role) || roles[0]);
           return (
             <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
               <div style={{flex:1,minWidth:0}}>
