@@ -885,6 +885,42 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   );
 }
 
+// Kétlépéses törlés megerősítés — először rákérdez, majd második körben szöveget kér
+function DoubleConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
+  const [step, setStep] = React.useState(1);
+  const [inputVal, setInputVal] = React.useState('');
+  const CONFIRM_WORD = 'TÖRLÉS';
+  if (step === 1) return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:380}}>
+        <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:10}}>{title}</div>
+        <div style={{fontSize:14,color:MUTED,lineHeight:1.6,marginBottom:24}}>{message}</div>
+        <div style={{display:'flex',gap:10}}>
+          <Btn variant="danger" onClick={() => setStep(2)}>{confirmLabel || 'Igen, törlés'}</Btn>
+          <Btn variant="ghost" onClick={onCancel}>Mégse</Btn>
+        </div>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:380}}>
+        <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:10}}>Biztosan törlöd?</div>
+        <div style={{fontSize:14,color:MUTED,lineHeight:1.6,marginBottom:16}}>Ez a művelet <strong>nem vonható vissza</strong>. A megerősítéshez írd be: <strong>{CONFIRM_WORD}</strong></div>
+        <input
+          value={inputVal} onChange={e => setInputVal(e.target.value.toUpperCase())}
+          placeholder={CONFIRM_WORD}
+          style={{width:'100%',boxSizing:'border-box',background:'#F5F3EF',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',fontSize:14,fontFamily:"'DM Sans',sans-serif",color:TEXT,outline:'none',marginBottom:20}}
+        />
+        <div style={{display:'flex',gap:10}}>
+          <Btn variant="danger" onClick={onConfirm} disabled={inputVal !== CONFIRM_WORD}>Végleges törlés</Btn>
+          <Btn variant="ghost" onClick={onCancel}>Mégse</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── REPORT VIEW ───────────────────────────────────────────────
 function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax }) {
   const sMax = propScaleMax || 5;
@@ -1812,7 +1848,7 @@ function HomeView({ nav, goBack, ctx, onLogout }) {
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,maxWidth:660,width:'100%',marginTop:40}}>
           {[
             { icon:'◉', title:'Személyes tükör',  desc:'Önértékelés + saját csoportjaid. Barátok, kollégák, família — privát és szabad.', color:GOLD, target:'leader_dashboard' },
-            { icon:'◈', title:'Szervezeti 360°',   desc:'Tanácsadói projektek, HR folyamatok, csapatmérések szervezett kezelése.',         color:BLUE, target: ctx.user && (ctx.user.role === 'consultant' || ctx.user.role === 'super_admin') ? 'admin' : 'paywall' },
+            { icon:'◈', title:'Szervezeti 360°',   desc:'Tanácsadói projektek, HR folyamatok, csapatmérések szervezett kezelése.',         color:BLUE, target: 'admin' }, // paywall ideiglenesen kikapcsolva
           ].map(c => (
             <div key={c.target} onClick={() => nav(c.target)}
               style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:32,cursor:'pointer',transition:'all .2s',position:'relative',overflow:'hidden'}}
@@ -3523,7 +3559,9 @@ function ProjectView({ nav, goBack, ctx }) {
           {proj.status === 'archived'
             ? <><Badge color={MUTED}>Archivált</Badge><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)}>Visszaállítás</Btn></>
             : proj.status === 'active'
-              ? <><Badge color={GREEN}>Aktív</Badge><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>
+              ? <><Badge color={GREEN}>Aktív</Badge>
+                  <Btn size="sm" disabled style={{opacity:0.45,cursor:'default',background:GREEN,color:'#fff',border:'none'}}>✓ Aktiválva</Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>
               : <><Btn size="sm" onClick={activate}>Aktiválás</Btn><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>}
           <Btn variant="danger" size="sm" onClick={() => setShowDeleteProj(true)}>🗑</Btn>
         </div>}
@@ -3663,8 +3701,8 @@ function ProjectView({ nav, goBack, ctx }) {
       {showEmailTmpls && <EmailTemplatesModal project={proj} onClose={() => setShowEmailTmpls(false)} onSave={saveEmailTemplates}/>}
 
       {showDeleteProj && (
-        <ConfirmModal title="Projekt törlése"
-          message="A projekt és az összes értékelt, értékelő és válasz törlésre kerül. Ez a művelet nem vonható vissza."
+        <DoubleConfirmModal title="Projekt törlése"
+          message="A projekt és az összes értékelt, értékelő és válasz törlésre kerül."
           confirmLabel="Igen, törlés" onConfirm={deleteProject} onCancel={() => setShowDeleteProj(false)}/>
       )}
       {deletingPartId && (
