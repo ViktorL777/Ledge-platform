@@ -204,34 +204,24 @@ Thank you for your cooperation!
 
 function renderTemplate(template, vars) {
   return template
-    .replace(/\[Keresztnév\]/g,        vars.firstName         || '')
-    .replace(/\[Cég\]/g,               vars.company           || '')
-    .replace(/\[Értékelt neve\]/g,     vars.participantName   || '')
-    .replace(/\[Tanácsadó neve\]/g,    vars.consultantName    || '')
-    .replace(/\[Tanácsadó email\]/g,   vars.consultantEmail   || '')
-    .replace(/\[Tanácsadó telefon\]/g, vars.consultantPhone   || '')
-    .replace(/\[Projekt neve\]/g,      vars.projectName       || '')
-    .replace(/\[Határidő\]/g,          vars.deadline          || '…');
+    .replace(/\[Keresztnév\]/g,     vars.firstName       || '')
+    .replace(/\[Cég\]/g,            vars.company         || '')
+    .replace(/\[Értékelt neve\]/g,  vars.participantName || '')
+    .replace(/\[Tanácsadó neve\]/g, vars.consultantName  || '')
+    .replace(/\[Projekt neve\]/g,   vars.projectName     || '')
+    .replace(/\[Határidő\]/g,       vars.deadline        || '…');
 }
 
-async function sendProjectEmail({ to, firstName, participantName, code, project, templateKey, consultantName, consultantEmail, consultantPhone }) {
+async function sendProjectEmail({ to, firstName, participantName, code, project, templateKey, consultantName }) {
   if (!to || !code) return { ok: false, error: 'Hiányzó email vagy kód' };
   const lang  = project.emailLang || 'hu';
   const tmpls = (project.emailTemplates && project.emailTemplates[lang]) || DEFAULT_EMAIL_TEMPLATES[lang];
   const tmpl  = tmpls[templateKey];
   if (!tmpl) return { ok: false, error: 'Sablon nem található' };
-  const vars = { firstName, participantName, code, company: project.client || project.name || '', consultantName: consultantName || '', consultantEmail: consultantEmail || '', consultantPhone: consultantPhone || '', projectName: project.name || '' };
+  const vars = { firstName, participantName, code, company: project.client || project.name || '', consultantName: consultantName || '', projectName: project.name || '' };
   const subject  = renderTemplate(tmpl.subject, vars);
   const bodyText = renderTemplate(tmpl.body,    vars);
   const surveyUrl = `https://www.ledge.news/360?code=${code}`;
-  // Contact block in footer — only if contact consultant data available
-  const contactBlock = (consultantName || consultantEmail || consultantPhone) ? `
-    <div style="background:#F5F3EF;border:1px solid #E2DED6;border-radius:10px;padding:14px 18px;margin:20px 0;font-size:13px;color:#4A4A48;">
-      <div style="font-size:11px;color:#8A8478;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;">Kapcsolattartó tanácsadó</div>
-      ${consultantName ? `<div style="font-weight:600;margin-bottom:2px;">${consultantName}</div>` : ''}
-      ${consultantEmail ? `<div><a href="mailto:${consultantEmail}" style="color:#A68542;text-decoration:none;">${consultantEmail}</a></div>` : ''}
-      ${consultantPhone ? `<div style="margin-top:2px;">${consultantPhone}</div>` : ''}
-    </div>` : '';
   const htmlBody = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#1A1A18;">
     <div style="text-align:center;margin-bottom:28px;"><span style="font-family:Georgia,serif;font-size:16px;color:#8A8478;letter-spacing:.04em;">LEDGE <span style="color:#A68542">360°</span></span></div>
     ${bodyText.split('\n\n').map(p => `<p style="font-size:15px;line-height:1.7;color:#4A4A48;margin:0 0 18px;">${p.replace(/\n/g,'<br>')}</p>`).join('')}
@@ -240,7 +230,6 @@ async function sendProjectEmail({ to, firstName, participantName, code, project,
       <div style="font-size:12px;color:#8A8478;margin-bottom:6px;">Azonosítód</div>
       <div style="font-family:monospace;font-size:20px;font-weight:700;letter-spacing:.15em;color:#A68542;">${code}</div>
     </div>
-    ${contactBlock}
     <hr style="border:none;border-top:1px solid #E2DED6;margin:28px 0;">
     <p style="font-size:11px;color:#C5C0B8;text-align:center;">LEDGE 360° — ZEL Group · Bizalmas értékelési rendszer</p>
   </div>`;
@@ -536,74 +525,37 @@ const _sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const _supabase = _sbUrl && _sbKey ? createClient(_sbUrl, _sbKey) : null;
 
 const db = {
-  // ── claude.ai sandbox: window.storage stores strings → JSON.stringify/parse needed
-  // ── Vercel/Supabase: kv_store.value is jsonb → PostgREST returns already-parsed objects
-  // ── Backward compat: old rows were stored with JSON.stringify → value is a JSON string
-  //    New rows store the object directly. We handle both formats.
   async get(k) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null;
       }
-      if (_supabase) {
-        const { data, error } = await _supabase.from('kv_store').select('value').eq('key', k).single();
-        if (error && error.code !== 'PGRST116') console.error('[db.get] Supabase error:', k, error.message, error.code);
-        if (!data) return null;
-        const val = data.value;
-        // Old data stored as JSON string (e.g. '{"scores":{...}}') → parse it
-        // New data stored as jsonb object → return as-is
-        if (typeof val === 'string') { try { return JSON.parse(val); } catch { return val; } }
-        return val;
-      }
-    } catch(e) { console.error('[db.get] exception:', k, e); } return null;
+      if (_supabase) { const { data } = await _supabase.from('kv_store').select('value').eq('key', k).single(); return data ? JSON.parse(data.value) : null; }
+    } catch(e) {} return null;
   },
   async set(k, v) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         await window.storage.set(k, JSON.stringify(v)); return true;
       }
-      if (_supabase) {
-        const { error } = await _supabase.from('kv_store').upsert(
-          { key: k, value: v, updated_at: new Date().toISOString() },  // pass object directly, jsonb handles it
-          { onConflict: 'key' }
-        );
-        if (error) console.error('[db.set] Supabase error:', k, error.message, error.code, error.details);
-        return !error;
-      }
-    } catch(e) { console.error('[db.set] exception:', k, e); } return false;
+      if (_supabase) { const { error } = await _supabase.from('kv_store').upsert({ key: k, value: JSON.stringify(v), updated_at: new Date().toISOString() }, { onConflict: 'key' }); return !error; }
+    } catch(e) {} return false;
   },
   async del(k) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         await window.storage.delete(k); return true;
       }
-      if (_supabase) {
-        const { error } = await _supabase.from('kv_store').delete().eq('key', k);
-        if (error) console.error('[db.del] Supabase error:', k, error.message);
-        return !error;
-      }
-    } catch(e) { console.error('[db.del] exception:', k, e); } return false;
+      if (_supabase) { const { error } = await _supabase.from('kv_store').delete().eq('key', k); return !error; }
+    } catch(e) {} return false;
   },
   async list(prefix) {
     try {
       if (typeof window !== 'undefined' && window.storage) {
         const r = await window.storage.list(prefix); return r ? (r.keys || []) : [];
       }
-      if (_supabase) {
-        const { data, error } = await _supabase.from('kv_store').select('key').like('key', prefix + '%');
-        if (error) console.error('[db.list] Supabase error:', prefix, error.message);
-        return data ? data.map(d => d.key) : [];
-      }
-    } catch(e) { console.error('[db.list] exception:', prefix, e); } return [];
-  },
-  // diagnostic: returns connection status string — call from browser console: db.ping().then(console.log)
-  async ping() {
-    if (typeof window !== 'undefined' && window.storage) return 'claude.ai sandbox (window.storage)';
-    if (!_supabase) return 'NO BACKEND — env vars missing (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)';
-    try {
-      const { error } = await _supabase.from('kv_store').select('key').limit(1);
-      return error ? `Supabase error: ${error.message} (${error.code})` : 'Supabase OK';
-    } catch(e) { return `Supabase exception: ${e.message}`; }
+      if (_supabase) { const { data } = await _supabase.from('kv_store').select('key').like('key', prefix + '%'); return data ? data.map(d => d.key) : []; }
+    } catch(e) {} return [];
   },
 };
 
@@ -620,12 +572,9 @@ const getPreset  = (id) => PRESETS.find(p => p.id === id) || PRESETS[0];
 function resolvePreset(libraryId, storedDims) {
   const preset = PRESETS.find(p => p.id === libraryId);
   if (preset) return preset;
-  // Guard: storedDims must be a real array (backward compat: old data may return as JSON string)
-  let dims = storedDims;
-  if (typeof dims === 'string') { try { dims = JSON.parse(dims); } catch { dims = null; } }
-  if (Array.isArray(dims) && dims.length > 0) {
-    const totalItems = dims.reduce((s,d) => s + (Array.isArray(d.items) ? d.items.length : 0), 0);
-    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims, itemCount: totalItems };
+  if (storedDims && storedDims.length > 0) {
+    const totalItems = storedDims.reduce((s,d) => s + d.items.length, 0);
+    return { id: libraryId || 'custom', name: 'Egyedi kérdőív', subtitle: 'Saját sablon', icon: '📝', dims: storedDims, itemCount: totalItems };
   }
   return PRESETS[0];
 }
@@ -905,82 +854,6 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   );
 }
 
-// Kétlépéses törlés megerősítés — először rákérdez, majd második körben szöveget kér
-// ─── AI LOADER ─────────────────────────────────────────────────
-function AILoader({ label }) {
-  const [dots, setDots] = React.useState(0);
-  const [phase, setPhase] = React.useState(0);
-  const phases = [
-    'Adatok előkészítése…',
-    'Kompetenciák elemzése…',
-    'Mintázatok azonosítása…',
-    'Szöveg összeállítása…',
-    'Finomítás…',
-  ];
-  React.useEffect(() => {
-    const t1 = setInterval(() => setDots(d => (d + 1) % 4), 400);
-    const t2 = setInterval(() => setPhase(p => (p + 1) % phases.length), 2200);
-    return () => { clearInterval(t1); clearInterval(t2); };
-  }, []);
-  const dotStr = '.'.repeat(dots);
-  return (
-    <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'48px 32px',textAlign:'center'}}>
-      {/* Animated ring */}
-      <div style={{position:'relative',width:64,height:64,margin:'0 auto 24px'}}>
-        <svg width="64" height="64" viewBox="0 0 64 64" style={{position:'absolute',inset:0,animation:'spin 1.4s linear infinite'}}>
-          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-          <circle cx="32" cy="32" r="26" fill="none" stroke={BORD} strokeWidth="4"/>
-          <circle cx="32" cy="32" r="26" fill="none" stroke={GOLD} strokeWidth="4"
-            strokeDasharray="40 124" strokeLinecap="round"/>
-        </svg>
-        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>🤖</div>
-      </div>
-      <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:8}}>
-        {label || 'AI riport készül'}
-      </div>
-      <div style={{fontSize:13,color:GOLD,fontWeight:500,marginBottom:6,minHeight:20}}>
-        {phases[phase]}{dotStr}
-      </div>
-      <div style={{fontSize:12,color:MUTED}}>Ez 10–30 másodpercet vehet igénybe</div>
-    </div>
-  );
-}
-
-function DoubleConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
-  const [step, setStep] = React.useState(1);
-  const [inputVal, setInputVal] = React.useState('');
-  const CONFIRM_WORD = 'TÖRLÉS';
-  if (step === 1) return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:380}}>
-        <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:10}}>{title}</div>
-        <div style={{fontSize:14,color:MUTED,lineHeight:1.6,marginBottom:24}}>{message}</div>
-        <div style={{display:'flex',gap:10}}>
-          <Btn variant="danger" onClick={() => setStep(2)}>{confirmLabel || 'Igen, törlés'}</Btn>
-          <Btn variant="ghost" onClick={onCancel}>Mégse</Btn>
-        </div>
-      </div>
-    </div>
-  );
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.25)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div style={{background:'#FFFFFF',border:`1px solid ${BORD}`,borderRadius:18,padding:30,boxShadow:'0 8px 30px rgba(0,0,0,.1)',width:'100%',maxWidth:380}}>
-        <div style={{fontFamily:"'Instrument Serif',serif",fontSize:18,color:TEXT,marginBottom:10}}>Biztosan törlöd?</div>
-        <div style={{fontSize:14,color:MUTED,lineHeight:1.6,marginBottom:16}}>Ez a művelet <strong>nem vonható vissza</strong>. A megerősítéshez írd be: <strong>{CONFIRM_WORD}</strong></div>
-        <input
-          value={inputVal} onChange={e => setInputVal(e.target.value.toUpperCase())}
-          placeholder={CONFIRM_WORD}
-          style={{width:'100%',boxSizing:'border-box',background:'#F5F3EF',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 14px',fontSize:14,fontFamily:"'DM Sans',sans-serif",color:TEXT,outline:'none',marginBottom:20}}
-        />
-        <div style={{display:'flex',gap:10}}>
-          <Btn variant="danger" onClick={onConfirm} disabled={inputVal !== CONFIRM_WORD}>Végleges törlés</Btn>
-          <Btn variant="ghost" onClick={onCancel}>Mégse</Btn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── REPORT VIEW ───────────────────────────────────────────────
 function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax }) {
   const sMax = propScaleMax || 5;
@@ -999,13 +872,13 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
 
   const radarData = dims.map(d => {
     const row = { dim: d.id, 'Önértékelés': dimAvg(ss, d) };
-    if (hasOthers) row['Értékelőid átlaga'] = dimAvg(othersAvg, d);
+    if (hasOthers) row['Mások átlaga'] = dimAvg(othersAvg, d);
     return row;
   });
   const barData = dims.map(d => ({
     name: d.label, dimId: d.id, color: d.color,
     'Önértékelés': dimAvg(ss, d),
-    ...(hasOthers ? { 'Értékelőid átlaga': dimAvg(othersAvg, d) } : {}),
+    ...(hasOthers ? { 'Mások átlaga': dimAvg(othersAvg, d) } : {}),
   }));
 
   const allItems   = dims.flatMap(d => d.items.map(i => ({ ...i, dimLabel: d.label, dimColor: d.color })));
@@ -1087,9 +960,9 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <PolarGrid stroke={BORD2}/>
                       <PolarAngleAxis dataKey="dim" tick={<RadarTick/>} tickLine={false}/>
                       <PolarRadiusAxis domain={[0,sMax]} tickCount={sMax+1} tick={false} axisLine={false}/>
-                      <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={hasSelf ? 0.18 : 0} strokeWidth={hasSelf ? 2 : 0} dot={hasSelf ? {fill:GOLD,r:4} : false}/>
-                      {hasOthers && <Radar name="Értékelőid átlaga" dataKey="Értékelőid átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
-                      {(hasSelf || hasOthers) && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
+                      <Radar name="Önértékelés" dataKey="Önértékelés" stroke={GOLD} fill={GOLD} fillOpacity={0.18} strokeWidth={2} dot={{fill:GOLD,r:4}}/>
+                      {hasOthers && <Radar name="Mások átlaga" dataKey="Mások átlaga" stroke={BLUE} fill={BLUE} fillOpacity={0.08} strokeWidth={2} strokeDasharray="5 3" dot={{fill:BLUE,r:3}}/>}
+                      {hasOthers && <Legend wrapperStyle={{fontSize:12,color:MUTED,paddingTop:8}}/>}
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1119,12 +992,6 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 </div>
               </div>
             </div>
-            {hasOthers && (
-              <div style={{fontSize:12,color:MUTED,lineHeight:1.6,marginBottom:18,padding:'10px 16px',background:S2,borderRadius:10,border:`1px solid ${BORD}`}}>
-                <span style={{color:GOLD,fontWeight:600}}>Önértékelés</span> — a saját kitöltésed eredménye. &nbsp;·&nbsp;
-                <span style={{color:BLUE,fontWeight:600}}>Értékelőid átlaga</span> — az összes Téged értékelő személy válaszainak átlaga. Ez személyenként eltér, mert minden értékeltnek saját értékelői köre van.
-              </div>
-            )}
             <div style={{marginBottom:24}}>
               <div style={{fontSize:11,color:MUTED,marginBottom:14,textTransform:'uppercase',letterSpacing:'.1em'}}>Dimenzió átlagok</div>
               <ResponsiveContainer width="100%" height={dims.length * 38 + 24}>
@@ -1135,7 +1002,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                   <Bar dataKey="Önértékelés" radius={4} barSize={14}>
                     {barData.map((b,i) => <Cell key={i} fill={b.color} fillOpacity={0.85}/>)}
                   </Bar>
-                  {hasOthers && <Bar dataKey="Értékelőid átlaga" fill={BLUE} fillOpacity={0.4} radius={4} barSize={14}/>}
+                  {hasOthers && <Bar dataKey="Mások átlaga" fill={BLUE} fillOpacity={0.4} radius={4} barSize={14}/>}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1153,7 +1020,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                       <button
                         onClick={() => setExpanded(prev => ({ ...prev, [g.id]: !prev[g.id] }))}
                         style={{width:'100%',background:'none',border:'none',cursor:'pointer',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,textAlign:'left'}}>
-                        <span style={{width:10,height:10,borderRadius:'50%',background:g.color||GOLD,flexShrink:0,display:'inline-block'}}/>
+                        <span style={{fontSize:20}}>{g.emoji}</span>
                         <span style={{fontSize:14,color:TEXT,flex:1,fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>{g.name}</span>
                         {done === 0
                           ? <span style={{fontSize:12,color:MUTED}}>Még nincs adat</span>
@@ -1231,10 +1098,10 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                     <tr>
                       <th style={{textAlign:'left',padding:'6px 10px',color:MUTED,fontSize:11,background:S2}}>Kompetencia</th>
                       <th style={{textAlign:'center',padding:'6px 10px',color:GOLD,fontSize:11,background:S2,width:70}}>Én</th>
-                      {hasOthers && <th style={{textAlign:'center',padding:'6px 10px',color:BLUE,fontSize:11,background:S2,width:80}}>Értékelőid</th>}
+                      {hasOthers && <th style={{textAlign:'center',padding:'6px 10px',color:BLUE,fontSize:11,background:S2,width:80}}>Mások</th>}
                       {groupAvgs.map(g => (
                         <th key={g.id} style={{textAlign:'center',padding:'6px 10px',color:g.color||GOLD,fontSize:11,background:S2,width:80}}>
-                          {g.name}
+                          {g.emoji} {g.name}
                         </th>
                       ))}
                       {hasOthers && <th style={{textAlign:'center',padding:'6px 10px',color:MUTED,fontSize:11,background:S2,width:55}}>{'Δ'}</th>}
@@ -1331,7 +1198,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 {hasOthers && (
                   <div>
                     <div style={{fontSize:12,color:RED,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
-                      ▲ Vak foltok <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(én {'≥'}1 {'>'} értékelőid)</span>
+                      ▲ Vak foltok <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(én {'≥'}1 {'>'} mások)</span>
                     </div>
                     {blindSpots.length === 0
                       ? <div style={{color:MUTED,fontSize:13}}>Nincs detektált vak folt.</div>
@@ -1339,7 +1206,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                           <div key={item.id} style={{padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
                             <div style={{fontSize:13,color:TEXT}}>{item.text}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:2}}>
-                              Én: <b style={{color:RED}}>{item.self}</b> · Értékelőid: <b>{item.others.toFixed(1)}</b>
+                              Én: <b style={{color:RED}}>{item.self}</b> · Mások: <b>{item.others.toFixed(1)}</b>
                             </div>
                           </div>
                         ))
@@ -1349,7 +1216,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 {hasOthers && (
                   <div>
                     <div style={{fontSize:12,color:GREEN,fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8}}>
-                      ▼ Rejtett erősségek <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(értékelőid {'≥'}1 {'>'} én)</span>
+                      ▼ Rejtett erősségek <span style={{fontSize:11,color:MUTED,fontWeight:400}}>(mások {'≥'}1 {'>'} én)</span>
                     </div>
                     {hiddenStr.length === 0
                       ? <div style={{color:MUTED,fontSize:13}}>Nincs detektált rejtett erősség.</div>
@@ -1357,7 +1224,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                           <div key={item.id} style={{padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
                             <div style={{fontSize:13,color:TEXT}}>{item.text}</div>
                             <div style={{fontSize:11,color:MUTED,marginTop:2}}>
-                              Én: <b>{item.self}</b> · Értékelőid: <b style={{color:GREEN}}>{item.others.toFixed(1)}</b>
+                              Én: <b>{item.self}</b> · Mások: <b style={{color:GREEN}}>{item.others.toFixed(1)}</b>
                             </div>
                           </div>
                         ))
@@ -1383,7 +1250,7 @@ function ReportView({ dims, selfScores, groups, comments, scaleMax: propScaleMax
                 {allComments.map((c, i) => (
                   <div key={i} style={{background:S2,border:`1px solid ${BORD}`,borderRadius:12,padding:'16px 18px',marginBottom:10}}>
                     <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                      <span style={{width:8,height:8,borderRadius:'50%',background:c.color||MUTED,flexShrink:0,display:'inline-block'}}/>
+                      {c.emoji && <span style={{fontSize:16}}>{c.emoji}</span>}
                       <span style={{fontSize:12,color:c.color||MUTED,fontWeight:600}}>{c.groupName || c.roleName || 'Értékelő'}</span>
                       {c.timestamp && <span style={{fontSize:11,color:DIM,marginLeft:'auto'}}>{new Date(c.timestamp).toLocaleDateString('hu-HU')}</span>}
                     </div>
@@ -1457,50 +1324,6 @@ function SurveyView({ nav, goBack, ctx }) {
     }, 800);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [scores, comment, activeDim, draftKey, draftLoaded]);
-
-  // Auto-advance: when current dim is fully scored, move to next after 500ms
-  // Does NOT fire when user navigated backwards (prevDim > activeDim)
-  // DOES fire again if user actively changes a score after going back
-  const autoTimer = useRef(null);
-  const prevDimRef = useRef(0);
-  const manualBackRef = useRef(false);
-  const prevScoresRef = useRef({});
-
-  useEffect(() => {
-    if (!draftLoaded) return;
-    const safeDimsLocal = dims || [];
-    const curDimLocal   = safeDimsLocal[activeDim];
-    if (!curDimLocal) return;
-
-    // Detect manual backward navigation by dim change
-    if (activeDim < prevDimRef.current) {
-      manualBackRef.current = true;
-    } else if (activeDim > prevDimRef.current) {
-      manualBackRef.current = false;
-    }
-    prevDimRef.current = activeDim;
-
-    // If user changed a score on current dim after going back → re-enable auto-advance
-    const curItems = curDimLocal.items.map(i => i.id);
-    const prevScores = prevScoresRef.current;
-    const scoreChanged = curItems.some(id => scores[id] !== prevScores[id]);
-    if (scoreChanged) {
-      manualBackRef.current = false;
-    }
-    prevScoresRef.current = { ...scores };
-
-    if (manualBackRef.current) return;
-
-    if (activeDim < safeDimsLocal.length - 1 && curDimLocal.items.every(i => (scores[i.id] || 0) > 0)) {
-      if (autoTimer.current) clearTimeout(autoTimer.current);
-      autoTimer.current = setTimeout(() => {
-        manualBackRef.current = false;
-        setActiveDim(prev => prev + 1);
-        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 450);
-    }
-    return () => { if (autoTimer.current) clearTimeout(autoTimer.current); };
-  }, [scores, activeDim, draftLoaded]);
 
   const safeDims   = dims || [];
   const totalItems = allIds(safeDims).length;
@@ -1662,55 +1485,16 @@ function SurveyView({ nav, goBack, ctx }) {
           </div>
         )}
 
-        {/* Submit card — only on last dimension, all items filled */}
-        {activeDim === safeDims.length - 1 && filled >= totalItems && (
-          <div style={{marginTop:28,background:`linear-gradient(135deg, ${GOLD}18 0%, ${GREEN}12 100%)`,border:`2px solid ${GOLD}55`,borderRadius:16,padding:'28px 28px',textAlign:'center'}}>
-            <div style={{fontSize:28,marginBottom:10}}>✅</div>
-            <div style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,fontWeight:400,marginBottom:8}}>
-              Minden kérdést megválaszoltál!
-            </div>
-            <div style={{fontSize:14,color:MUTED,marginBottom:22,lineHeight:1.6}}>
-              Ha mindent rendben találsz, küldd be az értékelést.<br/>
-              <span style={{fontSize:12}}>Az értékelés beküldése után az eredmények azonnal megjelennek a riportban.</span>
-            </div>
-            <button
-              onClick={handleSubmit}
-              disabled={saving}
-              style={{
-                background: saving ? MUTED : GOLD,
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: 12,
-                padding: '16px 48px',
-                fontSize: 17,
-                fontWeight: 700,
-                fontFamily: "'DM Sans',sans-serif",
-                cursor: saving ? 'default' : 'pointer',
-                letterSpacing: '.02em',
-                boxShadow: saving ? 'none' : `0 4px 18px ${GOLD}55`,
-                transition: 'all .2s',
-              }}
-              onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#B8973A'; }}
-              onMouseLeave={e => { if (!saving) e.currentTarget.style.background = GOLD; }}
-            >
-              {saving ? 'Beküldés folyamatban…' : '📤 Az értékelés beküldése'}
-            </button>
-          </div>
-        )}
-
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:16}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:20}}>
           <Btn variant="ghost" onClick={() => setActiveDim(prev => Math.max(0, prev-1))} disabled={activeDim === 0}>
             {'← Előző'}
           </Btn>
-          {activeDim < safeDims.length - 1 ? (
-            dimDone(curDim)
-              ? <span style={{fontSize:12,color:GREEN}}>✓ Továbblépés automatikusan…</span>
-              : <span style={{fontSize:12,color:MUTED}}>Értékelj be minden itemet a továbblépéshez</span>
-          ) : (
-            filled < totalItems
-              ? <span style={{fontSize:12,color:MUTED}}>Még {totalItems - filled} kérdés van hátra</span>
-              : null
-          )}
+          {activeDim < safeDims.length - 1
+            ? <Btn variant="ghost" onClick={() => setActiveDim(prev => prev+1)}>{'Következő →'}</Btn>
+            : <Btn onClick={handleSubmit} disabled={filled < totalItems || saving} size="lg">
+                {saving ? 'Mentés...' : filled < totalItems ? `Még ${totalItems - filled} kérdés` : 'Beküldés ✓'}
+              </Btn>
+          }
         </div>
       </div>
     </div>
@@ -1997,7 +1781,7 @@ function HomeView({ nav, goBack, ctx, onLogout }) {
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,maxWidth:660,width:'100%',marginTop:40}}>
           {[
             { icon:'◉', title:'Személyes tükör',  desc:'Önértékelés + saját csoportjaid. Barátok, kollégák, família — privát és szabad.', color:GOLD, target:'leader_dashboard' },
-            { icon:'◈', title:'Szervezeti 360°',   desc:'Tanácsadói projektek, HR folyamatok, csapatmérések szervezett kezelése.',         color:BLUE, target: 'admin' }, // paywall ideiglenesen kikapcsolva
+            { icon:'◈', title:'Szervezeti 360°',   desc:'Tanácsadói projektek, HR folyamatok, csapatmérések szervezett kezelése.',         color:BLUE, target: ctx.user && (ctx.user.role === 'consultant' || ctx.user.role === 'super_admin') ? 'admin' : 'paywall' },
           ].map(c => (
             <div key={c.target} onClick={() => nav(c.target)}
               style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:32,cursor:'pointer',transition:'all .2s',position:'relative',overflow:'hidden'}}
@@ -3131,112 +2915,81 @@ function GroupManageView({ nav, goBack, ctx }) {
 }
 
 // ─── SURVEY ENTER VIEW ─────────────────────────────────────────
-function SurveyEnterView({ nav, goBack, ctx }) {
-  const [code,    setCode]    = useState((ctx && ctx.prefillCode) || '');
+function SurveyEnterView({ nav, goBack }) {
+  const [code,    setCode]    = useState('');
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Auto-trigger if code was prefilled from URL ?code= param
-  const didAutoRef = React.useRef(false);
-  React.useEffect(() => {
-    if (ctx && ctx.prefillCode && !didAutoRef.current) {
-      didAutoRef.current = true;
-      setTimeout(() => handle(false), 400); // slight delay so state is settled
-    }
-  }, []);
-
-  async function handle(isRetry) {
+  async function handle() {
     const t = code.trim().toUpperCase();
     if (t.length < 6) { setError('Az azonosító legalább 6 karakter.'); return; }
     setLoading(true); setError('');
 
-    // Inner search function — called once, retried once after 2s if nothing found
-    async function doSearch() {
-      // 1. Search leader groups
-      const grps = await db.get('leader_groups') || [];
-      for (const g of grps) {
-        const m = (g.members||[]).find(x => x.code === t);
-        if (m) {
-          let preset;
-          if (g.customDims) {
-            preset = resolvePreset(g.libraryId || 'custom', g.customDims);
-          } else if (g.libraryId) {
-            preset = getPreset(g.libraryId);
-          } else {
-            const sd = await db.get('leader_self');
-            preset = resolvePreset(sd ? sd.libraryId : null, sd ? sd.dims : null);
-          }
-          const updated = grps.map(gr =>
-            gr.id === g.id
-              ? { ...gr, members: gr.members.map(x => (x.code===t && x.status!=='done') ? {...x,status:'in_progress'} : x) }
-              : gr
-          );
-          await db.set('leader_groups', updated);
-          nav('survey', { mode:'peer', raterCode:t, groupId:g.id, dims:preset.dims, libraryId:preset.id, surveyTitle:g.emoji+' '+g.name+' — értékelés' });
-          return 'found';
-        }
-      }
-
-      // 2. Search rat: records directly by code
-      const ratKeys = await db.list('rat:');
-      const allRats = await Promise.all(ratKeys.map(k => db.get(k)));
-      const ratIdx  = allRats.findIndex(r => r && r.code === t);
-
-      if (ratIdx >= 0) {
-        const rat    = allRats[ratIdx];
-        const ratKey = ratKeys[ratIdx];
-        if (!rat.projectId) return 'no_project';
-        const proj = await db.get(rat.projectId);
-        if (!proj) return 'no_project';
-        const preset = resolvePreset(proj.libraryId, proj.customDims);
-        const part   = await db.get(rat.participantId);
-        await db.set(ratKey, { ...rat, status: rat.status==='done' ? 'done' : 'in_progress' });
-        nav('survey', {
-          mode:'peer', raterCode:t, raterId:ratKey,
-          participantId:rat.participantId, projectId:proj.id,
-          dims:preset.dims, libraryId:proj.libraryId,
-          surveyTitle:'Értékelés — '+(part ? part.firstName+' '+part.lastName : 'Értékelt'),
-        });
-        return 'found';
-      }
-
-      return 'not_found';
-    }
-
     try {
-      const result = await doSearch();
+      const res  = await fetch('/api/lookup-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: t }),
+      });
+      const data = await res.json();
 
-      if (result === 'found') { setLoading(false); return; }
-
-      if (result === 'no_project') {
-        // Rat found but project missing — likely temporary DB issue, retry once
-        if (!isRetry) {
-          setError('Azonosító megtalálva, de a projekt betöltése sikertelen. Újrapróbálás...');
-          setTimeout(() => handle(true), 2500);
-          return;
+      if (!data.found) {
+        if (data.reason === 'db_error') {
+          setError('Adatbázis hiba. Kérjük, próbáld újra.');
+        } else {
+          setError('Érvénytelen azonosító. Ellenőrizd a kapott kódot.');
         }
-        setError('A projekt ideiglenesen nem érhető el. Kérjük, próbáld újra néhány másodperc múlva.');
         setLoading(false);
         return;
       }
 
-      // not_found — retry once in case of race condition (e.g. rat: just written to DB)
-      if (!isRetry) {
-        setError('Keresés folyamatban, egy pillanat...');
-        setTimeout(() => handle(true), 2000);
+      if (data.type === 'group') {
+        const { member, group } = data;
+        // Leader groups frissítése kliens oldalon
+        const grps = await db.get('leader_groups') || [];
+        const updated = grps.map(gr =>
+          gr.id === group.id
+            ? { ...gr, members: gr.members.map(x => (x.code === t && x.status !== 'done') ? { ...x, status: 'in_progress' } : x) }
+            : gr
+        );
+        await db.set('leader_groups', updated);
+        let preset;
+        if (group.customDims) {
+          preset = resolvePreset(group.libraryId || 'custom', group.customDims);
+        } else if (group.libraryId) {
+          preset = getPreset(group.libraryId);
+        } else {
+          const sd = await db.get('leader_self');
+          preset = resolvePreset(sd ? sd.libraryId : null, sd ? sd.dims : null);
+        }
+        nav('survey', { mode: 'peer', raterCode: t, groupId: group.id, dims: preset.dims, libraryId: preset.id, surveyTitle: group.emoji + ' ' + group.name + ' — értékelés' });
+        setLoading(false);
         return;
       }
 
-      setError('Érvénytelen azonosító. Ellenőrizd a kapott kódot, és próbáld újra.');
-
-    } catch(e) {
-      console.error('[SurveyEnter] handle error:', e);
-      if (!isRetry) {
-        setError('Kapcsolódási hiba, újrapróbálás...');
-        setTimeout(() => handle(true), 2000);
+      if (data.type === 'project') {
+        const { rater, raterKey, project, participant } = data;
+        const preset   = resolvePreset(project.libraryId, project.customDims);
+        const partName = participant ? `${participant.firstName} ${participant.lastName || ''}`.trim() : 'Értékelt';
+        // Státusz frissítés szerver oldalon — nem blokkolja a navigációt
+        fetch('/api/lookup-code', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raterKey, status: 'in_progress' }),
+        }).catch(e => console.warn('[handle] status update failed:', e));
+        nav('survey', {
+          mode: 'peer', raterCode: t, raterId: raterKey,
+          participantId: rater.participantId, projectId: project.id || rater.projectId,
+          dims: preset.dims, libraryId: project.libraryId,
+          surveyTitle: 'Értékelés — ' + partName,
+        });
+        setLoading(false);
         return;
       }
-      setError('Kapcsolódási hiba. Ellenőrizd az internetkapcsolatodat, és próbáld újra.');
+
+    } catch (e) {
+      console.error('[handle] Hálózati hiba:', e);
+      setError('Hálózati hiba. Ellenőrizd az internetkapcsolatot.');
     }
 
     setLoading(false);
@@ -3303,7 +3056,6 @@ function SurveyDoneView({ nav, goBack, ctx }) {
 function AdminView({ nav, goBack }) {
   const [projects, setProjects] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const [deletingProjId, setDeletingProjId] = useState(null);
 
   useEffect(() => {
     db.list('proj:').then(async keys => {
@@ -3312,24 +3064,6 @@ function AdminView({ nav, goBack }) {
       setLoading(false);
     });
   }, []);
-
-  async function deleteProjectById(id) {
-    // delete all raters for this project
-    const rks = await db.list('rat:');
-    const allR = await Promise.all(rks.map(k => db.get(k)));
-    for (let i = 0; i < allR.length; i++) {
-      if (allR[i] && allR[i].projectId === id) await db.del(rks[i]);
-    }
-    // delete all participants
-    const pks = await db.list('part:');
-    const allP = await Promise.all(pks.map(k => db.get(k)));
-    for (let i = 0; i < allP.length; i++) {
-      if (allP[i] && allP[i].projectId === id) await db.del(pks[i]);
-    }
-    await db.del(id);
-    setProjects(prev => prev.filter(p => p.id !== id));
-    setDeletingProjId(null);
-  }
 
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
@@ -3365,31 +3099,15 @@ function AdminView({ nav, goBack }) {
                     {preset.name}
                   </div>
                 </div>
-                <div style={{textAlign:'right',flexShrink:0,display:'flex',alignItems:'center',gap:10}}>
-                  <div>
-                    <Badge color={p.status==='active'?GREEN:MUTED}>{p.status==='active'?'Aktív':p.status==='draft'?'Piszkozat':'Lezárt'}</Badge>
-                    <div style={{fontSize:11,color:MUTED,marginTop:4}}>{new Date(p.created).toLocaleDateString('hu-HU')}</div>
-                  </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); setDeletingProjId(p.id); }}
-                    style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:16,padding:'4px 6px',borderRadius:6,lineHeight:1,flexShrink:0}}
-                    onMouseEnter={e => e.currentTarget.style.color = RED}
-                    onMouseLeave={e => e.currentTarget.style.color = MUTED}
-                    title="Projekt törlése">🗑</button>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <Badge color={p.status==='active'?GREEN:MUTED}>{p.status==='active'?'Aktív':p.status==='draft'?'Piszkozat':'Lezárt'}</Badge>
+                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>{new Date(p.created).toLocaleDateString('hu-HU')}</div>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
-      {deletingProjId && (
-        <DoubleConfirmModal
-          title="Projekt törlése"
-          message={`A projekt és az összes értékelt, értékelő és válasz törlésre kerül.`}
-          confirmLabel="Igen, törlés"
-          onConfirm={() => deleteProjectById(deletingProjId)}
-          onCancel={() => setDeletingProjId(null)}/>
-      )}
     </div>
   );
 }
@@ -3620,7 +3338,6 @@ function ProjectView({ nav, goBack, ctx }) {
   const [em, setEm] = useState('');
   const [activatedMsg,      setActivatedMsg]      = useState(false);
   const [showDeleteProj,    setShowDeleteProj]    = useState(false);
-  const [showActivatePreview, setShowActivatePreview] = useState(false);
   const [editingProj,       setEditingProj]       = useState(false);
   const [editName,          setEditName]          = useState('');
   const [editClient,        setEditClient]        = useState('');
@@ -3628,8 +3345,6 @@ function ProjectView({ nav, goBack, ctx }) {
   const [deletingPartId,    setDeletingPartId]    = useState(null);
   const [collabs,           setCollabs]           = useState([]);
   const [collabEmail,       setCollabEmail]       = useState('');
-  const [collabName,        setCollabName]        = useState('');
-  const [collabPhone,       setCollabPhone]       = useState('');
   const [collabPerm,        setCollabPerm]        = useState('view');
   const [showEmailTmpls,    setShowEmailTmpls]    = useState(false);
   const [sendingId,         setSendingId]         = useState(null);
@@ -3666,13 +3381,9 @@ function ProjectView({ nav, goBack, ctx }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function getContactConsultant() {
-    // Returns { name, email, phone } from the contact-marked collab, fallback to session user
-    const cs = await db.get('collab:'+projectId) || [];
-    const contact = cs.find(c => c.permission === 'contact');
-    if (contact) return { name: contact.name || '', email: contact.email || '', phone: contact.phone || '' };
+  async function getConsultantName() {
     const session = await auth.getSession();
-    return { name: session?.name || session?.email || '', email: '', phone: '' };
+    return session?.name || session?.email || '';
   }
 
   async function addPart() {
@@ -3690,52 +3401,43 @@ function ProjectView({ nav, goBack, ctx }) {
   }
 
   async function sendEmail(rater, part, templateKey) {
-    // Fallback: self-rater may have empty rater.email but part has email
-    const emailTo = rater.email || (rater.role === 'self' ? part?.email : null);
-    if (!emailTo) return;
-    // Ensure correct template: self-rater always gets selfInvite (not peerInvite)
-    const resolvedKey = rater.role === 'self' && templateKey === 'peerInvite' ? 'selfInvite' : templateKey;
+    if (!rater.email) return;
     setSendingId(rater.id);
-    const cc = await getContactConsultant();
+    const cn = await getConsultantName();
     const partName = part ? `${part.firstName} ${part.lastName||''} `.trim() : '';
-    const res = await sendProjectEmail({ to:emailTo, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey:resolvedKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
+    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cn });
     if (res.ok) {
-      const field = resolvedKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
+      const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
       await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
-    } else {
-      console.error('[sendEmail] failed:', emailTo, rater.code, res.error);
     }
     setSendingId(null);
     load();
   }
 
   async function activate() {
-    const updated = { ...proj, status:'active' };
-    await db.set(projectId, updated);
+    const cn = await getConsultantName();
+    const updated = { ...proj, status: 'active' };
+
+    // Optimista UI frissítés — ne várjon a szerver válaszára
     setProj(updated);
     setActivatedMsg(true);
     setTimeout(() => setActivatedMsg(false), 4000);
-    const cc = await getContactConsultant();
-    const errors = [];
-    for (const r of raters) {
-      // self-rater: fallback to participant email if rater.email empty
-      const emailTo = r.email || (r.role === 'self' ? parts.find(p => p.id === r.participantId)?.email : null);
-      if (!emailTo) continue;
-      const part = parts.find(p => p.id === r.participantId);
-      const partName = part ? `${part.firstName} ${part.lastName||''}`.trim() : '';
-      // self always selfInvite, everyone else peerInvite
-      const key = r.role === 'self' ? 'selfInvite' : 'peerInvite';
-      const res = await sendProjectEmail({ to:emailTo, firstName:r.firstName, participantName:partName, code:r.code, project:updated, templateKey:key, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
-      if (res.ok) {
-        await db.set(r.id, { ...r, email_sent:true, email_sent_at:Date.now() });
-      } else {
-        errors.push(emailTo);
-        console.error('[activate] email failed:', emailTo, r.code, r.role, res.error);
-      }
+
+    const res = await fetch('/api/activate-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, consultantName: cn }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      console.error('[activate] Szerver hiba:', data.error || data);
+    } else if (data.errors?.length > 0) {
+      console.warn('[activate]', data.errors.length, 'email nem ment el:', data.errors);
+    } else {
+      console.log('[activate] OK —', data.sent, 'email elküldve');
     }
-    if (errors.length > 0) {
-      console.error('[activate] failed emails:', errors);
-    }
+
     load();
   }
 
@@ -3787,10 +3489,10 @@ function ProjectView({ nav, goBack, ctx }) {
   async function addCollab() {
     if (!collabEmail.trim()) return;
     const session = await auth.getSession();
-    const c = { id:'col_'+uid(8), email:collabEmail.trim(), name:collabName.trim(), phone:collabPhone.trim(), permission:collabPerm, addedBy:session?.id, status:'active', created:Date.now() };
+    const c = { id:'col_'+uid(8), email:collabEmail.trim(), permission:collabPerm, addedBy:session?.id, status:'active', created:Date.now() };
     const all = [...collabs, c];
     await db.set('collab:'+projectId, all);
-    setCollabs(all); setCollabEmail(''); setCollabName(''); setCollabPhone(''); setCollabPerm('view');
+    setCollabs(all); setCollabEmail('');
     await audit('collab_add', session?.id, {projectId, email:c.email});
   }
 
@@ -3814,10 +3516,8 @@ function ProjectView({ nav, goBack, ctx }) {
           {proj.status === 'archived'
             ? <><Badge color={MUTED}>Archivált</Badge><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)}>Visszaállítás</Btn></>
             : proj.status === 'active'
-              ? <><Badge color={GREEN}>Aktív</Badge>
-                  <Btn size="sm" disabled style={{opacity:0.45,cursor:'default',background:GREEN,color:'#fff',border:'none'}}>✓ Aktiválva</Btn>
-                  <Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>
-              : <><Btn size="sm" onClick={() => setShowActivatePreview(true)}>Aktiválás</Btn><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>}
+              ? <><Badge color={GREEN}>Aktív</Badge><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>
+              : <><Btn size="sm" onClick={activate}>Aktiválás</Btn><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>}
           <Btn variant="danger" size="sm" onClick={() => setShowDeleteProj(true)}>🗑</Btn>
         </div>}
       />
@@ -3845,56 +3545,32 @@ function ProjectView({ nav, goBack, ctx }) {
         <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
           <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', {projectId})}>📚 Könyvtár szerkesztése</Btn>
           <Btn variant="ghost" size="sm" onClick={() => setShowEmailTmpls(true)}>✉ Kimenő email-ek szerkesztése</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => nav('project_summary', {projectId})}>📊 Összesítő riport</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => nav('project_status', {projectId})}>📋 Státusz</Btn>
         </div>
 
         {/* Kollaborátorok */}
         <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:22}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Tanácsadók / Kollaborátorok</div>
+            <div style={{fontSize:13,color:GOLD,fontWeight:700}}>Kollaborátorok</div>
             <Badge color={MUTED}>{collabs.length} fő</Badge>
           </div>
-          {/* Add form */}
-          <div style={{display:'flex',gap:8,marginBottom:6,flexWrap:'wrap'}}>
-            <div style={{flex:2,minWidth:140}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="email@ceg.hu"
+          <div style={{display:'flex',gap:8,marginBottom:10}}>
+            <div style={{flex:1}}><input value={collabEmail} onChange={e=>setCollabEmail(e.target.value)} placeholder="kollega@ceg.hu"
               style={{width:'100%',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/></div>
             <select value={collabPerm} onChange={e=>setCollabPerm(e.target.value)}
-              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer',flexShrink:0}}>
+              style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:12,color:TEXT,cursor:'pointer'}}>
               <option value="view">Olvasás</option>
               <option value="edit">Szerkesztés</option>
-              <option value="contact">Kapcsolattartó</option>
             </select>
-            <Btn size="sm" onClick={addCollab} disabled={!collabEmail.trim()}>+ Hozzáadás</Btn>
+            <Btn size="sm" onClick={addCollab} disabled={!collabEmail.trim()}>+ Meghívás</Btn>
           </div>
-          {/* Extra fields for contact */}
-          {collabPerm === 'contact' && (
-            <div style={{display:'flex',gap:8,marginBottom:10}}>
-              <input value={collabName} onChange={e=>setCollabName(e.target.value)} placeholder="Teljes név (kötelező kapcsolattartónak)"
-                style={{flex:2,background:SURF,border:`1px solid ${GDIM}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
-              <input value={collabPhone} onChange={e=>setCollabPhone(e.target.value)} placeholder="+36 30 … (opcionális)"
-                style={{flex:1,background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'9px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none',boxSizing:'border-box'}}/>
-            </div>
-          )}
-          {/* List */}
           {collabs.map(c => (
             <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:`1px solid ${BORD}`}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,color:TEXT,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {c.name ? <><span style={{fontWeight:600}}>{c.name}</span> <span style={{color:MUTED}}>{c.email}</span></> : c.email}
-                </div>
-                {c.phone && <div style={{fontSize:11,color:MUTED}}>{c.phone}</div>}
-              </div>
-              <Badge color={c.permission==='contact'?GREEN:c.permission==='edit'?GOLD:BLUE}>
-                {c.permission==='contact'?'Kapcsolattartó':c.permission==='edit'?'Szerkesztés':'Olvasás'}
-              </Badge>
+              <div style={{flex:1,fontSize:13,color:TEXT}}>{c.email}</div>
+              <Badge color={c.permission==='edit'?GOLD:BLUE}>{c.permission==='edit'?'Szerkesztés':'Olvasás'}</Badge>
               <button onClick={() => removeCollab(c.id)} style={{background:'none',border:'none',color:RED,cursor:'pointer',fontSize:14,padding:4}}>✕</button>
             </div>
           ))}
-          {collabs.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:'center',padding:'8px 0'}}>Hívj meg egy kollégát vagy jelölj meg kapcsolattartót.</div>}
-          {collabs.some(c => c.permission === 'contact') && (
-            <div style={{fontSize:11,color:GREEN,marginTop:8}}>✓ A kapcsolattartó adatai megjelennek a kimenő emailekben.</div>
-          )}
+          {collabs.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:'center',padding:'8px 0'}}>Hívj meg egy kollégát a projekthez.</div>}
         </div>
 
         {/* Értékeltek */}
@@ -3923,28 +3599,17 @@ function ProjectView({ nav, goBack, ctx }) {
           const selfR = pr.find(r => r.role === 'self');
           const peerR = pr.filter(r => r.role !== 'self');
           const pd    = peerR.filter(r => r.status === 'done').length;
-
-          const selfStatusColor = !selfR ? MUTED : selfR.status === 'done' ? GREEN : selfR.status === 'in_progress' ? GOLD : MUTED;
-          const selfStatusLabel = !selfR ? 'Nincs kód' : selfR.status === 'done' ? 'Kész' : selfR.status === 'in_progress' ? 'Folyamatban' : 'Vár';
-
           return (
             <Card key={part.id} style={{marginBottom:10}}>
               <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2,flexWrap:'wrap'}}>
                     <span style={{fontSize:14,color:TEXT,fontWeight:600}}>{part.firstName} {part.lastName}</span>
-                    <div style={{display:'flex',alignItems:'center',gap:4}}>
-                      <span style={{width:7,height:7,borderRadius:'50%',background:selfStatusColor,flexShrink:0,display:'inline-block'}}/>
-                      <span style={{fontSize:11,color:selfStatusColor,fontWeight:selfR&&selfR.status==='done'?600:400}}>{selfStatusLabel} önértékelés</span>
-                    </div>
-                    {!selfR && (
-                      <button onClick={async () => {
-                        const sc = uid(12); const rid = 'rat:'+uid(10);
-                        const sr = { id:rid, participantId:part.id, projectId, firstName:part.firstName, lastName:part.lastName||'', email:part.email||'', role:'self', code:sc, status:'pending' };
-                        await db.set(rid, sr); load();
-                      }} style={{fontSize:10,padding:'2px 8px',borderRadius:5,border:`1px solid ${GOLD}`,background:`${GOLD}14`,color:GOLD,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
-                        + Kód generálása
-                      </button>
+                    {selfR && (
+                      <div style={{display:'flex',alignItems:'center',gap:4}}>
+                        <StatusDot status={selfR.status}/>
+                        <span style={{fontSize:11,color:MUTED}}>önértékelés</span>
+                      </div>
                     )}
                   </div>
                   {part.email && <div style={{fontSize:12,color:MUTED,marginBottom:6}}>{part.email}</div>}
@@ -3979,7 +3644,7 @@ function ProjectView({ nav, goBack, ctx }) {
                 <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
                   <span style={{fontSize:12,color:MUTED}}>{pd}/{peerR.length} kész</span>
                   <Btn variant="ghost" size="sm" onClick={() => nav('raters', {projectId, participantId:part.id})}>Értékelők</Btn>
-                  <Btn size="sm" onClick={() => nav('report', {projectId, participantId:part.id})}>Riport →</Btn>
+                  {pd >= 1 && <Btn size="sm" onClick={() => nav('report', {projectId, participantId:part.id})}>Riport →</Btn>}
                   <button onClick={() => setDeletingPartId(part.id)} style={{background:'none',border:'none',color:DIM,cursor:'pointer',fontSize:14,padding:4}} title="Értékelt törlése">✕</button>
                 </div>
               </div>
@@ -3991,89 +3656,10 @@ function ProjectView({ nav, goBack, ctx }) {
       {showEmailTmpls && <EmailTemplatesModal project={proj} onClose={() => setShowEmailTmpls(false)} onSave={saveEmailTemplates}/>}
 
       {showDeleteProj && (
-        <DoubleConfirmModal title="Projekt törlése"
-          message="A projekt és az összes értékelt, értékelő és válasz törlésre kerül."
+        <ConfirmModal title="Projekt törlése"
+          message="A projekt és az összes értékelt, értékelő és válasz törlésre kerül. Ez a művelet nem vonható vissza."
           confirmLabel="Igen, törlés" onConfirm={deleteProject} onCancel={() => setShowDeleteProj(false)}/>
       )}
-
-      {showActivatePreview && (() => {
-        // Build email list for preview
-        const emailRows = [];
-        for (const part of parts) {
-          const pr = raters.filter(r => r.participantId === part.id);
-          const selfR = pr.find(r => r.role === 'self');
-          const peerR = pr.filter(r => r.role !== 'self');
-          // Self rater row
-          if (selfR) {
-            const to = selfR.email || part.email || '';
-            emailRows.push({ name: selfR.firstName+' '+(selfR.lastName||''), to, code: selfR.code, template: 'Önértékelő meghívó', role: 'self', missing: !to, partName: part.firstName+' '+(part.lastName||'') });
-          } else {
-            emailRows.push({ name: part.firstName+' '+(part.lastName||''), to: part.email||'', code: '—', template: 'Önértékelő meghívó', role: 'self', missing: true, noSelf: true, partName: part.firstName+' '+(part.lastName||'') });
-          }
-          // Peer rater rows
-          for (const r of peerR) {
-            const to = r.email || '';
-            const ri = (proj.roles||DEFAULT_ROLES).find(d => d.id === r.role);
-            emailRows.push({ name: r.firstName+' '+(r.lastName||''), to, code: r.code, template: (ri?ri.label:'Értékelő')+' meghívó', role: r.role, missing: !to, partName: part.firstName+' '+(part.lastName||'') });
-          }
-        }
-        const missingCount = emailRows.filter(r => r.missing).length;
-        const okCount = emailRows.filter(r => !r.missing).length;
-        return (
-          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-            <div style={{background:SURF,borderRadius:18,width:'100%',maxWidth:680,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.18)'}}>
-              <div style={{padding:'20px 24px',borderBottom:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:SURF,zIndex:1}}>
-                <div>
-                  <div style={{fontSize:16,fontWeight:700,color:TEXT}}>Email kiküldési lista ellenőrzése</div>
-                  <div style={{fontSize:12,color:MUTED,marginTop:2}}>Az aktiválás előtt ellenőrizd, hogy mindenki megkapja a megfelelő emailt.</div>
-                </div>
-                <button onClick={() => setShowActivatePreview(false)} style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:20,padding:4}}>✕</button>
-              </div>
-              <div style={{padding:'16px 24px'}}>
-                {/* Summary */}
-                <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
-                  <Badge color={GREEN}>✓ {okCount} email elküldhető</Badge>
-                  {missingCount > 0 && <Badge color={RED}>⚠ {missingCount} hiányzó emailcím</Badge>}
-                </div>
-                {/* Email rows grouped by participant */}
-                {parts.map(part => {
-                  const rows = emailRows.filter(r => r.partName === part.firstName+' '+(part.lastName||''));
-                  return (
-                    <div key={part.id} style={{marginBottom:14,background:S2,borderRadius:10,overflow:'hidden',border:`1px solid ${BORD}`}}>
-                      <div style={{padding:'8px 14px',background:S3,borderBottom:`1px solid ${BORD}`,fontSize:12,fontWeight:700,color:TEXT}}>
-                        {part.firstName} {part.lastName}
-                      </div>
-                      {rows.map((row, i) => (
-                        <div key={i} style={{padding:'8px 14px',borderBottom: i<rows.length-1?`1px solid ${BORD}`:'none',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-                          <span style={{width:8,height:8,borderRadius:'50%',background:row.missing?RED:GREEN,flexShrink:0,display:'inline-block'}}/>
-                          <span style={{fontSize:12,color:TEXT,fontWeight:500,minWidth:120}}>{row.name}</span>
-                          <span style={{fontSize:11,background:`${GOLD}18`,color:GOLD,borderRadius:5,padding:'1px 7px',flexShrink:0}}>{row.template}</span>
-                          {row.to
-                            ? <span style={{fontSize:12,color:MUTED,flex:1}}>{row.to}</span>
-                            : <span style={{fontSize:12,color:RED,flex:1}}>{row.noSelf ? 'Nincs önértékelő beállítva' : '⚠ Hiányzó emailcím'}</span>
-                          }
-                          <span style={{fontSize:11,fontFamily:'monospace',color:MUTED,background:S3,borderRadius:4,padding:'1px 6px',flexShrink:0}}>{row.code}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-                {missingCount > 0 && (
-                  <div style={{background:`${ORAN}18`,border:`1px solid ${ORAN}44`,borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:13,color:ORAN}}>
-                    ⚠ {missingCount} személynek hiányzik az emailcíme — ők nem kapnak meghívót. Az aktiválás ettől még elvégezhető.
-                  </div>
-                )}
-                <div style={{display:'flex',gap:10,justifyContent:'flex-end',paddingTop:8}}>
-                  <Btn variant="ghost" onClick={() => setShowActivatePreview(false)}>Mégsem</Btn>
-                  <Btn onClick={() => { setShowActivatePreview(false); activate(); }}>
-                    ✉ Aktiválás és email küldés ({okCount} db)
-                  </Btn>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
       {deletingPartId && (
         <ConfirmModal title="Értékelt törlése"
           message="Az értékelt és az összes hozzá tartozó értékelő törlésre kerül. Ez a művelet nem vonható vissza."
@@ -4146,25 +3732,15 @@ function RatersView({ nav, goBack, ctx }) {
   useEffect(() => { load(); }, [load]);
 
   async function sendRaterEmail(rater, part, templateKey) {
-    // Fallback email for self-raters
-    const emailTo = rater.email || (rater.role === 'self' ? part?.email : null);
-    if (!emailTo || !proj) return;
-    // Ensure correct template: self-rater always selfInvite
-    const resolvedKey = rater.role === 'self' && templateKey === 'peerInvite' ? 'selfInvite' : templateKey;
+    if (!rater.email || !proj) return;
     setSendingId(rater.id);
-    const cs = await db.get('collab:'+projectId) || [];
-    const contact = cs.find(c => c.permission === 'contact');
     const session = await auth.getSession();
-    const cc = contact
-      ? { name: contact.name || '', email: contact.email || '', phone: contact.phone || '' }
-      : { name: session?.name || session?.email || '', email: '', phone: '' };
+    const cn = session?.name || session?.email || '';
     const partName = part ? `${part.firstName} ${part.lastName||''}`.trim() : '';
-    const res = await sendProjectEmail({ to:emailTo, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey:resolvedKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
+    const res = await sendProjectEmail({ to:rater.email, firstName:rater.firstName, participantName:partName, code:rater.code, project:proj, templateKey, consultantName:cn });
     if (res.ok) {
-      const field = resolvedKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
+      const field = templateKey === 'reminder' ? 'reminder_sent_at' : 'email_sent_at';
       await db.set(rater.id, { ...rater, email_sent:true, [field]:Date.now() });
-    } else {
-      console.error('[sendRaterEmail] failed:', emailTo, rater.code, rater.role, res.error);
     }
     setSendingId(null);
     load();
@@ -4172,8 +3748,28 @@ function RatersView({ nav, goBack, ctx }) {
 
   async function add() {
     if (!fn.trim()) return;
-    const id = 'rat:'+uid(10);
-    await db.set(id, { id, participantId, projectId, firstName:fn.trim(), lastName:ln.trim(), email:em.trim(), role, code:uid(12), status:'pending' });
+    const id      = 'rat:' + uid(10);
+    const code    = uid(12);
+    const newRater = {
+      id, participantId, projectId,
+      firstName: fn.trim(), lastName: ln.trim(), email: em.trim(),
+      role, code, status: 'pending',
+    };
+    await db.set(id, newRater);
+    // Ha a projekt már aktív és van emailcím → azonnal küld meghívót
+    if (proj?.status === 'active' && em.trim()) {
+      const session   = await auth.getSession();
+      const cn        = session?.name || session?.email || '';
+      const partName  = part ? `${part.firstName} ${part.lastName || ''}`.trim() : '';
+      const templateKey = role === 'self' ? 'selfInvite' : 'peerInvite';
+      const mailRes   = await sendProjectEmail({
+        to: em.trim(), firstName: fn.trim(), participantName: partName,
+        code, project: proj, templateKey, consultantName: cn,
+      });
+      if (mailRes.ok) {
+        await db.set(id, { ...newRater, email_sent: true, email_sent_at: Date.now() });
+      }
+    }
     setFn(''); setLn(''); setEm('');
     load();
   }
@@ -4258,6 +3854,8 @@ function RatersView({ nav, goBack, ctx }) {
               {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
           </div>
+              </select>
+            </div>
           <Btn onClick={add} disabled={!fn.trim()}>+ Azonosító generálása</Btn>
           <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,paddingTop:10,borderTop:`1px solid ${BORD}`}}>
             <Btn variant="ghost" size="sm" onClick={() => bulkRef.current && bulkRef.current.click()} disabled={bulkImporting}>
@@ -4274,7 +3872,7 @@ function RatersView({ nav, goBack, ctx }) {
         )}
 
         {raters.map(r => {
-          const ri = r.role === 'self' ? { label:'Önértékelés', color: GOLD } : (roles.find(d => d.id === r.role) || roles[0]);
+          const ri = roles.find(d => d.id === r.role) || roles[0];
           return (
             <div key={r.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:'12px 16px',marginBottom:10,display:'flex',alignItems:'center',gap:12}}>
               <div style={{flex:1,minWidth:0}}>
@@ -4310,134 +3908,6 @@ function RatersView({ nav, goBack, ctx }) {
 
 
 // ─── REPORT PAGE VIEW ──────────────────────────────────────────
-// ─── PROJECT SUMMARY VIEW — aggregált csoportriport ───────────
-function ProjectSummaryView({ nav, goBack, ctx }) {
-  const projectId = ctx.projectId;
-  const [proj,    setProj]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [gdata,   setGdata]   = useState(null);
-
-  useEffect(() => {
-    (async () => {
-      const p = await db.get(projectId);
-      setProj(p);
-      const pks = await db.list('part:');
-      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
-      const rks = await db.list('rat:');
-      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
-      const preset = resolvePreset(p ? p.libraryId : null, p ? p.customDims : null);
-      const selfScores = [], peerScores = [];
-      const roleMap = {}; // role → [scores]
-      for (const part of ps) {
-        const pr    = rs.filter(r => r.participantId === part.id);
-        const selfR = pr.find(r => r.role === 'self');
-        const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
-        if (selfR) { const resp = await db.get('resp:'+selfR.code); if (resp) selfScores.push(resp.scores||{}); }
-        for (const r of peerR) {
-          const resp = await db.get('resp:'+r.code);
-          if (resp) {
-            peerScores.push(resp.scores||{});
-            if (!roleMap[r.role]) roleMap[r.role] = [];
-            roleMap[r.role].push(resp.scores||{});
-          }
-        }
-      }
-      // Build role groups with label+color from project roles
-      const projRoles = p && p.roles ? p.roles : DEFAULT_ROLES;
-      const roleGroups = Object.entries(roleMap).map(([roleId, scores]) => {
-        const rd = projRoles.find(r => r.id === roleId) || DEFAULT_ROLES.find(r => r.id === roleId);
-        return { id: roleId, name: rd ? rd.label : roleId, color: rd ? rd.color : MUTED, scores };
-      });
-      setGdata({ preset, selfScores, peerScores, partCount: ps.length, roleGroups });
-      setLoading(false);
-    })();
-  }, [projectId]);
-
-  function mergeAll(list) {
-    if (!list || !list.length) return {};
-    const totals = {}, counts = {};
-    for (const sc of list) for (const [k,v] of Object.entries(sc)) { totals[k]=(totals[k]||0)+v; counts[k]=(counts[k]||0)+1; }
-    const out = {};
-    for (const k of Object.keys(totals)) out[k] = totals[k] / counts[k];
-    return out;
-  }
-
-  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
-
-  const { preset, selfScores, peerScores, partCount, roleGroups } = gdata;
-  const hasData = selfScores.length > 0 || peerScores.length > 0;
-  const selfAvg = mergeAll(selfScores);
-  const peerAvg = mergeAll(peerScores);
-  const hasSelf = selfScores.length > 0;
-  const hasPeer = peerScores.length > 0;
-  const summaryBars = (preset?.dims||[]).map(d => ({
-    id: d.id,
-    name: d.label || d.id,
-    color: d.color || GOLD,
-    self: hasSelf ? dimAvg(selfAvg, d) : null,
-    peer: hasPeer ? dimAvg(peerAvg, d) : null,
-    byRole: (roleGroups||[]).map(rg => ({
-      name: rg.name, color: rg.color, count: rg.scores.length,
-      avg: dimAvg(mergeAll(rg.scores), d),
-    })),
-  }));
-
-  return (
-    <div style={{background:BG,minHeight:'100vh'}}>
-      <TopBar title={(proj?proj.name:'') + ' — Összesítő riport'} subtitle={proj?proj.client:''} back onBack={goBack}/>
-      <div style={{maxWidth:960,margin:'0 auto',padding:'22px 24px'}}>
-        {!hasData ? (
-          <div style={{textAlign:'center',padding:60,color:MUTED}}>
-            <div style={{fontSize:40,marginBottom:14}}>📊</div>
-            <div>Még nincs beérkezett adat az összesítő riporthoz.</div>
-          </div>
-        ) : (
-          <>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:24}}>
-              <Badge color={GOLD}>{selfScores.length} önértékelés</Badge>
-              <Badge color={BLUE}>{peerScores.length} peer visszajelzés</Badge>
-              <Badge color={GREEN}>{partCount} értékelt</Badge>
-              {(roleGroups||[]).map(rg => <Badge key={rg.id} color={rg.color}>{rg.name}: {rg.scores.length} értékelés</Badge>)}
-            </div>
-            <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
-              <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:16}}>Csoport összesített eredmények</div>
-              <div style={{display:'flex',gap:20,marginBottom:20,fontSize:12,color:MUTED,flexWrap:'wrap'}}>
-                {hasSelf && <span><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:GOLD,marginRight:6,verticalAlign:'middle'}}/>Önértékelés ({selfScores.length} fő)</span>}
-                {(roleGroups||[]).map(rg => (
-                  <span key={rg.id}><span style={{display:'inline-block',width:12,height:12,borderRadius:2,background:rg.color,marginRight:6,verticalAlign:'middle'}}/>{rg.name} ({rg.scores.length})</span>
-                ))}
-              </div>
-              {summaryBars.map(row => (
-                <div key={row.id} style={{marginBottom:18}}>
-                  <div style={{fontSize:12,color:row.color,fontWeight:600,marginBottom:6}}>{row.name}</div>
-                  {hasSelf && (
-                    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
-                      <div style={{width:90,fontSize:11,color:MUTED,textAlign:'right',flexShrink:0}}>Önértékelés</div>
-                      <div style={{flex:1,height:14,background:'#EDE9E2',borderRadius:7,overflow:'hidden'}}>
-                        <div style={{height:'100%',width:`${Math.round((row.self||0)/5*100)}%`,background:GOLD,borderRadius:7}}/>
-                      </div>
-                      <div style={{width:36,fontSize:13,color:TEXT,fontWeight:700,flexShrink:0}}>{(row.self||0)>0?(row.self).toFixed(1):'—'}</div>
-                    </div>
-                  )}
-                  {row.byRole.map(rg => rg.count > 0 && (
-                    <div key={rg.name} style={{display:'flex',alignItems:'center',gap:10,marginBottom:3}}>
-                      <div style={{width:90,fontSize:11,color:rg.color,textAlign:'right',flexShrink:0,fontWeight:500}}>{rg.name}</div>
-                      <div style={{flex:1,height:14,background:'#EDE9E2',borderRadius:7,overflow:'hidden'}}>
-                        <div style={{height:'100%',width:`${Math.round((rg.avg||0)/5*100)}%`,background:rg.color,borderRadius:7}}/>
-                      </div>
-                      <div style={{width:36,fontSize:13,color:TEXT,fontWeight:700,flexShrink:0}}>{(rg.avg||0)>0?(rg.avg).toFixed(1):'—'}</div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ReportPageView({ nav, goBack, ctx }) {
   const projectId     = ctx.projectId;
   const participantId = ctx.participantId;
@@ -4461,14 +3931,16 @@ function ReportPageView({ nav, goBack, ctx }) {
         const k = r.role;
         if (!roleGroups[k]) {
           const ri = DEFAULT_ROLES.find(d => d.id === k);
-          roleGroups[k] = { id:k, name:ri?ri.label:k, color:ri?ri.color:MUTED, scores:[] };
+          roleGroups[k] = { id:k, name:ri?ri.label:k, emoji:'👤', color:ri?ri.color:MUTED, scores:[] };
         }
         if (otherResps[i]) roleGroups[k].scores.push(otherResps[i].scores || {});
       });
+      // Collect comments from all rater responses
       const allResps = [selfResp, ...otherResps].filter(Boolean);
       const collectedComments = allResps.filter(r => r.comment).map(r => ({
         text: r.comment,
         groupName: r.raterCode === (selfR && selfR.code) ? 'Önértékelés' : 'Értékelő',
+        emoji: r.raterCode === (selfR && selfR.code) ? '🪞' : '👤',
         color: r.raterCode === (selfR && selfR.code) ? GOLD : BLUE,
         timestamp: r.timestamp,
       }));
@@ -5201,22 +4673,9 @@ export default function App() {
   const historyRef = useRef([]);
 
   useEffect(() => {
-    // Check for ?code= in URL — if present, go straight to survey_enter regardless of session
-    const urlCode = typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('code')
-      : null;
-
     auth.getSession().then(session => {
-      if (urlCode) {
-        // Prefill code and go directly to survey entry — skip login/home
-        if (session) { setCurrentUser(session); setCtx({user:session, prefillCode: urlCode.trim().toUpperCase()}); }
-        else { setCtx({ prefillCode: urlCode.trim().toUpperCase() }); }
-        setView('survey_enter');
-      } else if (session) {
-        setCurrentUser(session); setCtx({user:session}); setView('home');
-      } else {
-        setView('login');
-      }
+      if (session) { setCurrentUser(session); setCtx({user:session}); setView('home'); }
+      else { setView('login'); }
     });
   }, []);
 
@@ -5290,9 +4749,7 @@ export default function App() {
     new_project:      <NewProjectView    nav={nav} navReplace={navReplace} goBack={goBack} ctx={ctx}/>,
     project:          <ProjectView       nav={nav} goBack={goBack} ctx={ctx}/>,
     raters:           <RatersView        nav={nav} goBack={goBack} ctx={ctx}/>,
-    report:           <ReportPageView     nav={nav} goBack={goBack} ctx={ctx}/>,
-    project_summary:  <ProjectSummaryView  nav={nav} goBack={goBack} ctx={ctx}/>,
-    project_status:   <ProjectStatusView   nav={nav} goBack={goBack} ctx={ctx}/>,
+    report:           <ReportPageView    nav={nav} goBack={goBack} ctx={ctx}/>,
     library_manager:  <LibraryManagerView nav={nav} goBack={goBack} ctx={ctx}/>,
   };
 
