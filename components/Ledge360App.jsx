@@ -3620,6 +3620,7 @@ function ProjectView({ nav, goBack, ctx }) {
   const [em, setEm] = useState('');
   const [activatedMsg,      setActivatedMsg]      = useState(false);
   const [showDeleteProj,    setShowDeleteProj]    = useState(false);
+  const [showActivatePreview, setShowActivatePreview] = useState(false);
   const [editingProj,       setEditingProj]       = useState(false);
   const [editName,          setEditName]          = useState('');
   const [editClient,        setEditClient]        = useState('');
@@ -3816,7 +3817,7 @@ function ProjectView({ nav, goBack, ctx }) {
               ? <><Badge color={GREEN}>Aktív</Badge>
                   <Btn size="sm" disabled style={{opacity:0.45,cursor:'default',background:GREEN,color:'#fff',border:'none'}}>✓ Aktiválva</Btn>
                   <Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>
-              : <><Btn size="sm" onClick={activate}>Aktiválás</Btn><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>}
+              : <><Btn size="sm" onClick={() => setShowActivatePreview(true)}>Aktiválás</Btn><Btn variant="ghost" size="sm" onClick={() => setShowArchiveConfirm(true)} style={{color:MUTED,fontSize:11}}>Archiválás</Btn></>}
           <Btn variant="danger" size="sm" onClick={() => setShowDeleteProj(true)}>🗑</Btn>
         </div>}
       />
@@ -3845,9 +3846,7 @@ function ProjectView({ nav, goBack, ctx }) {
           <Btn variant="ghost" size="sm" onClick={() => nav('library_manager', {projectId})}>📚 Könyvtár szerkesztése</Btn>
           <Btn variant="ghost" size="sm" onClick={() => setShowEmailTmpls(true)}>✉ Kimenő email-ek szerkesztése</Btn>
           <Btn variant="ghost" size="sm" onClick={() => nav('project_summary', {projectId})}>📊 Összesítő riport</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => nav('project_compare', {projectId})}>⇄ Összehasonlító riport</Btn>
           <Btn variant="ghost" size="sm" onClick={() => nav('project_status', {projectId})}>📋 Státusz</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => nav('ai_group_report', {projectId})}>🤖 AI Csoportriport</Btn>
         </div>
 
         {/* Kollaborátorok */}
@@ -3996,6 +3995,85 @@ function ProjectView({ nav, goBack, ctx }) {
           message="A projekt és az összes értékelt, értékelő és válasz törlésre kerül."
           confirmLabel="Igen, törlés" onConfirm={deleteProject} onCancel={() => setShowDeleteProj(false)}/>
       )}
+
+      {showActivatePreview && (() => {
+        // Build email list for preview
+        const emailRows = [];
+        for (const part of parts) {
+          const pr = raters.filter(r => r.participantId === part.id);
+          const selfR = pr.find(r => r.role === 'self');
+          const peerR = pr.filter(r => r.role !== 'self');
+          // Self rater row
+          if (selfR) {
+            const to = selfR.email || part.email || '';
+            emailRows.push({ name: selfR.firstName+' '+(selfR.lastName||''), to, code: selfR.code, template: 'Önértékelő meghívó', role: 'self', missing: !to, partName: part.firstName+' '+(part.lastName||'') });
+          } else {
+            emailRows.push({ name: part.firstName+' '+(part.lastName||''), to: part.email||'', code: '—', template: 'Önértékelő meghívó', role: 'self', missing: true, noSelf: true, partName: part.firstName+' '+(part.lastName||'') });
+          }
+          // Peer rater rows
+          for (const r of peerR) {
+            const to = r.email || '';
+            const ri = (proj.roles||DEFAULT_ROLES).find(d => d.id === r.role);
+            emailRows.push({ name: r.firstName+' '+(r.lastName||''), to, code: r.code, template: (ri?ri.label:'Értékelő')+' meghívó', role: r.role, missing: !to, partName: part.firstName+' '+(part.lastName||'') });
+          }
+        }
+        const missingCount = emailRows.filter(r => r.missing).length;
+        const okCount = emailRows.filter(r => !r.missing).length;
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',backdropFilter:'blur(4px)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+            <div style={{background:SURF,borderRadius:18,width:'100%',maxWidth:680,maxHeight:'90vh',overflow:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.18)'}}>
+              <div style={{padding:'20px 24px',borderBottom:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'space-between',position:'sticky',top:0,background:SURF,zIndex:1}}>
+                <div>
+                  <div style={{fontSize:16,fontWeight:700,color:TEXT}}>Email kiküldési lista ellenőrzése</div>
+                  <div style={{fontSize:12,color:MUTED,marginTop:2}}>Az aktiválás előtt ellenőrizd, hogy mindenki megkapja a megfelelő emailt.</div>
+                </div>
+                <button onClick={() => setShowActivatePreview(false)} style={{background:'none',border:'none',color:MUTED,cursor:'pointer',fontSize:20,padding:4}}>✕</button>
+              </div>
+              <div style={{padding:'16px 24px'}}>
+                {/* Summary */}
+                <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+                  <Badge color={GREEN}>✓ {okCount} email elküldhető</Badge>
+                  {missingCount > 0 && <Badge color={RED}>⚠ {missingCount} hiányzó emailcím</Badge>}
+                </div>
+                {/* Email rows grouped by participant */}
+                {parts.map(part => {
+                  const rows = emailRows.filter(r => r.partName === part.firstName+' '+(part.lastName||''));
+                  return (
+                    <div key={part.id} style={{marginBottom:14,background:S2,borderRadius:10,overflow:'hidden',border:`1px solid ${BORD}`}}>
+                      <div style={{padding:'8px 14px',background:S3,borderBottom:`1px solid ${BORD}`,fontSize:12,fontWeight:700,color:TEXT}}>
+                        {part.firstName} {part.lastName}
+                      </div>
+                      {rows.map((row, i) => (
+                        <div key={i} style={{padding:'8px 14px',borderBottom: i<rows.length-1?`1px solid ${BORD}`:'none',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+                          <span style={{width:8,height:8,borderRadius:'50%',background:row.missing?RED:GREEN,flexShrink:0,display:'inline-block'}}/>
+                          <span style={{fontSize:12,color:TEXT,fontWeight:500,minWidth:120}}>{row.name}</span>
+                          <span style={{fontSize:11,background:`${GOLD}18`,color:GOLD,borderRadius:5,padding:'1px 7px',flexShrink:0}}>{row.template}</span>
+                          {row.to
+                            ? <span style={{fontSize:12,color:MUTED,flex:1}}>{row.to}</span>
+                            : <span style={{fontSize:12,color:RED,flex:1}}>{row.noSelf ? 'Nincs önértékelő beállítva' : '⚠ Hiányzó emailcím'}</span>
+                          }
+                          <span style={{fontSize:11,fontFamily:'monospace',color:MUTED,background:S3,borderRadius:4,padding:'1px 6px',flexShrink:0}}>{row.code}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+                {missingCount > 0 && (
+                  <div style={{background:`${ORAN}18`,border:`1px solid ${ORAN}44`,borderRadius:10,padding:'10px 14px',marginBottom:16,fontSize:13,color:ORAN}}>
+                    ⚠ {missingCount} személynek hiányzik az emailcíme — ők nem kapnak meghívót. Az aktiválás ettől még elvégezhető.
+                  </div>
+                )}
+                <div style={{display:'flex',gap:10,justifyContent:'flex-end',paddingTop:8}}>
+                  <Btn variant="ghost" onClick={() => setShowActivatePreview(false)}>Mégsem</Btn>
+                  <Btn onClick={() => { setShowActivatePreview(false); activate(); }}>
+                    ✉ Aktiválás és email küldés ({okCount} db)
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {deletingPartId && (
         <ConfirmModal title="Értékelt törlése"
           message="Az értékelt és az összes hozzá tartozó értékelő törlésre kerül. Ez a művelet nem vonható vissza."
@@ -4360,476 +4438,11 @@ function ProjectSummaryView({ nav, goBack, ctx }) {
   );
 }
 
-// ─── AI GROUP REPORT VIEW ─────────────────────────────────────
-// Inline markdown: **bold**, *italic*, `code`
-function renderInline(text) {
-  if (!text) return text;
-  const parts = [];
-  let remaining = text;
-  let key = 0;
-  while (remaining.length > 0) {
-    const boldMatch  = remaining.match(/^(.*?)\*\*(.+?)\*\*/s);
-    const italMatch  = !boldMatch && remaining.match(/^(.*?)\*(.+?)\*/s);
-    const codeMatch  = !boldMatch && !italMatch && remaining.match(/^(.*?)`(.+?)`/s);
-    const m = boldMatch || italMatch || codeMatch;
-    if (!m) { parts.push(<span key={key++}>{remaining}</span>); break; }
-    if (m[1]) parts.push(<span key={key++}>{m[1]}</span>);
-    if (boldMatch) parts.push(<strong key={key++} style={{fontWeight:700,color:TEXT}}>{m[2]}</strong>);
-    else if (italMatch) parts.push(<em key={key++} style={{fontStyle:'italic'}}>{m[2]}</em>);
-    else parts.push(<code key={key++} style={{background:S2,borderRadius:4,padding:'1px 5px',fontSize:12,fontFamily:'monospace'}}>{m[2]}</code>);
-    remaining = remaining.slice(m[0].length);
-  }
-  return parts;
-}
-
-function AIGroupReportView({ nav, goBack, ctx }) {
-  const projectId = ctx.projectId;
-  const [proj,    setProj]    = useState(null);
-  const [gdata,   setGdata]   = useState(null);
-  const [text,    setText]    = useState('');
-  const [loading, setLoading] = useState(true);
-  const [genning, setGenning] = useState(false);
-  const [error,   setError]   = useState('');
-
-  useEffect(() => {
-    (async () => {
-      const p = await db.get(projectId);
-      setProj(p);
-      const preset = resolvePreset(p?.libraryId, p?.customDims);
-      const pks = await db.list('part:');
-      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
-      const rks = await db.list('rat:');
-      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
-      const selfAll = [], peerAll = [];
-      for (const part of ps) {
-        const pr    = rs.filter(r => r.participantId === part.id);
-        const selfR = pr.find(r => r.role === 'self');
-        const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
-        if (selfR) { const resp = await db.get('resp:'+selfR.code); if (resp) selfAll.push(resp.scores||{}); }
-        for (const r of peerR) { const resp = await db.get('resp:'+r.code); if (resp) peerAll.push(resp.scores||{}); }
-      }
-      setGdata({ preset, selfAll, peerAll, partCount: ps.length });
-      setLoading(false);
-    })();
-  }, [projectId]);
-
-  async function generate() {
-    if (!gdata || genning) return;
-    setGenning(true); setError('');
-    const selfAvg = mergeScoresets(gdata.selfAll);
-    const peerAvg = mergeScoresets(gdata.peerAll);
-    try {
-      const res = await fetch('/api/generate-report', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ type:'group', projectName: proj?.name, dimsData: gdata.preset?.dims, selfAvg, peerAvg, scaleMax: 5 })
-      });
-      const data = await res.json();
-      if (data.error) { setError(data.error); } else { setText(data.text); }
-    } catch(e) { setError(e.message); }
-    setGenning(false);
-  }
-
-  // Simple markdown-ish renderer
-  function renderText(t) {
-    return t.split('\n').map((line, i) => {
-      const tr = line.trim();
-      if (tr === '' || tr === '---') return <div key={i} style={{height: tr === '---' ? 0 : 8, borderTop: tr === '---' ? `1px solid ${BORD}` : 'none', margin: tr === '---' ? '16px 0' : 0}}/>;
-      if (line.startsWith('# '))   return <div key={i} style={{fontFamily:"'Instrument Serif',serif",fontSize:22,color:TEXT,fontWeight:400,marginTop:24,marginBottom:10}}>{renderInline(line.slice(2))}</div>;
-      if (line.startsWith('## '))  return <div key={i} style={{fontSize:16,fontWeight:700,color:GOLD,marginTop:22,marginBottom:8}}>{renderInline(line.slice(3))}</div>;
-      if (line.startsWith('### ')) return <div key={i} style={{fontSize:14,fontWeight:700,color:TEXT,marginTop:16,marginBottom:6}}>{renderInline(line.slice(4))}</div>;
-      if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,paddingLeft:18,position:'relative',marginBottom:2}}><span style={{position:'absolute',left:4,color:GOLD,fontWeight:700}}>·</span>{renderInline(line.slice(2))}</div>;
-      if (line.startsWith('> ')) return <div key={i} style={{fontSize:14,color:MUTED,lineHeight:1.7,paddingLeft:14,borderLeft:`3px solid ${GOLD}`,marginBottom:4,fontStyle:'italic'}}>{renderInline(line.slice(2))}</div>;
-      if (tr.startsWith('|')) return null; // skip table rows — too complex for inline renderer
-      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,marginBottom:2}}>{renderInline(line)}</div>;
-    });
-  }
-
-  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
-
-  const hasData = gdata && (gdata.selfAll.length > 0 || gdata.peerAll.length > 0);
-
-  return (
-    <div style={{background:BG,minHeight:'100vh'}}>
-      <TopBar title={(proj?.name||'') + ' — AI Csoportriport'} subtitle={proj?.client||''} back onBack={goBack}/>
-      <div style={{maxWidth:800,margin:'0 auto',padding:'22px 24px'}}>
-        <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'18px 22px',marginBottom:20}}>
-          <div style={{fontSize:13,color:MUTED,lineHeight:1.6}}>
-            Az AI összefoglaló a projekt összes értékeltjének aggregált eredményei alapján készül. <b>Személyes nevek nem szerepelnek.</b> {gdata?.partCount} értékelt, {gdata?.selfAll.length} önértékelés, {gdata?.peerAll.length} peer visszajelzés alapján.
-          </div>
-          <div style={{marginTop:14,display:'flex',gap:10,alignItems:'center'}}>
-            <Btn onClick={generate} disabled={!hasData||genning}>
-              {genning ? '⏳ Generálás...' : text ? '↺ Újragenerálás' : '🤖 Csoportriport generálása'}
-            </Btn>
-            {!hasData && <span style={{fontSize:12,color:MUTED}}>Nincs elegendő adat a generáláshoz.</span>}
-          </div>
-        </div>
-        {genning && <AILoader label="Csoportriport generálása"/>}
-        {error && <div style={{background:`${RED}18`,border:`1px solid ${RED}44`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:RED}}>{error}</div>}
-        {text && !genning && (
-          <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'28px 32px'}}>
-            <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:20}}>AI-generált csoportriport · {new Date().toLocaleDateString('hu-HU')}</div>
-            {renderText(text)}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── PROJECT STATUS VIEW — kitöltési státusz + csoportos emlékeztető ──
-function ProjectStatusView({ nav, goBack, ctx }) {
-  const projectId = ctx.projectId;
-  const [proj,     setProj]     = useState(null);
-  const [entries,  setEntries]  = useState([]); // { rater, part, type:'self'|'peer' }
-  const [selected, setSelected] = useState({}); // rater.id → true
-  const [sending,  setSending]  = useState(false);
-  const [sentMsg,  setSentMsg]  = useState('');
-  const [loading,  setLoading]  = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const p = await db.get(projectId);
-      setProj(p);
-      const pks = await db.list('part:');
-      const ps  = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
-      const rks = await db.list('rat:');
-      const rs  = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
-      const list = [];
-      for (const part of ps) {
-        const pr = rs.filter(r => r.participantId === part.id);
-        for (const rater of pr) {
-          list.push({ rater, part, type: rater.role === 'self' ? 'self' : 'peer' });
-        }
-      }
-      setEntries(list);
-      setLoading(false);
-    })();
-  }, [projectId]);
-
-  const notStarted  = entries.filter(e => e.rater.status === 'pending');
-  const inProgress  = entries.filter(e => e.rater.status === 'in_progress');
-  const done        = entries.filter(e => e.rater.status === 'done');
-
-  function toggleSelect(id) { setSelected(prev => ({...prev, [id]: !prev[id]})); }
-  function selectAll(list) { const s = {}; list.forEach(e => { if (e.rater.email) s[e.rater.id] = true; }); setSelected(s); }
-  function clearAll() { setSelected({}); }
-
-  const selectedEntries = entries.filter(e => selected[e.rater.id]);
-
-  async function sendReminders() {
-    if (!selectedEntries.length) return;
-    setSending(true);
-    const cs = await db.get('collab:'+projectId) || [];
-    const contact = cs.find(c => c.permission === 'contact');
-    const session = await auth.getSession();
-    const cc = contact
-      ? { name: contact.name||'', email: contact.email||'', phone: contact.phone||'' }
-      : { name: session?.name||session?.email||'', email:'', phone:'' };
-    let ok = 0;
-    for (const e of selectedEntries) {
-      // Fallback: self-rater may have empty rater.email but part has email
-      const emailTo = e.rater.email || (e.rater.role === 'self' ? e.part?.email : null);
-      if (!emailTo) continue;
-      // self-rater reminder uses selfInvite template (not peerInvite)
-      const templateKey = e.rater.role === 'self' ? 'selfInvite' : 'reminder';
-      const partName = `${e.part.firstName} ${e.part.lastName||''}`.trim();
-      const res = await sendProjectEmail({ to:emailTo, firstName:e.rater.firstName, participantName:partName, code:e.rater.code, project:proj, templateKey, consultantName:cc.name, consultantEmail:cc.email, consultantPhone:cc.phone });
-      if (res.ok) {
-        await db.set(e.rater.id, { ...e.rater, reminder_sent_at: Date.now() });
-        ok++;
-      } else {
-        console.error('[sendReminders] failed:', emailTo, e.rater.code, e.rater.role);
-      }
-    }
-    setSending(false);
-    setSentMsg(`✓ ${ok} emlékeztető elküldve`);
-    setTimeout(() => setSentMsg(''), 4000);
-    clearAll();
-  }
-
-  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
-
-  function EntryRow({ e }) {
-    const r = e.rater;
-    const hasEmail = !!r.email;
-    const isSelected = !!selected[r.id];
-    const statusColor = r.status==='done' ? GREEN : r.status==='in_progress' ? ORAN : MUTED;
-    const statusLabel = r.status==='done' ? 'Kész' : r.status==='in_progress' ? 'Folyamatban' : 'Nem kezdte el';
-    return (
-      <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderBottom:`1px solid ${BORD}`,
-        background: isSelected ? `${GOLD}0A` : 'transparent'}}>
-        {r.status !== 'done' && hasEmail && (
-          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(r.id)}
-            style={{width:16,height:16,accentColor:GOLD,cursor:'pointer',flexShrink:0}}/>
-        )}
-        {(r.status === 'done' || !hasEmail) && <div style={{width:16,flexShrink:0}}/>}
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13,color:TEXT,fontWeight:500}}>
-            {r.firstName} {r.lastName}
-            {e.type === 'self' && <span style={{fontSize:10,color:GOLD,marginLeft:6,fontWeight:700}}>ÖNÉRTÉKELÉS</span>}
-            {e.type === 'peer' && <span style={{fontSize:10,color:BLUE,marginLeft:6}}>→ {e.part.firstName} {e.part.lastName}</span>}
-          </div>
-          {r.email
-            ? <div style={{fontSize:11,color:MUTED}}>{r.email}</div>
-            : <div style={{fontSize:11,color:RED}}>⚠ Nincs email cím</div>}
-        </div>
-        {r.reminder_sent_at && <span style={{fontSize:10,color:MUTED}}>⏰ {new Date(r.reminder_sent_at).toLocaleDateString('hu-HU')}</span>}
-        <div style={{width:8,height:8,borderRadius:'50%',background:statusColor,flexShrink:0}}/>
-        <span style={{fontSize:12,color:statusColor,fontWeight:600,width:90,textAlign:'right',flexShrink:0}}>{statusLabel}</span>
-      </div>
-    );
-  }
-
-  function Section({ title, color, list }) {
-    if (!list.length) return null;
-    const selectable = list.filter(e => e.rater.email && e.rater.status !== 'done');
-    const allSelected = selectable.length > 0 && selectable.every(e => !!selected[e.rater.id]);
-    const someSelected = !allSelected && selectable.some(e => !!selected[e.rater.id]);
-    function toggleSection() {
-      if (allSelected) {
-        const s = {...selected};
-        selectable.forEach(e => { delete s[e.rater.id]; });
-        setSelected(s);
-      } else {
-        selectAll(selectable);
-      }
-    }
-    return (
-      <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,marginBottom:16,overflow:'hidden'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,padding:'14px 16px',borderBottom:`1px solid ${BORD}`,background:S2}}>
-          {selectable.length > 0 ? (
-            <input type="checkbox"
-              checked={allSelected}
-              onChange={toggleSection}
-              style={{width:16,height:16,accentColor:GOLD,cursor:'pointer',flexShrink:0,
-                opacity: someSelected ? 0.6 : 1}}
-            />
-          ) : (
-            <span style={{width:16,flexShrink:0}}/>
-          )}
-          <span style={{width:10,height:10,borderRadius:'50%',background:color,flexShrink:0,display:'inline-block'}}/>
-          <span style={{fontSize:13,fontWeight:700,color:TEXT,flex:1}}>{title}</span>
-          <Badge color={color}>{list.length} fő</Badge>
-        </div>
-        {list.map((e,i) => <EntryRow key={e.rater.id} e={e}/>)}
-      </div>
-    );
-  }
-
-  const selCount = selectedEntries.length;
-
-  return (
-    <div style={{background:BG,minHeight:'100vh'}}>
-      <TopBar title={(proj?proj.name:'') + ' — Státusz'} subtitle={proj?proj.client:''} back onBack={goBack}/>
-      <div style={{maxWidth:760,margin:'0 auto',padding:'22px 24px'}}>
-
-        {/* Summary */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:22}}>
-          {[
-            {label:'Kész', val:done.length, color:GREEN},
-            {label:'Folyamatban', val:inProgress.length, color:ORAN},
-            {label:'Nem kezdte el', val:notStarted.length, color:MUTED},
-          ].map(s => (
-            <div key={s.label} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:'14px 18px',textAlign:'center'}}>
-              <div style={{fontSize:28,fontFamily:"'Instrument Serif',serif",color:s.color,fontWeight:600}}>{s.val}</div>
-              <div style={{fontSize:11,color:MUTED,marginTop:4}}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Sticky reminder bar */}
-        {selCount > 0 && (
-          <div style={{position:'sticky',top:12,zIndex:10,background:SURF,border:`1px solid ${GOLD}`,borderRadius:12,
-            padding:'12px 18px',marginBottom:16,display:'flex',alignItems:'center',gap:12,boxShadow:'0 4px 16px rgba(0,0,0,.1)'}}>
-            <span style={{fontSize:13,color:TEXT,flex:1}}><b style={{color:GOLD}}>{selCount} fő</b> kijelölve emlékeztetőre</span>
-            <Btn variant="ghost" size="sm" onClick={clearAll}>Törlés</Btn>
-            <Btn size="sm" onClick={sendReminders} disabled={sending}>
-              {sending ? 'Küldés...' : `✉ Emlékeztető küldése`}
-            </Btn>
-          </div>
-        )}
-        {sentMsg && (
-          <div style={{background:`${GREEN}22`,border:`1px solid ${GREEN}44`,borderRadius:10,padding:'10px 16px',marginBottom:16,fontSize:13,color:GREEN}}>{sentMsg}</div>
-        )}
-
-        <Section title="Nem kezdte el" color={MUTED} list={notStarted}/>
-        <Section title="Folyamatban" color={ORAN} list={inProgress}/>
-        <Section title="Kész" color={GREEN} list={done}/>
-
-        {entries.length === 0 && (
-          <div style={{textAlign:'center',padding:48,color:MUTED}}>Még nincs értékelt vagy értékelő a projektben.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── PROJECT COMPARE VIEW — összehasonlító nézet ──────────
-function ProjectCompareView({ nav, goBack, ctx }) {
-  const projectId = ctx.projectId;
-  const [proj,     setProj]     = useState(null);
-  const [parts,    setParts]    = useState([]);
-  const [selected, setSelected] = useState({});
-  const [partData, setPartData] = useState({});
-  const [preset,   setPreset]   = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-
-  useEffect(() => {
-    if (!projectId) { setError('Hiányzó projekt azonosító.'); setLoading(false); return; }
-    (async () => {
-      try {
-        const p = await db.get(projectId);
-        if (!p) { setError('A projekt nem található.'); setLoading(false); return; }
-        setProj(p);
-        setPreset(resolvePreset(p.libraryId, p.customDims));
-        const pks = await db.list('part:');
-        const allParts = (await Promise.all(pks.map(k => db.get(k)))).filter(x => x && x.projectId === projectId);
-        setParts(allParts);
-        const sel = {};
-        allParts.forEach(p => { sel[p.id] = true; });
-        setSelected(sel);
-        const rks = await db.list('rat:');
-        const allRats = (await Promise.all(rks.map(k => db.get(k)))).filter(r => r && r.projectId === projectId);
-        const pd = {};
-        for (const part of allParts) {
-          const pr = allRats.filter(r => r && r.participantId === part.id);
-          const selfR = pr.find(r => r.role === 'self');
-          const peerR = pr.filter(r => r.role !== 'self' && r.status === 'done');
-          const selfResp = selfR ? await db.get('resp:'+selfR.code) : null;
-          const peerResps = (await Promise.all(peerR.map(r => db.get('resp:'+r.code)))).filter(Boolean);
-          pd[part.id] = {
-            selfScores: (selfResp && selfResp.scores) ? selfResp.scores : null,
-            peerAvg:    mergeScoresets(peerResps.map(r => r.scores||{})),
-            selfDone:   !!(selfR && selfR.status === 'done'),
-            peerDone:   peerR.length,
-          };
-        }
-        setPartData(pd);
-      } catch(e) {
-        console.error('[CompareView] error:', e);
-        setError('Betöltési hiba: ' + e.message);
-      }
-      setLoading(false);
-    })();
-  }, [projectId]);
-
-  if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
-  if (error)   return <div style={{padding:40,color:RED,textAlign:'center',background:BG,minHeight:'100vh'}}>{error}</div>;
-
-  const COLORS = [GOLD, BLUE, GREEN, PURP, ORAN, '#7E5EA0', '#4A7A9E', '#A06A48'];
-  const dims = (preset && Array.isArray(preset.dims)) ? preset.dims : [];
-  const activeParts = parts.filter(p => selected[p.id]);
-
-  function ScoreBar({ val, color, max }) {
-    const m = max || 5;
-    const pct = (val && val > 0) ? Math.min(100, Math.round(val / m * 100)) : 0;
-    return (
-      <div style={{display:'flex',alignItems:'center',gap:8}}>
-        <div style={{flex:1,height:10,background:'#EDE9E2',borderRadius:5,overflow:'hidden'}}>
-          <div style={{height:'100%',width:pct+'%',background:color,borderRadius:5}}/>
-        </div>
-        <span style={{width:28,fontSize:12,fontWeight:700,color:val&&val>0?color:MUTED,flexShrink:0,textAlign:'right'}}>
-          {val && val > 0 ? val.toFixed(1) : '—'}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{background:BG,minHeight:'100vh'}}>
-      <TopBar title={(proj?proj.name:'') + ' — Összehasonlító riport'} subtitle={proj?proj.client:''} back onBack={goBack}/>
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'22px 24px'}}>
-
-        {/* Selector chips */}
-        <div style={{marginBottom:24}}>
-          <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:10}}>
-            Értékeltek — kattints a be/ki kapcsoláshoz
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            {parts.map((part, i) => {
-              const on = !!selected[part.id];
-              const col = COLORS[i % COLORS.length];
-              return (
-                <button key={part.id}
-                  onClick={() => setSelected(prev => ({...prev, [part.id]: !prev[part.id]}))}
-                  style={{padding:'7px 16px',borderRadius:20,border:`2px solid ${on?col:BORD}`,
-                    background:on?`${col}18`:'transparent',color:on?col:MUTED,
-                    fontWeight:on?700:400,cursor:'pointer',fontSize:13,
-                    fontFamily:"'DM Sans',sans-serif",transition:'all .15s'}}>
-                  {part.firstName} {part.lastName}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {activeParts.length === 0 && (
-          <div style={{textAlign:'center',padding:48,color:MUTED}}>Válassz ki legalább egy értékeltet.</div>
-        )}
-
-        {/* Dimension cards */}
-        {activeParts.length > 0 && dims.map(d => (
-          <div key={d.id} style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,marginBottom:14,overflow:'hidden'}}>
-            {/* Dim header */}
-            <div style={{padding:'12px 20px',background:`${d.color||GOLD}14`,borderBottom:`1px solid ${BORD}`}}>
-              <span style={{fontSize:13,fontWeight:700,color:d.color||GOLD}}>{d.label||d.id}</span>
-            </div>
-            {/* Participants side by side */}
-            <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(activeParts.length, 4)}, 1fr)`,gap:0}}>
-              {activeParts.map((part, i) => {
-                const col = COLORS[parts.indexOf(part) % COLORS.length];
-                const pd = partData[part.id] || {};
-                const selfVal = pd.selfScores ? dimAvg(pd.selfScores, d) : 0;
-                const peerVal = pd.peerAvg ? dimAvg(pd.peerAvg, d) : 0;
-                return (
-                  <div key={part.id} style={{padding:'14px 18px',borderRight: i < activeParts.length-1 ? `1px solid ${BORD}` : 'none'}}>
-                    <div style={{fontSize:12,color:col,fontWeight:700,marginBottom:10}}>
-                      {part.firstName} {part.lastName}
-                      <span style={{fontSize:10,color:MUTED,fontWeight:400,marginLeft:6}}>
-                        {pd.selfDone?'✓':'○'} · {pd.peerDone||0} értékelő
-                      </span>
-                    </div>
-                    <div style={{marginBottom:6}}>
-                      <div style={{fontSize:10,color:MUTED,marginBottom:3}}>Önértékelés</div>
-                      <ScoreBar val={selfVal} color={GOLD} max={5}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:10,color:MUTED,marginBottom:3}}>Értékelők átlaga</div>
-                      <ScoreBar val={peerVal} color={col} max={5}/>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        {activeParts.length > 0 && dims.length === 0 && (
-          <div style={{textAlign:'center',padding:48,color:MUTED}}>Nincs kompetencia adat ehhez a projekthez.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
 function ReportPageView({ nav, goBack, ctx }) {
   const projectId     = ctx.projectId;
   const participantId = ctx.participantId;
-  const [data,       setData]      = useState(null);
-  const [loading,    setLoading]   = useState(true);
-  const [pageTab,    setPageTab]   = useState('report'); // 'report' | 'ai'
-  // AI dev plan state
-  const [aiText,     setAiText]    = useState('');
-  const [aiGenning,  setAiGenning] = useState(false);
-  const [aiError,    setAiError]   = useState('');
-  const [chatMsgs,   setChatMsgs]  = useState([]); // {role,content}
-  const [chatInput,  setChatInput] = useState('');
-  const [chatSending,setChatSending]=useState(false);
-  // Share state
-  const [sharing,    setSharing]   = useState(false);
-  const [shareMsg,   setShareMsg]  = useState('');
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -4848,7 +4461,7 @@ function ReportPageView({ nav, goBack, ctx }) {
         const k = r.role;
         if (!roleGroups[k]) {
           const ri = DEFAULT_ROLES.find(d => d.id === k);
-          roleGroups[k] = { id:k, name:ri?ri.label:k, emoji:'👤', color:ri?ri.color:MUTED, scores:[] };
+          roleGroups[k] = { id:k, name:ri?ri.label:k, color:ri?ri.color:MUTED, scores:[] };
         }
         if (otherResps[i]) roleGroups[k].scores.push(otherResps[i].scores || {});
       });
@@ -4859,105 +4472,10 @@ function ReportPageView({ nav, goBack, ctx }) {
         color: r.raterCode === (selfR && selfR.code) ? GOLD : BLUE,
         timestamp: r.timestamp,
       }));
-      setData({ proj, part, preset, selfScores:selfResp?selfResp.scores:{}, groups:Object.values(roleGroups), raters:pr, comments:collectedComments, peerAvg: mergeScoresets(otherResps.filter(Boolean).map(r=>r.scores||{})) });
+      setData({ proj, part, preset, selfScores:selfResp?selfResp.scores:{}, groups:Object.values(roleGroups), raters:pr, comments:collectedComments });
       setLoading(false);
     })();
   }, [projectId, participantId]);
-
-  async function generateAI() {
-    if (!data || aiGenning) return;
-    setAiGenning(true); setAiError('');
-    const { proj, part, preset, selfScores, peerAvg } = data;
-    const allItems = (preset?.dims||[]).flatMap(d => d.items.map(i=>({...i,dimLabel:d.label})));
-    const selfArr  = allItems.map(i=>({...i, self:selfScores[i.id]||0, others:peerAvg[i.id]||0})).filter(i=>i.self>0);
-    const bs = selfArr.filter(i=>i.others>0 && i.self-i.others>=1.0);
-    const hs = selfArr.filter(i=>i.others>0 && i.others-i.self>=1.0);
-    try {
-      const res = await fetch('/api/generate-report', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ type:'individual', projectName:proj?.name, partName:`${part?.firstName} ${part?.lastName||''}`.trim(), dimsData:preset?.dims, selfAvg:selfScores, peerAvg, scaleMax:5, blindSpots:bs, hiddenStr:hs })
-      });
-      const d = await res.json();
-      if (d.error) { setAiError(d.error); } else {
-        setAiText(d.text);
-        setChatMsgs([
-          { role:'user', content: `Értékelt: ${part?.firstName} ${part?.lastName||''}. Fejlesztési terv generálva.` },
-          { role:'assistant', content: d.text }
-        ]);
-      }
-    } catch(e) { setAiError(e.message); }
-    setAiGenning(false);
-  }
-
-  async function sendChat() {
-    if (!chatInput.trim() || chatSending) return;
-    const newMsg = { role:'user', content: chatInput.trim() };
-    const updatedMsgs = [...chatMsgs, newMsg];
-    setChatMsgs(updatedMsgs); setChatInput(''); setChatSending(true);
-    try {
-      const res = await fetch('/api/generate-report', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ type:'chat', chatMessages: updatedMsgs })
-      });
-      const d = await res.json();
-      if (d.text) setChatMsgs(prev => [...prev, { role:'assistant', content: d.text }]);
-    } catch(e) {}
-    setChatSending(false);
-  }
-
-  async function shareWithParticipant() {
-    if (!data || sharing) return;
-    const { proj, part, preset, selfScores, peerAvg } = data;
-    if (!part?.email) { setShareMsg('⚠ Az értékelt email-je nem ismert.'); setTimeout(()=>setShareMsg(''),4000); return; }
-    setSharing(true);
-    const dims = preset?.dims || [];
-    // Build score summary HTML
-    const scoreRows = dims.map(d => {
-      const sv = dimAvg(selfScores, d);
-      const pv = dimAvg(peerAvg, d);
-      return `<tr><td style="padding:6px 10px;font-size:13px;color:#4A4A48;">${d.label}</td><td style="padding:6px 10px;text-align:center;font-weight:700;color:#A68542;">${sv>0?sv.toFixed(1):'—'}</td><td style="padding:6px 10px;text-align:center;font-weight:700;color:#4A7A9E;">${pv>0?pv.toFixed(1):'—'}</td></tr>`;
-    }).join('');
-    const aiSection = aiText ? `<div style="margin-top:24px;padding:20px;background:#F5F3EF;border-radius:10px;"><div style="font-size:12px;color:#8A8478;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em;">AI-fejlesztési terv</div><div style="font-size:14px;color:#4A4A48;line-height:1.7;white-space:pre-wrap;">${aiText.replace(/\*\*/g,'').replace(/</g,'&lt;')}</div></div>` : '';
-    const htmlBody = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;color:#1A1A18;">
-      <div style="text-align:center;margin-bottom:28px;"><span style="font-family:Georgia,serif;font-size:16px;color:#8A8478;">LEDGE <span style="color:#A68542">360°</span></span></div>
-      <h1 style="font-family:Georgia,serif;font-size:22px;font-weight:400;margin:0 0 8px;">Kedves ${part.firstName}!</h1>
-      <p style="font-size:14px;color:#4A4A48;line-height:1.7;">Az alábbiakban megtalálod a <b>${proj?.name||'360°-os értékelés'}</b> személyes eredményeidet.</p>
-      <table style="width:100%;border-collapse:collapse;margin:20px 0;border:1px solid #E2DED6;border-radius:8px;overflow:hidden;">
-        <thead><tr style="background:#F5F3EF;">
-          <th style="padding:8px 10px;text-align:left;font-size:11px;color:#8A8478;text-transform:uppercase;">Kompetencia</th>
-          <th style="padding:8px 10px;text-align:center;font-size:11px;color:#A68542;text-transform:uppercase;">Önértékelés</th>
-          <th style="padding:8px 10px;text-align:center;font-size:11px;color:#4A7A9E;text-transform:uppercase;">Értékelőid</th>
-        </tr></thead>
-        <tbody>${scoreRows}</tbody>
-      </table>
-      ${aiSection}
-      <hr style="border:none;border-top:1px solid #E2DED6;margin:28px 0;">
-      <p style="font-size:11px;color:#C5C0B8;text-align:center;">LEDGE 360° — ${proj?.client||'ZEL Group'} · Bizalmas értékelési anyag</p>
-    </div>`;
-    try {
-      const res = await fetch('/api/send-invite', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ to:part.email, code:'—', raterName:part.firstName, htmlBody, subject:`${proj?.name||'360°'} — személyes eredményeid`, surveyTitle:proj?.name })
-      });
-      setShareMsg(res.ok ? `✓ Elküldve: ${part.email}` : '⚠ Küldési hiba');
-    } catch(e) { setShareMsg('⚠ Küldési hiba'); }
-    setSharing(false);
-    setTimeout(()=>setShareMsg(''),5000);
-  }
-
-  function renderAiText(t) {
-    return t.split('\n').map((line, i) => {
-      const tr = line.trim();
-      if (tr === '' || tr === '---') return <div key={i} style={{height: tr === '---' ? 0 : 6, borderTop: tr === '---' ? `1px solid ${BORD}` : 'none', margin: tr === '---' ? '14px 0' : 0}}/>;
-      if (line.startsWith('# '))   return <div key={i} style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,fontWeight:400,marginTop:22,marginBottom:8}}>{renderInline(line.slice(2))}</div>;
-      if (line.startsWith('## '))  return <div key={i} style={{fontSize:15,fontWeight:700,color:GOLD,marginTop:20,marginBottom:6}}>{renderInline(line.slice(3))}</div>;
-      if (line.startsWith('### ')) return <div key={i} style={{fontSize:14,fontWeight:700,color:TEXT,marginTop:14,marginBottom:4}}>{renderInline(line.slice(4))}</div>;
-      if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,paddingLeft:18,position:'relative',marginBottom:2}}><span style={{position:'absolute',left:4,color:GOLD,fontWeight:700}}>·</span>{renderInline(line.slice(2))}</div>;
-      if (line.startsWith('> ')) return <div key={i} style={{fontSize:14,color:MUTED,lineHeight:1.7,paddingLeft:14,borderLeft:`3px solid ${GOLD}`,marginBottom:4,fontStyle:'italic'}}>{renderInline(line.slice(2))}</div>;
-      if (tr.startsWith('|')) return null;
-      return <div key={i} style={{fontSize:14,color:TEXT,lineHeight:1.75,marginBottom:2}}>{renderInline(line)}</div>;
-    });
-  }
 
   if (loading) return <div style={{padding:40,color:MUTED,textAlign:'center',background:BG,minHeight:'100vh'}}>Betöltés...</div>;
   if (!data)   return <div style={{padding:40,color:MUTED,background:BG,minHeight:'100vh'}}>Nincs adat.</div>;
@@ -4965,109 +4483,24 @@ function ReportPageView({ nav, goBack, ctx }) {
   const { proj, part, preset, selfScores, groups, raters, comments } = data;
   const totalDone = raters.filter(r => r.status === 'done').length;
 
-  const TAB_BTN = (id, label) => (
-    <button onClick={() => setPageTab(id)} style={{padding:'10px 22px',border:'none',background:'none',cursor:'pointer',
-      fontSize:14,fontFamily:"'DM Sans',sans-serif",color:pageTab===id?GOLD:MUTED,
-      borderBottom:pageTab===id?`2px solid ${GOLD}`:'2px solid transparent',
-      fontWeight:pageTab===id?600:400,transition:'all .15s'}}>
-      {label}
-    </button>
-  );
-
   return (
     <div style={{background:BG,minHeight:'100vh'}}>
       <TopBar
         title={(part?part.firstName+' '+part.lastName:'') + ' — riport'}
         subtitle={proj?proj.name:''}
         back onBack={goBack}
-        right={
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            {shareMsg && <span style={{fontSize:12,color:shareMsg.startsWith('✓')?GREEN:ORAN}}>{shareMsg}</span>}
-            <Btn size="sm" variant="ghost" onClick={shareWithParticipant} disabled={sharing}>
-              {sharing ? '...' : '📤 Megosztás'}
-            </Btn>
-          </div>
-        }
       />
-      {/* Page-level tab bar */}
-      <div style={{borderBottom:`1px solid ${BORD}`,background:SURF,display:'flex',paddingLeft:24}}>
-        {TAB_BTN('report', '📊 Eredmények')}
-        {TAB_BTN('ai', '🤖 AI Fejlesztési terv')}
-      </div>
       <div style={{maxWidth:960,margin:'0 auto',padding:'22px 24px'}}>
-        {pageTab === 'report' && (
-          <>
-            <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:18}}>
-              <Badge color={GOLD}>{preset.name}</Badge>
-              <Badge color={BLUE}>{totalDone}/{raters.length} beküldött</Badge>
-              {groups.length === 0 && <span style={{fontSize:13,color:ORAN}}>⚠ Még nincs peer visszajelzés</span>}
-            </div>
-            <ReportView dims={preset.dims} selfScores={selfScores} groups={groups} comments={comments} scaleMax={getScaleMax((data.proj && data.proj.scaleId) || '5pt')}/>
-          </>
-        )}
-        {pageTab === 'ai' && (
-          <div>
-            {/* Generate button — only show if not generating and no text yet */}
-            {!aiText && !aiGenning && (
-              <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
-                <div style={{fontFamily:"'Instrument Serif',serif",fontSize:20,color:TEXT,marginBottom:8}}>AI Fejlesztési terv</div>
-                <div style={{fontSize:13,color:MUTED,lineHeight:1.6,marginBottom:16}}>
-                  Az AI elemzi {part?.firstName} eredményeit — erősségeket, vak foltokat, rejtett erősségeket — és személyes, cselekvésorientált fejlesztési tervet készít. Utána kérdezhetsz, pontosíthatsz.
-                </div>
-                {aiError && <div style={{fontSize:12,color:RED,marginBottom:12}}>{aiError}</div>}
-                <Btn onClick={generateAI}>🤖 Fejlesztési terv generálása</Btn>
-              </div>
-            )}
-            {/* Loader */}
-            {aiGenning && <AILoader label={`${part?.firstName} fejlesztési tervének elkészítése`}/>}
-            {/* Generated plan */}
-            {aiText && !aiGenning && (
-              <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:'24px 28px',marginBottom:20}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                  <div style={{fontSize:11,color:MUTED,textTransform:'uppercase',letterSpacing:'.1em'}}>AI Fejlesztési terv · {part?.firstName} {part?.lastName}</div>
-                  <button onClick={generateAI} disabled={aiGenning} style={{fontSize:11,color:MUTED,background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>↺ Újra</button>
-                </div>
-                {renderAiText(aiText)}
-              </div>
-            )}
-            {/* Chat */}
-            {aiText && !aiGenning && (
-              <div style={{background:SURF,border:`1px solid ${BORD}`,borderRadius:14,overflow:'hidden'}}>
-                <div style={{padding:'14px 20px',borderBottom:`1px solid ${BORD}`,fontSize:13,color:MUTED}}>💬 Folytasd a párbeszédet — kérdezz, pontosíts</div>
-                <div style={{maxHeight:320,overflowY:'auto',padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
-                  {chatMsgs.slice(2).map((m,i) => (
-                    <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
-                      <div style={{maxWidth:'80%',background:m.role==='user'?`${GOLD}22`:S2,border:`1px solid ${m.role==='user'?GDIM:BORD}`,borderRadius:12,padding:'10px 14px',fontSize:13,color:TEXT,lineHeight:1.6}}>
-                        {m.content}
-                      </div>
-                    </div>
-                  ))}
-                  {chatSending && (
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <svg width="20" height="20" viewBox="0 0 20 20" style={{animation:'spin 1s linear infinite',flexShrink:0}}>
-                        <circle cx="10" cy="10" r="7" fill="none" stroke={BORD} strokeWidth="2.5"/>
-                        <circle cx="10" cy="10" r="7" fill="none" stroke={GOLD} strokeWidth="2.5" strokeDasharray="14 30" strokeLinecap="round"/>
-                      </svg>
-                      <span style={{fontSize:12,color:MUTED}}>Az AI gondolkodik…</span>
-                    </div>
-                  )}
-                </div>
-                <div style={{display:'flex',gap:8,padding:'12px 16px',borderTop:`1px solid ${BORD}`}}>
-                  <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                    onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}}
-                    placeholder="Írj egy kérdést… (Enter = küldés)"
-                    style={{flex:1,background:S2,border:`1px solid ${BORD}`,borderRadius:10,padding:'10px 14px',fontSize:13,color:TEXT,fontFamily:"'DM Sans',sans-serif",outline:'none'}}/>
-                  <Btn size="sm" onClick={sendChat} disabled={chatSending||!chatInput.trim()}>Küldés</Btn>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:18}}>
+          <Badge color={GOLD}>{preset.name}</Badge>
+          <Badge color={BLUE}>{totalDone}/{raters.length} beküldött</Badge>
+          {groups.length === 0 && <span style={{fontSize:13,color:ORAN}}>⚠ Még nincs peer visszajelzés</span>}
+        </div>
+        <ReportView dims={preset.dims} selfScores={selfScores} groups={groups} comments={comments} scaleMax={getScaleMax((data.proj && data.proj.scaleId) || '5pt')}/>
       </div>
     </div>
   );
 }
-
 
 // ─── SHARE MODAL ──────────────────────────────────────────────
 function ShareModal({ onClose, libraryId, dims, customName }) {
@@ -5859,9 +5292,7 @@ export default function App() {
     raters:           <RatersView        nav={nav} goBack={goBack} ctx={ctx}/>,
     report:           <ReportPageView     nav={nav} goBack={goBack} ctx={ctx}/>,
     project_summary:  <ProjectSummaryView  nav={nav} goBack={goBack} ctx={ctx}/>,
-    project_compare:  <ProjectCompareView  nav={nav} goBack={goBack} ctx={ctx}/>,
     project_status:   <ProjectStatusView   nav={nav} goBack={goBack} ctx={ctx}/>,
-    ai_group_report:  <AIGroupReportView   nav={nav} goBack={goBack} ctx={ctx}/>,
     library_manager:  <LibraryManagerView nav={nav} goBack={goBack} ctx={ctx}/>,
   };
 
