@@ -1,13 +1,16 @@
 'use client';
 // ============================================================
 // LEDGE — Learn (Explain in 5 Minutes + Resource Library)
-// app/learn/page.js
+// app/learn/page.js  ·  v2
 //
-// Reads from Supabase (anon, RLS public-read):
-//   learning_modules  (status='published')
-//   learning_resources (status='published')
-// Browse + filter by the 8 dimensions and by resource type.
-// Modules link to /learn/module/[id] (the nugget reader).
+// Reads learning_modules + learning_resources from Supabase
+// (anon, RLS public-read). Browse + filter by dimension/type.
+//
+// v2 changes:
+//  - Handles real DB type 'external_video' (not 'video')
+//  - EVERY card is now clickable: external URL opens in a new
+//    tab; otherwise it links to the internal reader
+//    /learn/resource/[id] (renders body_content).
 // ============================================================
 
 import { useState, useEffect, useMemo } from 'react';
@@ -19,30 +22,26 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// ── The 8 visible dimensions (labels shown to the leader) ──────
 const DIMENSIONS = [
   'Meaning-Maker', 'Strategist', 'Tech-Savvy', 'Operator',
   'Relationship-Weaver', 'Culture-Architect', 'Self-Awareness', 'Transformator',
 ];
 
-// Display labels (platform-facing names, no STOIC reference)
 const DIM_LABEL = {
-  'Meaning-Maker': 'Meaning Maker',
-  'Strategist': 'Strategy',
-  'Tech-Savvy': 'New Technologies',
-  'Operator': 'Operations',
-  'Relationship-Weaver': 'Interpersonal',
-  'Culture-Architect': 'Culture',
-  'Self-Awareness': 'Self-Mastery',
-  'Transformator': 'Change & Transformation',
+  'Meaning-Maker': 'Meaning Maker', 'Strategist': 'Strategy',
+  'Tech-Savvy': 'New Technologies', 'Operator': 'Operations',
+  'Relationship-Weaver': 'Interpersonal', 'Culture-Architect': 'Culture',
+  'Self-Awareness': 'Self-Mastery', 'Transformator': 'Change & Transformation',
 };
 
+// Maps every resource_type that exists in the DB.
 const TYPE_META = {
-  article:     { label: 'Article',     icon: '◇' },
-  video:       { label: 'Video',       icon: '▷' },
-  infographic: { label: 'Infographic', icon: '▦' },
-  book:        { label: 'Book',        icon: '❏' },
-  external:    { label: 'Link',        icon: '↗' },
+  article:        { label: 'Article',     icon: '◇' },
+  external_video: { label: 'Video',       icon: '▷' },
+  video:          { label: 'Video',       icon: '▷' },
+  infographic:    { label: 'Infographic', icon: '▦' },
+  book:           { label: 'Book',        icon: '❏' },
+  external:       { label: 'Link',        icon: '↗' },
 };
 
 const C = {
@@ -100,13 +99,14 @@ export default function LearnPage() {
   );
 
   const typesPresent = useMemo(() => {
+    const order = ['article', 'external_video', 'video', 'infographic', 'book', 'external'];
     const s = new Set(resources.map(r => r.resource_type));
-    return Object.keys(TYPE_META).filter(t => s.has(t));
+    return order.filter(t => s.has(t));
   }, [resources]);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: C.paper, fontFamily: "'DM Sans', system-ui, sans-serif", color: C.ink }}>
-      {/* ── Top bar ─────────────────────────────────── */}
+      {/* Top bar */}
       <header style={{ borderBottom: `1px solid ${C.line}`, padding: '1.1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: 2 }}>
           <span style={{ fontFamily: "'Fraunces', Georgia, serif", fontWeight: 600, fontSize: '1.35rem', color: C.blue, letterSpacing: '-0.01em' }}>L</span>
@@ -118,10 +118,11 @@ export default function LearnPage() {
           <Link href="/chess" style={{ color: C.slate, textDecoration: 'none' }}>Chess</Link>
           <Link href="/learn" style={{ color: C.blue, textDecoration: 'none', fontWeight: 600 }}>Learn</Link>
           <Link href="/coach" style={{ color: C.slate, textDecoration: 'none' }}>Coach</Link>
+          <Link href="/measurement" style={{ color: C.slate, textDecoration: 'none' }}>Measurement</Link>
         </nav>
       </header>
 
-      {/* ── Hero ────────────────────────────────────── */}
+      {/* Hero */}
       <section style={{ maxWidth: 1080, margin: '0 auto', padding: '3rem 1.5rem 1.5rem' }}>
         <p style={{ fontSize: '0.72rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: C.copper, marginBottom: '0.75rem' }}>
           Explain in 5 Minutes
@@ -134,7 +135,7 @@ export default function LearnPage() {
         </p>
       </section>
 
-      {/* ── Filters ─────────────────────────────────── */}
+      {/* Dimension filters */}
       <section style={{ maxWidth: 1080, margin: '0 auto', padding: '0.5rem 1.5rem 0' }}>
         <Chips
           options={[{ k: 'all', label: 'All dimensions' }, ...DIMENSIONS.map(d => ({ k: d, label: DIM_LABEL[d] }))]}
@@ -142,7 +143,6 @@ export default function LearnPage() {
         />
       </section>
 
-      {/* ── Body ────────────────────────────────────── */}
       <main style={{ maxWidth: 1080, margin: '0 auto', padding: '1.75rem 1.5rem 4rem' }}>
         {loading && <Notice text="Loading the library…" sub="One moment." />}
         {error && !loading && <Notice text="The library didn't load." sub={error} />}
@@ -196,7 +196,12 @@ export default function LearnPage() {
               <div style={grid}>
                 {filteredResources.map(res => {
                   const meta = TYPE_META[res.resource_type] || TYPE_META.external;
-                  const href = res.video_url || res.external_url || null;
+                  const externalHref = res.video_url || res.external_url || null;
+                  const isExternal = !!externalHref;
+                  // Every card has a destination: external link OR internal reader.
+                  const href = externalHref || `/learn/resource/${res.id}`;
+                  const actionLabel = isExternal ? 'Open ↗' : 'Read →';
+
                   const inner = (
                     <article style={resourceCard}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
@@ -208,15 +213,16 @@ export default function LearnPage() {
                       {res.description && <p style={cardDesc}>{res.description}</p>}
                       <div style={cardMeta}>
                         <span style={dimTagSmall}>{DIM_LABEL[res.primary_dimension] || res.primary_dimension}</span>
-                        {res.duration_minutes ? <span style={{ marginLeft: 'auto' }}>{res.duration_minutes} min</span> : null}
-                        {href && <span style={{ marginLeft: res.duration_minutes ? '0.5rem' : 'auto', color: C.copper, fontWeight: 600 }}>Open →</span>}
+                        {res.duration_minutes ? <span>· {res.duration_minutes} min</span> : null}
+                        <span style={{ marginLeft: 'auto', color: C.copper, fontWeight: 600 }}>{actionLabel}</span>
                       </div>
                     </article>
                   );
-                  return href ? (
+
+                  return isExternal ? (
                     <a key={res.id} href={href} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>{inner}</a>
                   ) : (
-                    <div key={res.id}>{inner}</div>
+                    <Link key={res.id} href={href} style={{ textDecoration: 'none' }}>{inner}</Link>
                   );
                 })}
               </div>
@@ -228,7 +234,6 @@ export default function LearnPage() {
   );
 }
 
-// ── Small components ───────────────────────────────────────────
 function Chips({ options, active, onPick, small }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -270,7 +275,6 @@ function Notice({ text, sub }) {
   );
 }
 
-// ── Inline style objects ───────────────────────────────────────
 const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' };
 const baseCard = {
   backgroundColor: '#fff', border: `1px solid ${C.line}`, borderRadius: 12,
