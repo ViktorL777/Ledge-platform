@@ -180,7 +180,7 @@ export default function Home() {
           <a href="/learn">Learn</a>
           <a href="/coach">AI Coach</a>
           <a href="/board">Board</a>
-          <a href="/360">360°</a>
+          <a href="/measurement">Measurement</a>
           <a href="/subscribe">Subscribe</a>
         </div>
       </nav>
