@@ -8,7 +8,6 @@
 // by appending to the TOOLS array below.
 // ============================================================
 
-import Link from 'next/link';
 
 const C = {
   blue: '#1a2b4a', slate: '#6b7b8d', copper: '#b87333',
@@ -29,6 +28,16 @@ const TOOLS = [
     url: 'https://ledge360.online',
     status: 'live',
   },
+  {
+    id: 'vezetoi-jollet',
+    name: 'Vezetői Jóllét',
+    tagline: 'Vezetői jóllét-szűrés',
+    description:
+      'Gyors önszűrés vezetőknek: felméri a terhelést, a kiégés korai jeleit és az erőforrásokat. Néhány perc alatt kitölthető, és személyes visszajelzést ad arról, hol érdemes odafigyelni.',
+    tag: 'Magyar nyelvű',
+    url: 'https://vezetoi-jollet.app',
+    status: 'live',
+  },
   // Example placeholder for a future tool — remove or edit freely:
   // {
   //   id: 'team-pulse',
@@ -44,21 +53,7 @@ const TOOLS = [
 export default function MeasurementPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: C.paper, fontFamily: "'DM Sans', system-ui, sans-serif", color: C.ink }}>
-      {/* Top bar */}
-      <header style={{ borderBottom: `1px solid ${C.line}`, padding: '1.1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: 2 }}>
-          <span style={{ fontFamily: "'Fraunces', Georgia, serif", fontWeight: 600, fontSize: '1.35rem', color: C.blue, letterSpacing: '-0.01em' }}>L</span>
-          <span style={{ width: 14, height: 2, backgroundColor: C.copper, display: 'inline-block', marginBottom: 4 }} />
-          <span style={{ fontFamily: "'Fraunces', Georgia, serif", fontWeight: 600, fontSize: '1.35rem', color: C.blue, letterSpacing: '-0.01em' }}>edge</span>
-        </Link>
-        <nav style={{ display: 'flex', gap: '1.25rem', fontSize: '0.85rem' }}>
-          <Link href="/news" style={{ color: C.slate, textDecoration: 'none' }}>News</Link>
-          <Link href="/chess" style={{ color: C.slate, textDecoration: 'none' }}>Chess</Link>
-          <Link href="/learn" style={{ color: C.slate, textDecoration: 'none' }}>Learn</Link>
-          <Link href="/coach" style={{ color: C.slate, textDecoration: 'none' }}>Coach</Link>
-          <Link href="/measurement" style={{ color: C.blue, textDecoration: 'none', fontWeight: 600 }}>Measurement</Link>
-        </nav>
-      </header>
+      
 
       {/* Hero */}
       <section style={{ maxWidth: 1080, margin: '0 auto', padding: '3rem 1.5rem 1.5rem' }}>
