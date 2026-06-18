@@ -31,7 +31,7 @@ export default function LedgeNav() {
     { href: '/learn', label: 'Learn' },
     { href: '/coach', label: 'Coach' },
     { href: '/board', label: 'Board' },
-    { href: '/360',   label: '360°' },
+    { href: '/measurement', label: 'Measurement' },
   ];
 
   return (
